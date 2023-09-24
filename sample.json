@@ -1,0 +1,19 @@
+[
+    {
+        "id": 3,
+        "name": "Tom",
+        "labels": {
+            "age": 67,
+            "friendly": false
+        }
+    },
+    {
+        "id": 7,
+        "name": "Kim",
+        "labels": {
+            "age": 2,
+            "innocent": true
+        },
+        "friends": {"name": "Jon"}
+    }
+]

@@ -142,5 +142,31 @@ pj split depth=1 join  0.01s user 0.01s system 96% cpu 0.012 total
 head -20  0.00s user 0.00s system 26% cpu 0.010 total
 ```
 
+One last example
+
+```
+$ yes '{"name": "bob", "children": ' | pj | head -20
+{
+  "name": "bob",
+  "children": {
+    "name": "bob",
+    "children": {
+      "name": "bob",
+      "children": {
+        "name": "bob",
+        "children": {
+          "name": "bob",
+          "children": {
+            "name": "bob",
+            "children": {
+              "name": "bob",
+              "children": {
+                "name": "bob",
+                "children": {
+                  "name": "bob",
+                  "children": {
+                    "name": "bob",
+```
+
 For now that's all I've got to say. This doesn't look too impressive but it works on very large
 files too!
