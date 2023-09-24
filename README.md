@@ -108,5 +108,39 @@ $ cat sample.json | pj ...name join
 ]
 ```
 
+This last example
+- outputs the sample file *forever* on `stdout`
+- pipes this runs `pj` to join all the records together in one single array (limiting the depth for a twist), 
+- pipes this to `head` to get the first 20 lines
+
+And yet it works!
+
+```
+$ time yes "$(pj -file sample.json -indent -1)" | pj split depth=1 join | head -20
+[
+  {
+    "id": 3,
+    "name": "Tom",
+    "labels": {...}
+  },
+  {
+    "id": 7,
+    "name": "Kim",
+    "labels": {...},
+    "friends": {...}
+  },
+  {
+    "id": 3,
+    "name": "Tom",
+    "labels": {...}
+  },
+  {
+    "id": 7,
+    "name": "Kim",
+yes "$(pj -file sample.json -indent -1)"  0.00s user 0.00s system 21% cpu 0.014 total
+pj split depth=1 join  0.01s user 0.01s system 96% cpu 0.012 total
+head -20  0.00s user 0.00s system 26% cpu 0.010 total
+```
+
 For now that's all I've got to say. This doesn't look too impressive but it works on very large
 files too!
