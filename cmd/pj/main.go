@@ -29,8 +29,12 @@ func main() {
 	// Parse the command line arguments
 	var filename string
 	var indent int
+	var outputFormat string
+	var inputFormat string
 	flag.StringVar(&filename, "file", "", "json input filename (stdin if omitted)")
 	flag.IntVar(&indent, "indent", 2, "indent step for json output (negative means no new lines)")
+	flag.StringVar(&outputFormat, "out", "json", "output format")
+	flag.StringVar(&inputFormat, "in", "json", "input format")
 	flag.Parse()
 
 	// Open input file
@@ -45,9 +49,20 @@ func main() {
 		input = os.Stdin
 	}
 
+	var decoder jsonstream.StreamSource
+
+	switch inputFormat {
+	case "json":
+		decoder = jsonstream.NewJSONDecoder(input)
+	case "gron":
+		decoder = jsonstream.NewGRONDecoder(input)
+	default:
+		fmt.Fprintf(os.Stderr, "invalid input format: %q", outputFormat)
+		os.Exit(1)
+	}
 	// Start parsing the input file
 	stream := jsonstream.StartStream(
-		jsonstream.NewJSONReader(input),
+		decoder,
 		func(err error) {
 			fmt.Fprintf(os.Stderr, "error while parsing: %s", err)
 		},
@@ -72,10 +87,17 @@ func main() {
 		IndentSize: indent,
 	}
 
-	err := jsonstream.ConsumeStream(
-		stream,
-		&jsonstream.JSONEncoder{Printer: printer},
-	)
+	var encoder jsonstream.StreamSink
+	switch outputFormat {
+	case "json":
+		encoder = &jsonstream.JSONEncoder{Printer: printer}
+	case "gron":
+		encoder = &jsonstream.GRONEncoder{Printer: printer}
+	default:
+		fmt.Fprintf(os.Stderr, "invalid output format: %q", outputFormat)
+		os.Exit(1)
+	}
+	err := jsonstream.ConsumeStream(stream, encoder)
 	if err != nil {
 		if errors.Is(err, syscall.EPIPE) {
 			// stdout is a pipe and something closed it (e.g. 'head' or 'less').

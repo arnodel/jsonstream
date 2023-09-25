@@ -53,6 +53,11 @@ Here is a list of transforms:
 
 See the file [builtintransformers.go](builtintransformers.go) for some more details. There are not many so far but it's easy to add some more, and I'm planning to do that.
 
+You can choose an input format and an output format with the `-in` and `-out`.
+
+- `json` (the default) selects JSON format
+- `gron` selects the `GRON` format. It's related (but not quite the same :-|) as the format described in https://github.com/tomnomnom/gron. This allows a workflow of the type `pj -out gron | grep | pj -in gron`
+
 ### Examples
 
 Say we have a `sample.json` file with this content:
@@ -110,8 +115,9 @@ $ cat sample.json | pj ...name join
 ```
 
 This last example
-- outputs the sample file *forever* on `stdout`
-- pipes this runs `pj` to join all the records together in one single array (limiting the depth for a twist), 
+
+- outputs the sample file _forever_ on `stdout`
+- pipes this runs `pj` to join all the records together in one single array (limiting the depth for a twist),
 - pipes this to `head` to get the first 20 lines
 
 And yet it works!

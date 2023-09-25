@@ -15,8 +15,8 @@ type JSONDecoder struct {
 
 var _ StreamSource = &JSONDecoder{}
 
-// NewJSONReader sets up a new Reader instance to read from the giver input.
-func NewJSONReader(in io.Reader) *JSONDecoder {
+// NewJSONDecoder sets up a new JSONDecoder instance to read from the giver input.
+func NewJSONDecoder(in io.Reader) *JSONDecoder {
 	return &JSONDecoder{buf: bufio.NewReader(in)}
 }
 
@@ -71,44 +71,12 @@ func (r *JSONDecoder) parseValueFirstByte(out chan<- StreamItem, b byte) error {
 
 // The leading '"" has already been consumed
 func (r *JSONDecoder) parseString(out chan<- StreamItem) error {
-	stringBytes := []byte{'"'}
-	for {
-		b, err := r.buf.ReadByte()
-		if err != nil {
-			return err
-		}
-		switch b {
-		case '\\':
-			stringBytes = append(stringBytes, b)
-			x, err := r.buf.ReadByte()
-			if err != nil {
-				return err
-			}
-			stringBytes = append(stringBytes, x)
-			switch x {
-			case '"', '\\', '/', 'b', 'f', 'n', 'r', 't':
-				continue
-			case 'u':
-				hex := make([]byte, 4)
-				_, err := io.ReadFull(r.buf, hex)
-				if err != nil {
-					return err
-				}
-				stringBytes = append(stringBytes, hex...)
-				for _, d := range hex {
-					if !(d >= '0' && d <= '9' || d >= 'a' && d <= 'f' || d >= 'A' && d <= 'F') {
-						return fmt.Errorf("syntax error: expected hex, got %q", d)
-					}
-				}
-			}
-		case '"':
-			stringBytes = append(stringBytes, '"')
-			out <- &Scalar{Bytes: stringBytes, Type: String}
-			return nil
-		default:
-			stringBytes = append(stringBytes, b)
-		}
+	stringBytes, err := parseString(r.buf)
+	if err != nil {
+		return err
 	}
+	out <- &Scalar{Bytes: stringBytes, Type: String}
+	return nil
 }
 
 func (r *JSONDecoder) parseArray(out chan<- StreamItem) error {
@@ -300,6 +268,45 @@ func (r *JSONDecoder) parseNumber(b byte, out chan<- StreamItem) error {
 	r.buf.UnreadByte()
 	out <- &Scalar{Bytes: numberBytes, Type: Number}
 	return nil
+}
+
+func parseString(buf *bufio.Reader) ([]byte, error) {
+	stringBytes := []byte{'"'}
+	for {
+		b, err := buf.ReadByte()
+		if err != nil {
+			return nil, err
+		}
+		switch b {
+		case '\\':
+			stringBytes = append(stringBytes, b)
+			x, err := buf.ReadByte()
+			if err != nil {
+				return nil, err
+			}
+			stringBytes = append(stringBytes, x)
+			switch x {
+			case '"', '\\', '/', 'b', 'f', 'n', 'r', 't':
+				continue
+			case 'u':
+				hex := make([]byte, 4)
+				_, err := io.ReadFull(buf, hex)
+				if err != nil {
+					return nil, err
+				}
+				stringBytes = append(stringBytes, hex...)
+				for _, d := range hex {
+					if !(d >= '0' && d <= '9' || d >= 'a' && d <= 'f' || d >= 'A' && d <= 'F') {
+						return nil, fmt.Errorf("syntax error: expected hex, got %q", d)
+					}
+				}
+			}
+		case '"':
+			return append(stringBytes, '"'), nil
+		default:
+			stringBytes = append(stringBytes, b)
+		}
+	}
 }
 
 func readDigits(reader *bufio.Reader, b byte, appendTo *[]byte) (byte, int, error) {
