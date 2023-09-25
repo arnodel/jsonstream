@@ -10,6 +10,7 @@ import (
 // Indent() starts a new line at an increased indentation level
 // Dedent() starts a new line at a decreased indentation level
 // NewLine() start a new line at the current indentation level
+// Reset() resets the indentation level to 0 and moves to a new line (this cannot be overriden)
 // PrintBytes() outputs bytes at the current position
 //
 // The methods do not return an error because for this program it's assumed
@@ -28,6 +29,7 @@ type Printer interface {
 	Indent()
 	Dedent()
 	NewLine()
+	Reset()
 	PrintBytes([]byte)
 }
 
@@ -101,6 +103,15 @@ func (p *DefaultPrinter) Indent() {
 func (p *DefaultPrinter) Dedent() {
 	p.indentLevel--
 	p.NewLine()
+}
+
+// Reset outputs '\n' unconditionally and resets the indent level.
+func (p *DefaultPrinter) Reset() {
+	p.indentLevel = 0
+	_, err := p.Write([]byte{'\n'})
+	if err != nil {
+		panic(wrapError(err))
+	}
 }
 
 // PrintBytes sends the gives bytes verbatim to the printer's writer.

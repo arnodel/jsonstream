@@ -24,7 +24,7 @@ func (sw *JSONEncoder) Consume(stream <-chan StreamItem) (err error) {
 	iterator := NewStreamIterator(stream)
 	for iterator.Advance() {
 		sw.writeValue(iterator.CurrentValue())
-		sw.Printer.NewLine()
+		sw.Printer.Reset()
 	}
 	return nil
 }
