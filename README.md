@@ -49,6 +49,7 @@ Here is a list of transforms:
   may be repeated).
 - `split`: splits an array into a stream of values
 - `join`: the reverse, joins a stream of values into an array
+- `trace`: (for debugging) eat up the stream and log it to stderr
 
 See the file [builtintransformers.go](builtintransformers.go) for some more details. There are not many so far but it's easy to add some more, and I'm planning to do that.
 

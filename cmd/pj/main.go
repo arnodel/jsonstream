@@ -93,6 +93,9 @@ func parseTransform(arg string) (jsonstream.StreamTransformer, error) {
 	if arg == "join" {
 		return jsonstream.JoinStream{}, nil
 	}
+	if arg == "trace" {
+		return jsonstream.TraceStream{}, nil
+	}
 	if strings.HasPrefix(arg, "...") {
 		return jsonstream.AsStreamTransformer(&jsonstream.DeepKeyExtractor{Key: strings.TrimPrefix(arg, "...")}), nil
 	}

@@ -1,5 +1,10 @@
 package jsonstream
 
+import (
+	"bytes"
+	"fmt"
+)
+
 // A StreamItem is an item in a stream that encodes a JSON value
 // For example, the JSON value
 //
@@ -27,11 +32,19 @@ type StreamItem interface{}
 // Values of type *StartObject implement the StreamItem interface.
 type StartObject struct{}
 
+func (s *StartObject) String() string {
+	return "StartObject"
+}
+
 var _ StreamItem = &StartObject{}
 
 // EndObject represents the end of a JSON object (introduced by '}')
 // Values of type *EndObject implement the StreamItem interface.
 type EndObject struct{}
+
+func (e *EndObject) String() string {
+	return "EndObject"
+}
 
 var _ StreamItem = &EndObject{}
 
@@ -39,11 +52,19 @@ var _ StreamItem = &EndObject{}
 // Values of type *StartArray implement the StreamItem interface.
 type StartArray struct{}
 
+func (s *StartArray) String() string {
+	return "StartArray"
+}
+
 var _ StreamItem = &StartArray{}
 
 // EndArray represents the end of a JSON array (introduced by '}')
 // Values of type *EndArray implement the StreamItem interface.
 type EndArray struct{}
+
+func (e *EndArray) String() string {
+	return "EndArray"
+}
 
 var _ StreamItem = &EndArray{}
 
@@ -51,6 +72,10 @@ var _ StreamItem = &EndArray{}
 // from an array or an object but signal to the user that the content has
 // been 'elided'.
 type Elision struct{}
+
+func (e *Elision) String() string {
+	return "Elision"
+}
 
 var _ StreamItem = &Elision{}
 
@@ -83,6 +108,27 @@ func (s *Scalar) EqualsString(str string) bool {
 		return false
 	}
 	return string(s.Bytes[1:len(s.Bytes)-1]) == str
+}
+
+func (s *Scalar) String() string {
+	return fmt.Sprintf("Scalar(%s)", s.Bytes)
+}
+
+func (s *Scalar) Equals(t *Scalar) bool {
+	if s == nil || t == nil {
+		return false
+	}
+	if s.Type != t.Type {
+		return false
+	}
+	switch s.Type {
+	case String, Number, Boolean:
+		return bytes.Equal(s.Bytes, t.Bytes)
+	case Null:
+		return true
+	default:
+		panic("invalid scalar type")
+	}
 }
 
 // ScalarType encodes the four possible JSON scalar types.

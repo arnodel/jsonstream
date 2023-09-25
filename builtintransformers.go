@@ -1,5 +1,7 @@
 package jsonstream
 
+import "log"
+
 // MaxDepthFilter is a Transformer that truncates the stream to a given depth.
 // Collections which are more deeply nested than MaxDepth are elided
 // (their contents is replaced with "..." in the examples below).
@@ -139,4 +141,15 @@ func (f JoinStream) Transform(in <-chan StreamItem, out chan<- StreamItem) {
 		out <- item
 	}
 	out <- &EndArray{}
+}
+
+// TraceStream logs all the stream items and doesn't send any items on.
+// It's useful for debugging streams
+type TraceStream struct{}
+
+// Transform implements the TraceStream transform
+func (t TraceStream) Transform(in <-chan StreamItem, out chan<- StreamItem) {
+	for item := range in {
+		log.Printf("%s", item)
+	}
 }
