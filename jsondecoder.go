@@ -71,11 +71,11 @@ func (r *JSONDecoder) parseValueFirstByte(out chan<- StreamItem, b byte) error {
 
 // The leading '"" has already been consumed
 func (r *JSONDecoder) parseString(out chan<- StreamItem) error {
-	stringBytes, err := parseString(r.buf)
+	s, err := parseString(r.buf)
 	if err != nil {
 		return err
 	}
-	out <- &Scalar{Bytes: stringBytes, Type: String}
+	out <- s
 	return nil
 }
 
@@ -270,7 +270,7 @@ func (r *JSONDecoder) parseNumber(b byte, out chan<- StreamItem) error {
 	return nil
 }
 
-func parseString(buf *bufio.Reader) ([]byte, error) {
+func parseString(buf *bufio.Reader) (*Scalar, error) {
 	stringBytes := []byte{'"'}
 	for {
 		b, err := buf.ReadByte()
@@ -302,7 +302,8 @@ func parseString(buf *bufio.Reader) ([]byte, error) {
 				}
 			}
 		case '"':
-			return append(stringBytes, '"'), nil
+			stringBytes = append(stringBytes, '"')
+			return &Scalar{Bytes: stringBytes, Type: String}, nil
 		default:
 			stringBytes = append(stringBytes, b)
 		}

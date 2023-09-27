@@ -34,7 +34,7 @@ func main() {
 	flag.StringVar(&filename, "file", "", "json input filename (stdin if omitted)")
 	flag.IntVar(&indent, "indent", 2, "indent step for json output (negative means no new lines)")
 	flag.StringVar(&outputFormat, "out", "json", "output format")
-	flag.StringVar(&inputFormat, "in", "json", "input format")
+	flag.StringVar(&inputFormat, "in", "auto", "input format")
 	flag.Parse()
 
 	// Open input file
@@ -43,23 +43,34 @@ func main() {
 		var err error
 		input, err = os.Open(filename)
 		if err != nil {
-			panic(err)
+			fatalError("error opening %q: %s", filename, err)
 		}
 	} else {
 		input = os.Stdin
+	}
+	bufInput := bufio.NewReader(input)
+
+	// Choose the input decoder
+	if inputFormat == "auto" {
+		start, err := bufInput.Peek(10)
+		if err != nil {
+			fatalError("unable to read input: %s", err)
+		}
+		inputFormat = guessFormat(start)
 	}
 
 	var decoder jsonstream.StreamSource
 
 	switch inputFormat {
 	case "json":
-		decoder = jsonstream.NewJSONDecoder(input)
-	case "gron":
-		decoder = jsonstream.NewGRONDecoder(input)
+		decoder = jsonstream.NewJSONDecoder(bufInput)
+	case "jpv", "path":
+		decoder = jsonstream.NewJPVDecoder(bufInput)
 	default:
 		fmt.Fprintf(os.Stderr, "invalid input format: %q", outputFormat)
 		os.Exit(1)
 	}
+
 	// Start parsing the input file
 	stream := jsonstream.StartStream(
 		decoder,
@@ -70,12 +81,11 @@ func main() {
 
 	// Parse transforms and apply them sequentially
 	for _, arg := range flag.Args() {
-		filter, err := parseTransform(arg)
+		transformer, err := parseTransformer(arg)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error: %s", err)
-			return
+			fatalError("error: %s", err)
 		}
-		stream = jsonstream.TransformStream(stream, filter)
+		stream = jsonstream.TransformStream(stream, transformer)
 	}
 
 	// Write the output stream to stdout
@@ -91,11 +101,10 @@ func main() {
 	switch outputFormat {
 	case "json":
 		encoder = &jsonstream.JSONEncoder{Printer: printer}
-	case "gron":
-		encoder = &jsonstream.GRONEncoder{Printer: printer}
+	case "jpv", "path":
+		encoder = &jsonstream.JPVEncoder{Printer: printer}
 	default:
-		fmt.Fprintf(os.Stderr, "invalid output format: %q", outputFormat)
-		os.Exit(1)
+		fatalError("invalid output format: %q", outputFormat)
 	}
 	err := jsonstream.ConsumeStream(stream, encoder)
 	if err != nil {
@@ -104,11 +113,11 @@ func main() {
 			// In this case we don't want to complain.
 			return
 		}
-		fmt.Fprintf(os.Stderr, "error: %s", err)
+		fatalError("error: %s", err)
 	}
 }
 
-func parseTransform(arg string) (jsonstream.StreamTransformer, error) {
+func parseTransformer(arg string) (jsonstream.StreamTransformer, error) {
 	if arg == "split" {
 		return jsonstream.AsStreamTransformer(jsonstream.ExplodeArray{}), nil
 	}
@@ -132,4 +141,21 @@ func parseTransform(arg string) (jsonstream.StreamTransformer, error) {
 		return &jsonstream.MaxDepthFilter{MaxDepth: int(depth)}, nil
 	}
 	return nil, errors.New("invalid filter")
+}
+
+func guessFormat(start []byte) string {
+	if len(start) == 0 {
+		return "json"
+	}
+	switch start[0] {
+	case '$':
+		return "jpv"
+	default:
+		return "json"
+	}
+}
+
+func fatalError(msg string, args ...interface{}) {
+	fmt.Fprintf(os.Stderr, msg, args...)
+	os.Exit(1)
 }

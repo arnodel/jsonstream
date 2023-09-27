@@ -7,42 +7,41 @@ import (
 	"io"
 )
 
-// GRONDecoder reads "GRON" input and streams it into a JSON stream.
+// JPVDecoder reads input in JPV format and streams it into a JSON stream.
 //
-// GRON is a format that can represent JSON values where each line specifies
-// a leaf value and its path.  Lines are of the form
+// JPV is a format that can represent values where each line specifies a leaf
+// value and its path.  A Lines are separated by '\n' and are of the form
 //
-//	.[<key_1>][<key_2>]...[<key_n>] = <value>
+//	<path> = <value>
 //
-// where <key_i> is either a JSON string or number, and value is a JSON literal.
-// For example
+// where <path> is a JSONPath and <value> is a JSON value.  E.g.
 //
 //	{"name": "Dan", "parent_ids": [132, 7650]}
 //
 // is represented as
 //
-//	.["name"] = "Dan"
-//	.["parent_ids"][0] = 132
-//	.["parent_ids"][1] = 7650
+//	$.["name"] = "Dan"
+//	$.["parent_ids"][0] = 132
+//	$.["parent_ids"][1] = 7650
 //
-// The potential value in this format is that it can be piped through grep and other
-// unix utilites to be filtered / transformed, then turned back into JSON.
-type GRONDecoder struct {
+// The potential value in this format is that it can be piped through grep and
+// other unix utilites to be filtered / transformed, then turned back into JSON.
+type JPVDecoder struct {
 	buf      *bufio.Reader
 	lastPath []*Scalar
 }
 
-var _ StreamSource = &GRONDecoder{}
+var _ StreamSource = &JPVDecoder{}
 
-// NewGRONDecoder sets up a new GRONDecoder instance to read from the given input.
-func NewGRONDecoder(in io.Reader) *GRONDecoder {
-	return &GRONDecoder{buf: bufio.NewReader(in)}
+// NewJPVDecoder sets up a new GRONDecoder instance to read from the given
+// input.
+func NewJPVDecoder(in io.Reader) *JPVDecoder {
+	return &JPVDecoder{buf: bufio.NewReader(in)}
 }
 
-// Produce reads a stream of GRON values and streams them, until it runs
-// out of input or encounters invalid GRON, in which case it will return an
-// error.
-func (d *GRONDecoder) Produce(out chan<- StreamItem) error {
+// Produce reads a stream of JPV values and streams them, until it runs out of
+// input or encounters invalid JPV, in which case it will return an error.
+func (d *JPVDecoder) Produce(out chan<- StreamItem) error {
 	for {
 		err := d.parseLine(out)
 		if err != nil {
@@ -55,13 +54,13 @@ func (d *GRONDecoder) Produce(out chan<- StreamItem) error {
 	}
 }
 
-func (d *GRONDecoder) parseLine(out chan<- StreamItem) error {
+func (d *JPVDecoder) parseLine(out chan<- StreamItem) error {
 	b, err := skipSpace(d.buf)
 	if err != nil {
 		return err
 	}
-	if b != '.' {
-		return fmt.Errorf("syntax error: expected '.', got %q", b)
+	if b != '$' {
+		return fmt.Errorf("syntax error: expected '$', got %q", b)
 	}
 	linePath, err := parsePath(d.buf)
 	if err != nil {
@@ -83,7 +82,7 @@ func (d *GRONDecoder) parseLine(out chan<- StreamItem) error {
 	return jsonDecoder.parseValue(out)
 }
 
-func (d *GRONDecoder) updatePath(newPath []*Scalar, out chan<- StreamItem) error {
+func (d *JPVDecoder) updatePath(newPath []*Scalar, out chan<- StreamItem) error {
 	if len(d.lastPath) == 0 {
 		followPath(newPath, false, out)
 		d.lastPath = newPath
@@ -168,11 +167,11 @@ func parsePath(buf *bufio.Reader) ([]*Scalar, error) {
 				return nil, err
 			}
 			if b == '"' {
-				stringBytes, err := parseString(buf)
+				s, err := parseString(buf)
 				if err != nil {
 					return nil, err
 				}
-				path = append(path, &Scalar{Bytes: stringBytes, Type: String})
+				path = append(path, s)
 				b, err = buf.ReadByte()
 				if err != nil {
 					return nil, err
@@ -185,7 +184,7 @@ func parsePath(buf *bufio.Reader) ([]*Scalar, error) {
 					return nil, err
 				}
 				if n == 0 {
-					return nil, errors.New("syntax error: expect integer")
+					return nil, errors.New("syntax error: expected integer")
 				}
 				path = append(path, &Scalar{Bytes: intBytes, Type: Number})
 			}

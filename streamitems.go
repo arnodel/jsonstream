@@ -86,7 +86,7 @@ var _ StreamItem = &Elision{}
 // - null (a single value)
 //
 // The type is encoded in the Type field, while the Bytes fields contains the
-// literal representation of the value.
+// literal representation of the value as found in the input.
 type Scalar struct {
 
 	// Literal representation of the value, e.g.

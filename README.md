@@ -1,8 +1,8 @@
-## jsonstream
+## JSONStream
 
 So far, this is a one weekend project...
 
-## The jsonstream package
+## The `jsonstream` package
 
 It can decode JSON into a stream, apply transformers to the stream, and
 encode a stream back into JSON. It aims to be able to scale to arbitrarily
@@ -11,7 +11,7 @@ large input without increasing memory usage or latency.
 It's been made for the CLI utility below. So it tries to provide tools to
 make it easy to implement the "transformers" mentioned below.
 
-## The pj CLI utility
+## The `pj` CLI utility
 
 It stands for "process json". Install with
 
@@ -25,20 +25,23 @@ Use it like this:
 cat somefile.json | pj
 ```
 
-This will output the json in a nice indented format, just like `jq` would. The difference
-that if you run
+This will output the json in a nice indented format, just like `jq` would. The
+difference that if you run
 
 ```
 cat a_huge_file.json | pj | less
 ```
 
-You will get to see stuff straight away, regardless of the size of the file (same with e.g. `head`).
+You will get to see stuff straight away, regardless of the size of the file
+(same with e.g. `head`).
 
-The `pj` tool automatically handles JSON streams. You can change the indentation level with
-the `-indent` flag. Set to a positive number, 0 for no indentation, a negative number will cause
-`pj` to output everything on one line, saving you precious vertical space.
+The `pj` tool automatically handles JSON streams. You can change the indentation
+level with the `-indent` flag. Set to a positive number, 0 for no indentation, a
+negative number will cause `pj` to output everything on one line, saving you
+precious vertical space.
 
-But that's not it. There are a number of _transforms_ that are available, and they can be chained!
+But that's not it. There are a number of _transforms_ that are available, and
+they can be chained!
 
 Here is a list of transforms:
 
@@ -51,12 +54,53 @@ Here is a list of transforms:
 - `join`: the reverse, joins a stream of values into an array
 - `trace`: (for debugging) eat up the stream and log it to stderr
 
-See the file [builtintransformers.go](builtintransformers.go) for some more details. There are not many so far but it's easy to add some more, and I'm planning to do that.
+See the file [builtintransformers.go](builtintransformers.go) for some more
+details. There are not many so far but it's easy to add some more, and I'm
+planning to do that.
 
-You can choose an input format and an output format with the `-in` and `-out`.
+You can choose an input format with the `-in` option:
 
-- `json` (the default) selects JSON format
-- `gron` selects the `GRON` format. It's related (but not quite the same :-|) as the format described in https://github.com/tomnomnom/gron. This allows a workflow of the type `pj -out gron | grep | pj -in gron`
+- `json` selects JSON format
+- `jpv` or `path` selects the `JPV` format. It's related (but not quite the same
+  :-|) as the format described in https://github.com/tomnomnom/gron. This allows
+  a workflow of the type `pj -out jpv | grep | pj -in jpv` (`-in jpv` is not
+  required because the input format should be guessed correctly)
+- `auto` (the default value) tries to guess the format, falling back to JSON if
+  it can't
+
+You can choose the output format with the `-out` option.  The available formats
+are:
+
+- `json` (the default)
+- `jpv` or `path`
+
+### The `JPV` format
+
+It stands for JsonPath-Value.  it's similar to `GRON` (see
+https://github.com/tomnomnom/gron) but the paths use the JSONPath format
+instead.
+
+```
+$ echo '{"name": "Tom", "pets": ["dog", "tortoise", "spider"], "cars": []}' | pj -out jpv
+$["name"] = "Tom"
+$["pets"][0] = "dog"
+$["pets"][1] = "tortoise"
+$["pets"][2] = "spider"
+$["cars"] = []
+```
+
+It has this useful property: if you remove any number of lines from a JPV
+stream, you still get a valid JPV stream (i.e. it can be turned back into some
+valid JSON).  E.g.
+
+```
+echo '{"name": "Tom", "pets": ["dog", "tortoise", "spider"], "cars": []}' | pj -out jpv | grep sp | pj
+{
+  "pets": [
+    "spider"
+  ]
+}
+```
 
 ### Examples
 
