@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"runtime"
 	"runtime/debug"
 	"strconv"
 	"strings"
@@ -31,6 +32,19 @@ func main() {
 	var indent int
 	var outputFormat string
 	var inputFormat string
+	var colorizer *jsonstream.Colorizer
+	if isaTTY(os.Stdout) {
+		colorizer = &defaultColorizer
+	}
+
+	flag.BoolFunc("colors", "force using colors", func(s string) error {
+		colorizer = &defaultColorizer
+		return nil
+	})
+	flag.BoolFunc("nocolors", "disable colors", func(s string) error {
+		colorizer = nil
+		return nil
+	})
 	flag.StringVar(&filename, "file", "", "json input filename (stdin if omitted)")
 	flag.IntVar(&indent, "indent", 2, "indent step for json output (negative means no new lines)")
 	flag.StringVar(&outputFormat, "out", "json", "output format")
@@ -100,12 +114,13 @@ func main() {
 	var encoder jsonstream.StreamSink
 	switch outputFormat {
 	case "json":
-		encoder = &jsonstream.JSONEncoder{Printer: printer}
+		encoder = &jsonstream.JSONEncoder{Printer: printer, Colorizer: colorizer}
 	case "jpv", "path":
 		encoder = &jsonstream.JPVEncoder{Printer: printer}
 	default:
 		fatalError("invalid output format: %q", outputFormat)
 	}
+
 	err := jsonstream.ConsumeStream(stream, encoder)
 	if err != nil {
 		if errors.Is(err, syscall.EPIPE) {
@@ -158,4 +173,52 @@ func guessFormat(start []byte) string {
 func fatalError(msg string, args ...interface{}) {
 	fmt.Fprintf(os.Stderr, msg, args...)
 	os.Exit(1)
+}
+
+// Some color ANSI codes
+var (
+	Reset = []byte("\033[0m")
+
+	Black   = []byte("\033[30m")
+	Red     = []byte("\033[31m")
+	Green   = []byte("\033[32m")
+	Yellow  = []byte("\033[33m")
+	Blue    = []byte("\033[34m")
+	Magenta = []byte("\033[35m")
+	Cyan    = []byte("\033[36m")
+	White   = []byte("\033[37m")
+
+	DimBlack   = []byte("\033[30;2m")
+	DimRed     = []byte("\033[31;2m")
+	DimGreen   = []byte("\033[32;2m")
+	DimYellow  = []byte("\033[33;2m")
+	DimBlue    = []byte("\033[34;2m")
+	DimMagenta = []byte("\033[35;2m")
+	DimCyan    = []byte("\033[36;2m")
+	DimWhite   = []byte("\033[37;2m")
+
+	BrightBlack   = []byte("\033[30;1m")
+	BrightRed     = []byte("\033[31;1m")
+	BrightGreen   = []byte("\033[32;1m")
+	BrightYellow  = []byte("\033[33;1m")
+	BrightBlue    = []byte("\033[34;1m")
+	BrightMagenta = []byte("\033[35;1m")
+	BrightCyan    = []byte("\033[36;1m")
+	BrightWhite   = []byte("\033[37;1m")
+)
+
+// The colors I chose :)
+var defaultColorizer = jsonstream.Colorizer{
+	ScalarColorCodes: [4][]byte{Green, White, Yellow, DimWhite},
+	KeyColorCode:     BrightBlue,
+	ResetCode:        Reset,
+}
+
+func isaTTY(f *os.File) bool {
+	// For now don't assume you can do colors on windows as I don't know what happens.
+	if runtime.GOOS == "windows" {
+		return false
+	}
+	fi, _ := f.Stat()
+	return fi.Mode()&os.ModeCharDevice != 0
 }

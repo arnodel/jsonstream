@@ -10,6 +10,7 @@ import (
 // (see [JPVDecoder] for details of the format).
 type JPVEncoder struct {
 	Printer
+	*Colorizer
 
 	path [][]byte // keeps track of the current path
 }

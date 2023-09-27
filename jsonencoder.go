@@ -8,6 +8,7 @@ import (
 // using the given Printer instance for formatting.
 type JSONEncoder struct {
 	Printer
+	*Colorizer
 }
 
 var _ StreamSink = &JSONEncoder{}
@@ -54,7 +55,7 @@ func (sw *JSONEncoder) writeObject(obj *StreamedObject) {
 			sw.Indent()
 			firstItem = false
 		}
-		sw.writeScalar(key)
+		sw.writeKey(key)
 		sw.PrintBytes(keyValueSeparatorBytes)
 		sw.writeValue(value)
 	}
@@ -97,7 +98,23 @@ func (sw *JSONEncoder) writeArray(arr *StreamedArray) {
 }
 
 func (sw JSONEncoder) writeScalar(scalar *Scalar) {
+	if sw.Colorizer != nil {
+		sw.PrintBytes(sw.Colorizer.ScalarColorCodes[scalar.Type])
+	}
 	sw.PrintBytes(scalar.Bytes)
+	if sw.Colorizer != nil {
+		sw.PrintBytes(sw.Colorizer.ResetCode)
+	}
+}
+
+func (sw JSONEncoder) writeKey(scalar *Scalar) {
+	if sw.Colorizer != nil {
+		sw.PrintBytes(sw.Colorizer.KeyColorCode)
+	}
+	sw.PrintBytes(scalar.Bytes)
+	if sw.Colorizer != nil {
+		sw.PrintBytes(sw.Colorizer.ResetCode)
+	}
 }
 
 var (
@@ -109,3 +126,9 @@ var (
 	itemSeparatorBytes     = []byte(",")
 	keyValueSeparatorBytes = []byte(": ")
 )
+
+type Colorizer struct {
+	KeyColorCode     []byte
+	ScalarColorCodes [4][]byte
+	ResetCode        []byte
+}
