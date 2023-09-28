@@ -79,6 +79,17 @@ func (r *JSONDecoder) parseString(out chan<- StreamItem) error {
 	return nil
 }
 
+// The leading '"" has already been consumed
+func (r *JSONDecoder) parseKey(out chan<- StreamItem) error {
+	s, err := parseString(r.buf)
+	if err != nil {
+		return err
+	}
+	s.TypeAndFlags |= KeyMask
+	out <- s
+	return nil
+}
+
 func (r *JSONDecoder) parseArray(out chan<- StreamItem) error {
 	out <- &StartArray{}
 	b, err := skipSpace(r.buf)
@@ -127,7 +138,7 @@ func (r *JSONDecoder) parseObject(out chan<- StreamItem) error {
 		if b != '"' {
 			return fmt.Errorf("syntax error: expected '\"' for %q", b)
 		}
-		err := r.parseString(out)
+		err := r.parseKey(out)
 		if err != nil {
 			return err
 		}
@@ -266,7 +277,7 @@ func (r *JSONDecoder) parseNumber(b byte, out chan<- StreamItem) error {
 		}
 	}
 	r.buf.UnreadByte()
-	out <- &Scalar{Bytes: numberBytes, Type: Number}
+	out <- NewScalar(Number, numberBytes)
 	return nil
 }
 
@@ -303,7 +314,7 @@ func parseString(buf *bufio.Reader) (*Scalar, error) {
 			}
 		case '"':
 			stringBytes = append(stringBytes, '"')
-			return &Scalar{Bytes: stringBytes, Type: String}, nil
+			return NewScalar(String, stringBytes), nil
 		default:
 			stringBytes = append(stringBytes, b)
 		}
@@ -358,7 +369,7 @@ var (
 )
 
 var (
-	trueInstance  = &Scalar{Bytes: trueBytes, Type: Boolean}
-	falseInstance = &Scalar{Bytes: falseBytes, Type: Boolean}
-	nullInstance  = &Scalar{Bytes: nullBytes, Type: Null}
+	trueInstance  = NewScalar(Boolean, trueBytes)
+	falseInstance = NewScalar(Boolean, falseBytes)
+	nullInstance  = NewScalar(Null, nullBytes)
 )

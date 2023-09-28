@@ -96,7 +96,7 @@ type Scalar struct {
 	Bytes []byte
 
 	// Type of the value
-	Type ScalarType
+	TypeAndFlags uint8
 }
 
 // EqualsString is a convenience method to check if a Scalar represents the
@@ -104,10 +104,31 @@ type Scalar struct {
 //
 // TODO move that somewhere more suitable.
 func (s *Scalar) EqualsString(str string) bool {
-	if s.Type != String {
+	if s.Type() != String {
 		return false
 	}
 	return string(s.Bytes[1:len(s.Bytes)-1]) == str
+}
+
+func NewScalar(tp ScalarType, bytes []byte) *Scalar {
+	return &Scalar{
+		Bytes:        bytes,
+		TypeAndFlags: uint8(tp),
+	}
+}
+
+func NewKey(tp ScalarType, bytes []byte) *Scalar {
+	return &Scalar{
+		Bytes:        bytes,
+		TypeAndFlags: uint8(tp) | KeyMask,
+	}
+}
+func (s *Scalar) Type() ScalarType {
+	return (ScalarType(s.TypeAndFlags & TypeMask))
+}
+
+func (s *Scalar) IsKey() bool {
+	return KeyMask&s.TypeAndFlags != 0
 }
 
 func (s *Scalar) String() string {
@@ -118,10 +139,10 @@ func (s *Scalar) Equals(t *Scalar) bool {
 	if s == nil || t == nil {
 		return false
 	}
-	if s.Type != t.Type {
+	if s.Type() != t.Type() {
 		return false
 	}
-	switch s.Type {
+	switch s.Type() {
 	case String, Number, Boolean:
 		return bytes.Equal(s.Bytes, t.Bytes)
 	case Null:
@@ -135,8 +156,13 @@ func (s *Scalar) Equals(t *Scalar) bool {
 type ScalarType uint8
 
 const (
-	String  ScalarType = iota // a JSON string
-	Number                    // a JSON number
-	Boolean                   // a JSON boolean
-	Null                      // the type of JSON null
+	Null               = 0x0 // the type of JSON null
+	Boolean            = 0x1 // a JSON boolean
+	Number             = 0x2 // a JSON number
+	String  ScalarType = 0x3 // a JSON string
+)
+
+const (
+	TypeMask = 0b011
+	KeyMask  = 0b100
 )

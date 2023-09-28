@@ -116,7 +116,7 @@ func main() {
 	case "json":
 		encoder = &jsonstream.JSONEncoder{Printer: printer, Colorizer: colorizer}
 	case "jpv", "path":
-		encoder = &jsonstream.JPVEncoder{Printer: printer}
+		encoder = &jsonstream.JPVEncoder{Printer: printer, Colorizer: colorizer}
 	default:
 		fatalError("invalid output format: %q", outputFormat)
 	}
@@ -209,7 +209,7 @@ var (
 
 // The colors I chose :)
 var defaultColorizer = jsonstream.Colorizer{
-	ScalarColorCodes: [4][]byte{Green, White, Yellow, DimWhite},
+	ScalarColorCodes: [4][]byte{DimWhite, Yellow, White, Green},
 	KeyColorCode:     BrightBlue,
 	ResetCode:        Reset,
 }

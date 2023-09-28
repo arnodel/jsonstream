@@ -12,7 +12,7 @@ type JPVEncoder struct {
 	Printer
 	*Colorizer
 
-	path [][]byte // keeps track of the current path
+	path []*Scalar // keeps track of the current path
 }
 
 var _ StreamSink = &JPVEncoder{}
@@ -52,59 +52,63 @@ func (e *JPVEncoder) writeObject(obj *StreamedObject) {
 	var count = 0
 	for obj.Advance() {
 		key, value := obj.CurrentKeyVal()
-		e.pushKey(key.Bytes)
+		e.pushKey(key)
 		e.writeValue(value)
 		e.popKey()
 		count++
 	}
-	if obj.Elided() {
-		if count == 0 {
-			e.writePathWithValue(elidedBobjectBytes)
+	if obj.Elided() || count == 0 {
+		e.writePath()
+		if !obj.Elided() {
+			e.PrintBytes(emptyObjectBytes)
+		} else if count != 0 {
+			e.PrintBytes(elisionBytes)
 		} else {
-			e.writePathWithValue(elisionBytes)
+			e.PrintBytes(elidedBobjectBytes)
 		}
-	} else if count == 0 {
-		e.writePathWithValue(emptyObjectBytes)
+		e.NewLine()
 	}
 }
 
 func (e *JPVEncoder) writeArray(arr *StreamedArray) {
 	var index = 0
 	for arr.Advance() {
-		e.pushKey([]byte(strconv.Itoa(index)))
+		e.pushKey(NewKey(Number, []byte(strconv.Itoa(index))))
 		value := arr.CurrentValue()
 		e.writeValue(value)
 		e.popKey()
 		index++
 	}
-	if arr.Elided() {
-		if index == 0 {
-			e.writePathWithValue(elidedArrayBytes)
+	if arr.Elided() || index == 0 {
+		e.writePath()
+		if !arr.Elided() {
+			e.PrintBytes(emptyArrayBytes)
+		} else if index != 0 {
+			e.PrintBytes(elisionBytes)
 		} else {
-			e.writePathWithValue(elisionBytes)
+			e.PrintBytes(elidedArrayBytes)
 		}
-	} else if index == 0 {
-		e.writePathWithValue(emptyArrayBytes)
+		e.NewLine()
 	}
 }
 
 func (e *JPVEncoder) writeScalar(scalar *Scalar) {
-	e.writePathWithValue(scalar.Bytes)
-}
-
-func (e *JPVEncoder) writePathWithValue(value []byte) {
-	e.PrintBytes(pathRootBytes)
-	for _, key := range e.path {
-		e.PrintBytes([]byte{'['})
-		e.PrintBytes(key)
-		e.PrintBytes([]byte{']'})
-	}
-	e.PrintBytes(pathValueSeparatorBytes)
-	e.PrintBytes(value)
+	e.writePath()
+	e.PrintScalar(e.Printer, scalar)
 	e.NewLine()
 }
 
-func (e *JPVEncoder) pushKey(key []byte) {
+func (e *JPVEncoder) writePath() {
+	e.PrintBytes(pathRootBytes)
+	for _, key := range e.path {
+		e.PrintBytes([]byte{'['})
+		e.PrintScalar(e.Printer, key)
+		e.PrintBytes([]byte{']'})
+	}
+	e.PrintBytes(pathValueSeparatorBytes)
+}
+
+func (e *JPVEncoder) pushKey(key *Scalar) {
 	e.path = append(e.path, key)
 }
 

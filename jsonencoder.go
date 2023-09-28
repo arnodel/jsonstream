@@ -33,7 +33,7 @@ func (sw *JSONEncoder) Consume(stream <-chan StreamItem) (err error) {
 func (sw *JSONEncoder) writeValue(value StreamedValue) {
 	switch v := value.(type) {
 	case *StreamedScalar:
-		sw.writeScalar(v.Scalar())
+		sw.Colorizer.PrintScalar(sw.Printer, v.Scalar())
 	case *StreamedObject:
 		sw.writeObject(v)
 	case *StreamedArray:
@@ -55,7 +55,7 @@ func (sw *JSONEncoder) writeObject(obj *StreamedObject) {
 			sw.Indent()
 			firstItem = false
 		}
-		sw.writeKey(key)
+		sw.Colorizer.PrintScalar(sw.Printer, key)
 		sw.PrintBytes(keyValueSeparatorBytes)
 		sw.writeValue(value)
 	}
@@ -97,26 +97,6 @@ func (sw *JSONEncoder) writeArray(arr *StreamedArray) {
 	sw.PrintBytes(closeArrayBytes)
 }
 
-func (sw JSONEncoder) writeScalar(scalar *Scalar) {
-	if sw.Colorizer != nil {
-		sw.PrintBytes(sw.Colorizer.ScalarColorCodes[scalar.Type])
-	}
-	sw.PrintBytes(scalar.Bytes)
-	if sw.Colorizer != nil {
-		sw.PrintBytes(sw.Colorizer.ResetCode)
-	}
-}
-
-func (sw JSONEncoder) writeKey(scalar *Scalar) {
-	if sw.Colorizer != nil {
-		sw.PrintBytes(sw.Colorizer.KeyColorCode)
-	}
-	sw.PrintBytes(scalar.Bytes)
-	if sw.Colorizer != nil {
-		sw.PrintBytes(sw.Colorizer.ResetCode)
-	}
-}
-
 var (
 	elisionBytes           = []byte("...")
 	openObjectBytes        = []byte("{")
@@ -131,4 +111,21 @@ type Colorizer struct {
 	KeyColorCode     []byte
 	ScalarColorCodes [4][]byte
 	ResetCode        []byte
+}
+
+func (c *Colorizer) ScalarColorCode(scalar *Scalar) []byte {
+	if scalar.IsKey() {
+		return c.KeyColorCode
+	}
+	return c.ScalarColorCodes[scalar.Type()]
+}
+
+func (c *Colorizer) PrintScalar(p Printer, scalar *Scalar) {
+	if c != nil {
+		p.PrintBytes(c.ScalarColorCode(scalar))
+	}
+	p.PrintBytes(scalar.Bytes)
+	if c != nil {
+		p.PrintBytes(c.ResetCode)
+	}
 }

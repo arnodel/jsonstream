@@ -95,7 +95,7 @@ func (d *JPVDecoder) updatePath(newPath []*Scalar, out chan<- StreamItem) error 
 			return errors.New("inconsistent path: cannot be a prefix of the previous path")
 		}
 		if !key.Equals(newKey) {
-			if key.Type != newKey.Type {
+			if key.Type() != newKey.Type() {
 				return errors.New("inconsistent path: key types differ")
 			}
 			divergenceIndex = i
@@ -118,7 +118,7 @@ func (d *JPVDecoder) updatePath(newPath []*Scalar, out chan<- StreamItem) error 
 func unwindPath(path []*Scalar, inCollection bool, out chan<- StreamItem) {
 	for i := len(path) - 1; i >= 0; i-- {
 		if i > 0 || !inCollection {
-			switch path[i].Type {
+			switch path[i].Type() {
 			case String:
 				out <- &EndObject{}
 			case Number:
@@ -132,7 +132,7 @@ func unwindPath(path []*Scalar, inCollection bool, out chan<- StreamItem) {
 
 func followPath(path []*Scalar, inCollection bool, out chan<- StreamItem) {
 	for _, key := range path {
-		switch key.Type {
+		switch key.Type() {
 		case String:
 			if !inCollection {
 				out <- &StartObject{}
@@ -143,7 +143,7 @@ func followPath(path []*Scalar, inCollection bool, out chan<- StreamItem) {
 				out <- &StartArray{}
 			}
 		default:
-			panic("invlid key type (must be string or number)")
+			panic("invalid key type (must be string or number)")
 		}
 		inCollection = false
 	}
@@ -171,6 +171,7 @@ func parsePath(buf *bufio.Reader) ([]*Scalar, error) {
 				if err != nil {
 					return nil, err
 				}
+				s.TypeAndFlags |= KeyMask
 				path = append(path, s)
 				b, err = buf.ReadByte()
 				if err != nil {
@@ -186,7 +187,7 @@ func parsePath(buf *bufio.Reader) ([]*Scalar, error) {
 				if n == 0 {
 					return nil, errors.New("syntax error: expected integer")
 				}
-				path = append(path, &Scalar{Bytes: intBytes, Type: Number})
+				path = append(path, NewKey(Number, intBytes))
 			}
 			if b != ']' {
 				return nil, errors.New("syntax error: expected ']'")
