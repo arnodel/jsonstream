@@ -33,6 +33,7 @@ func main() {
 	var outputFormat string
 	var inputFormat string
 	var colorizer *jsonstream.Colorizer
+	var quoteKeys bool
 	if isaTTY(os.Stdout) {
 		colorizer = &defaultColorizer
 	}
@@ -49,6 +50,7 @@ func main() {
 	flag.IntVar(&indent, "indent", 2, "indent step for json output (negative means no new lines)")
 	flag.StringVar(&outputFormat, "out", "json", "output format")
 	flag.StringVar(&inputFormat, "in", "auto", "input format")
+	flag.BoolVar(&quoteKeys, "quotekeys", false, "always use quoted keys in JSON Path output")
 	flag.Parse()
 
 	// Open input file
@@ -116,7 +118,11 @@ func main() {
 	case "json":
 		encoder = &jsonstream.JSONEncoder{Printer: printer, Colorizer: colorizer}
 	case "jpv", "path":
-		encoder = &jsonstream.JPVEncoder{Printer: printer, Colorizer: colorizer}
+		{
+			jpvEncoder := &jsonstream.JPVEncoder{Printer: printer, Colorizer: colorizer}
+			jpvEncoder.AlwaysQuoteKeys = quoteKeys
+			encoder = jpvEncoder
+		}
 	default:
 		fatalError("invalid output format: %q", outputFormat)
 	}

@@ -283,6 +283,7 @@ func (r *JSONDecoder) parseNumber(b byte, out chan<- StreamItem) error {
 
 func parseString(buf *bufio.Reader) (*Scalar, error) {
 	stringBytes := []byte{'"'}
+	isAlnum := true
 	for {
 		b, err := buf.ReadByte()
 		if err != nil {
@@ -314,8 +315,22 @@ func parseString(buf *bufio.Reader) (*Scalar, error) {
 			}
 		case '"':
 			stringBytes = append(stringBytes, '"')
-			return NewScalar(String, stringBytes), nil
+			scalar := NewScalar(String, stringBytes)
+			if isAlnum {
+				scalar.TypeAndFlags |= AlnumMask
+			}
+			return scalar, nil
 		default:
+			if isctrl(b) {
+				return nil, fmt.Errorf("syntax error: found control character in string: %q", b)
+			}
+			if isAlnum {
+				if len(stringBytes) == 1 {
+					isAlnum = isalpha(b)
+				} else {
+					isAlnum = isalnum(b)
+				}
+			}
 			stringBytes = append(stringBytes, b)
 		}
 	}

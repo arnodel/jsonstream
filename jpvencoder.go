@@ -12,6 +12,8 @@ type JPVEncoder struct {
 	Printer
 	*Colorizer
 
+	AlwaysQuoteKeys bool
+
 	path []*Scalar // keeps track of the current path
 }
 
@@ -101,9 +103,14 @@ func (e *JPVEncoder) writeScalar(scalar *Scalar) {
 func (e *JPVEncoder) writePath() {
 	e.PrintBytes(pathRootBytes)
 	for _, key := range e.path {
-		e.PrintBytes([]byte{'['})
-		e.PrintScalar(e.Printer, key)
-		e.PrintBytes([]byte{']'})
+		if key.IsAlnum() && !e.AlwaysQuoteKeys {
+			e.PrintBytes([]byte{'.'})
+			e.PrintSuccintScalar(e.Printer, key)
+		} else {
+			e.PrintBytes([]byte{'['})
+			e.PrintScalar(e.Printer, key)
+			e.PrintBytes([]byte{']'})
+		}
 	}
 	e.PrintBytes(pathValueSeparatorBytes)
 }

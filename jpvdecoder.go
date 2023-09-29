@@ -195,3 +195,19 @@ func parsePath(buf *bufio.Reader) ([]*Scalar, error) {
 		}
 	}
 }
+
+func isalpha[T byte | rune](b T) bool {
+	return b >= 'a' && b <= 'z' || b >= 'A' && b <= 'Z' || b == '_'
+}
+
+func isdigit[T byte | rune](b T) bool {
+	return b >= '0' && b <= '9'
+}
+
+func isalnum[T byte | rune](b T) bool {
+	return isalpha(b) || isdigit(b)
+}
+
+func isctrl[T byte | rune](b T) bool {
+	return b < 32
+}

@@ -129,3 +129,17 @@ func (c *Colorizer) PrintScalar(p Printer, scalar *Scalar) {
 		p.PrintBytes(c.ResetCode)
 	}
 }
+
+func (c *Colorizer) PrintSuccintScalar(p Printer, scalar *Scalar) {
+	if c != nil {
+		p.PrintBytes(c.ScalarColorCode(scalar))
+	}
+	if scalar.IsAlnum() {
+		p.PrintBytes(scalar.Bytes[1 : len(scalar.Bytes)-1])
+	} else {
+		p.PrintBytes(scalar.Bytes)
+	}
+	if c != nil {
+		p.PrintBytes(c.ResetCode)
+	}
+}

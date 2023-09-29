@@ -14,6 +14,7 @@
             "age": 2,
             "innocent": true
         },
-        "friends": {"name": "Jon"}
+        "friends": {"name": "Jon"},
+        "non alnum key": null
     }
 ]
