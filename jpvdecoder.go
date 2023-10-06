@@ -1,10 +1,10 @@
 package jsonstream
 
 import (
-	"bufio"
 	"errors"
-	"fmt"
 	"io"
+
+	"github.com/arnodel/jsonstream/internal/scanner"
 )
 
 // JPVDecoder reads input in JPV format and streams it into a JSON stream.
@@ -27,7 +27,7 @@ import (
 // The potential value in this format is that it can be piped through grep and
 // other unix utilites to be filtered / transformed, then turned back into JSON.
 type JPVDecoder struct {
-	buf      *bufio.Reader
+	scanr    *scanner.Scanner
 	lastPath []*Scalar
 }
 
@@ -36,49 +36,50 @@ var _ StreamSource = &JPVDecoder{}
 // NewJPVDecoder sets up a new GRONDecoder instance to read from the given
 // input.
 func NewJPVDecoder(in io.Reader) *JPVDecoder {
-	return &JPVDecoder{buf: bufio.NewReader(in)}
+	return &JPVDecoder{scanr: scanner.NewScanner(in)}
 }
 
 // Produce reads a stream of JPV values and streams them, until it runs out of
 // input or encounters invalid JPV, in which case it will return an error.
 func (d *JPVDecoder) Produce(out chan<- StreamItem) error {
+	defer func() {
+		unwindPath(d.lastPath, false, out)
+	}()
 	for {
-		err := d.parseLine(out)
+		b, err := d.scanr.SkipSpaceAndPeek()
+		if err != nil || b == scanner.EOF {
+			return err
+		}
+		err = d.parseLine(out)
 		if err != nil {
-			if errors.Is(err, io.EOF) {
-				unwindPath(d.lastPath, false, out)
-				return nil
-			}
 			return err
 		}
 	}
 }
 
 func (d *JPVDecoder) parseLine(out chan<- StreamItem) error {
-	b, err := skipSpace(d.buf)
+	err := expectByte(d.scanr, '$')
 	if err != nil {
 		return err
 	}
-	if b != '$' {
-		return fmt.Errorf("syntax error: expected '$', got %q", b)
-	}
-	linePath, err := parsePath(d.buf)
+	linePath, err := parsePath(d.scanr)
 	if err != nil {
 		return err
 	}
-	b, err = skipSpace(d.buf)
+	b, err := d.scanr.SkipSpaceAndRead()
 	if err != nil {
 		return err
 	}
 	if b != '=' {
-		return fmt.Errorf("syntax error: expected '=', got %q", b)
+		d.scanr.Back()
+		return unexpectedByte(d.scanr, "expected '=', got")
 	}
 	err = d.updatePath(linePath, out)
 	if err != nil {
 		return err
 	}
 	// TODO: tidy this up
-	jsonDecoder := JSONDecoder{buf: d.buf}
+	jsonDecoder := JSONDecoder{scanr: d.scanr}
 	return jsonDecoder.parseValue(out)
 }
 
@@ -149,49 +150,74 @@ func followPath(path []*Scalar, inCollection bool, out chan<- StreamItem) {
 	}
 }
 
-func parsePath(buf *bufio.Reader) ([]*Scalar, error) {
+func parsePath(scanr *scanner.Scanner) ([]*Scalar, error) {
 	var path []*Scalar
 	for {
-		b, err := buf.ReadByte()
+		b, err := scanr.Read()
 		if err != nil {
 			// That's ok because paths are followed by a value
 			return nil, err
 		}
-		if b != '[' {
-			buf.UnreadByte()
-			return path, nil
-		}
-		if b == '[' {
-			b, err = buf.ReadByte()
+		switch {
+		case b == '[':
+			b, err = scanr.Peek()
 			if err != nil {
 				return nil, err
 			}
 			if b == '"' {
-				s, err := parseString(buf)
+				s, err := parseString(scanr)
 				if err != nil {
 					return nil, err
 				}
 				s.TypeAndFlags |= KeyMask
 				path = append(path, s)
-				b, err = buf.ReadByte()
+				b, err = scanr.Read()
 				if err != nil {
 					return nil, err
 				}
 			} else {
-				var intBytes []byte
 				var n int
-				b, n, err = readDigits(buf, b, &intBytes)
+				scanr.StartToken()
+				b, n, err = readDigits(scanr)
 				if err != nil {
 					return nil, err
 				}
 				if n == 0 {
-					return nil, errors.New("syntax error: expected integer")
+					scanr.Back()
+					return nil, unexpectedByte(scanr, "expected digit, got")
 				}
-				path = append(path, NewKey(Number, intBytes))
+				path = append(path, NewKey(Number, scanr.EndToken()))
 			}
 			if b != ']' {
 				return nil, errors.New("syntax error: expected ']'")
 			}
+		case b == '.':
+			scanr.StartToken()
+			b, err = scanr.Read()
+			if err != nil {
+				return nil, err
+			}
+			if !isalpha(b) {
+				scanr.Back()
+				return nil, unexpectedByte(scanr, "expected a-z/A-Z/_, got")
+			}
+			for {
+				b, err = scanr.Read()
+				if err != nil {
+					return nil, err
+				}
+				if !isalnum(b) {
+					scanr.Back()
+					keyBytes := scanr.EndToken()
+					key := NewScalar(String, append(append([]byte{'"'}, keyBytes...), '"'))
+					key.TypeAndFlags |= AlnumMask | KeyMask
+					path = append(path, key)
+					break
+				}
+			}
+		default:
+			scanr.Back()
+			return path, nil
 		}
 	}
 }

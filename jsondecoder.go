@@ -1,35 +1,35 @@
 package jsonstream
 
 import (
-	"bufio"
-	"bytes"
-	"errors"
 	"fmt"
 	"io"
+
+	"github.com/arnodel/jsonstream/internal/scanner"
 )
 
 // A JSONDecoder reads JSON input and streams it into a JSON stream.
 type JSONDecoder struct {
-	buf *bufio.Reader
+	scanr *scanner.Scanner
 }
 
 var _ StreamSource = &JSONDecoder{}
 
 // NewJSONDecoder sets up a new JSONDecoder instance to read from the giver input.
 func NewJSONDecoder(in io.Reader) *JSONDecoder {
-	return &JSONDecoder{buf: bufio.NewReader(in)}
+	return &JSONDecoder{scanr: scanner.NewScanner(in)}
 }
 
 // Produce reads a stream of JSON values and streams them, until it runs
 // out of input or encounter invalid JSON, in which case it will return an
 // error.
-func (r *JSONDecoder) Produce(out chan<- StreamItem) error {
+func (d *JSONDecoder) Produce(out chan<- StreamItem) error {
 	for {
-		err := r.parseValue(out)
+		b, err := d.scanr.SkipSpaceAndPeek()
+		if err != nil || b == scanner.EOF {
+			return err
+		}
+		err = d.parseValue(out)
 		if err != nil {
-			if errors.Is(err, io.EOF) {
-				return nil
-			}
 			return err
 		}
 	}
@@ -37,284 +37,213 @@ func (r *JSONDecoder) Produce(out chan<- StreamItem) error {
 
 // parseValue reads a single JSON value and streams it.  It can return a
 // non-nil error if the input is invalid JSON.
-func (r *JSONDecoder) parseValue(out chan<- StreamItem) error {
-	b, err := skipSpace(r.buf)
+func (d *JSONDecoder) parseValue(out chan<- StreamItem) error {
+	b, err := d.scanr.SkipSpaceAndPeek()
 	if err != nil {
 		return err
 	}
-	return r.parseValueFirstByte(out, b)
-}
-
-func (r *JSONDecoder) parseValueFirstByte(out chan<- StreamItem, b byte) error {
-	var err error
 	switch b {
 	case '"':
-		return r.parseString(out)
+		s, err := parseString(d.scanr)
+		if err != nil {
+			return err
+		}
+		out <- s
+		return nil
 	case '[':
-		err = r.parseArray(out)
+		return d.parseArray(out)
 	case '{':
-		err = r.parseObject(out)
+		return d.parseObject(out)
 	case 't':
-		return r.parseTrue(out)
+		err := checkBytes(d.scanr, trueBytes)
+		if err != nil {
+			return err
+		}
+		out <- trueInstance
+		return nil
 	case 'f':
-		return r.parseFalse(out)
+		err := checkBytes(d.scanr, falseBytes)
+		if err != nil {
+			return err
+		}
+		out <- falseInstance
+		return nil
 	case 'n':
-		return r.parseNull(out)
+		err := checkBytes(d.scanr, nullBytes)
+		if err != nil {
+			return err
+		}
+		out <- nullInstance
+		return nil
 	default:
 		if b == '-' || b >= '0' && b <= '9' {
-			return r.parseNumber(b, out)
+			n, err := parseNumber(d.scanr)
+			if err != nil {
+				return err
+			}
+			out <- n
+			return nil
 		}
-		err = fmt.Errorf("syntax error: invalid value starting with %q", b)
+		return unexpectedByte(d.scanr, "unexpected")
 	}
-	return err
 }
 
-// The leading '"" has already been consumed
-func (r *JSONDecoder) parseString(out chan<- StreamItem) error {
-	s, err := parseString(r.buf)
+func (d *JSONDecoder) parseArray(out chan<- StreamItem) error {
+	var b byte
+	var err error
+	err = expectByte(d.scanr, '[')
 	if err != nil {
 		return err
 	}
-	out <- s
-	return nil
-}
-
-// The leading '"" has already been consumed
-func (r *JSONDecoder) parseKey(out chan<- StreamItem) error {
-	s, err := parseString(r.buf)
-	if err != nil {
-		return err
-	}
-	s.TypeAndFlags |= KeyMask
-	out <- s
-	return nil
-}
-
-func (r *JSONDecoder) parseArray(out chan<- StreamItem) error {
 	out <- &StartArray{}
-	b, err := skipSpace(r.buf)
+	b, err = d.scanr.SkipSpaceAndPeek()
 	if err != nil {
 		return err
 	}
 	if b == ']' {
+		d.scanr.Read()
 		out <- &EndArray{}
 		return nil
 	}
 	for {
-		err := r.parseValueFirstByte(out, b)
+		err = d.parseValue(out)
 		if err != nil {
 			return err
 		}
-		b, err = skipSpace(r.buf)
+		b, err = d.scanr.SkipSpaceAndPeek()
 		if err != nil {
 			return err
 		}
 		switch b {
 		case ']':
+			d.scanr.Read()
 			out <- &EndArray{}
 			return nil
 		case ',':
-			b, err = skipSpace(r.buf)
-			if err != nil {
-				return err
-			}
+			d.scanr.Read()
 		default:
-			return fmt.Errorf("syntax error: expected ']' or ',', got %q", []byte{b})
+			return unexpectedByte(d.scanr, "expected ']' or ',', got")
 		}
 	}
 }
 
-func (r *JSONDecoder) parseObject(out chan<- StreamItem) error {
+func (d *JSONDecoder) parseObject(out chan<- StreamItem) error {
+	var b byte
+	err := expectByte(d.scanr, '{')
+	if err != nil {
+		return err
+	}
 	out <- &StartObject{}
-	b, err := skipSpace(r.buf)
+	b, err = d.scanr.SkipSpaceAndPeek()
 	if err != nil {
 		return err
 	}
 	if b == '}' {
+		d.scanr.Read()
 		out <- &EndObject{}
 		return nil
 	}
 	for {
-		if b != '"' {
-			return fmt.Errorf("syntax error: expected '\"' for %q", b)
-		}
-		err := r.parseKey(out)
+		key, err := parseString(d.scanr)
 		if err != nil {
 			return err
 		}
-		b, err = skipSpace(r.buf)
+		key.TypeAndFlags |= KeyMask
+		out <- key
+		b, err = d.scanr.SkipSpaceAndPeek()
 		if err != nil {
 			return err
 		}
 		if b != ':' {
-			return fmt.Errorf("syntax error: expected ':' got %q", b)
+			return unexpectedByte(d.scanr, "expected ':', got")
 		}
-		err = r.parseValue(out)
+		d.scanr.Read()
+		err = d.parseValue(out)
 		if err != nil {
 			return err
 		}
-		b, err = skipSpace(r.buf)
+		b, err = d.scanr.SkipSpaceAndPeek()
 		if err != nil {
 			return err
 		}
 		switch b {
 		case '}':
+			d.scanr.Read()
 			out <- &EndObject{}
 			return nil
 		case ',':
-			b, err = skipSpace(r.buf)
+			d.scanr.Read()
+			_, err = d.scanr.SkipSpaceAndPeek()
 			if err != nil {
 				return err
 			}
 		default:
-			return fmt.Errorf("syntax error: expected '}' or ',' got %q", b)
+			return unexpectedByte(d.scanr, "expected '}' or ',' got")
 		}
 	}
 }
 
-func (r *JSONDecoder) parseTrue(out chan<- StreamItem) error {
-	isTrue, err := check(r.buf, []byte("rue"))
+func expectByte(scanr *scanner.Scanner, xb byte) error {
+	b, err := scanr.Read()
 	if err != nil {
 		return err
 	}
-	if !isTrue {
-		return errors.New("syntax error: expected true")
+	if b != xb {
+		scanr.Back()
+		return unexpectedByte(scanr, "expected %q, got", xb)
 	}
-	out <- trueInstance
 	return nil
 }
 
-func (r *JSONDecoder) parseFalse(out chan<- StreamItem) error {
-	isFalse, err := check(r.buf, []byte("alse"))
+func unexpectedByte(scanr *scanner.Scanner, expected string, args ...interface{}) error {
+	pos := scanr.CurrentPos()
+	b, err := scanr.Read()
 	if err != nil {
 		return err
 	}
-	if !isFalse {
-		return errors.New("syntax error")
-	}
-	out <- falseInstance
-	return nil
-}
-
-func (r *JSONDecoder) parseNull(out chan<- StreamItem) error {
-	isNull, err := check(r.buf, []byte("ull"))
-	if err != nil {
-		return err
-	}
-	if !isNull {
-		return errors.New("syntax error")
-	}
-	out <- nullInstance
-	return nil
-}
-
-func (r *JSONDecoder) parseNumber(b byte, out chan<- StreamItem) error {
-	var err error
-	var n int
-	var numberBytes []byte
-
-	// Sign part
-	if b == '-' {
-		numberBytes = append(numberBytes, b)
-		b, err = r.buf.ReadByte()
-	}
-	if err != nil {
-		return err
-	}
-
-	// Integer part
-	if b == '0' {
-		numberBytes = append(numberBytes, b)
-		b, err = r.buf.ReadByte()
-		if err != nil {
-			return err
-		}
-	} else if b >= '1' && b <= '9' {
-		b, _, err = readDigits(r.buf, b, &numberBytes)
-		if err != nil {
-			return err
-		}
+	if b == scanner.EOF {
+		return fmt.Errorf("syntax error at L%d,C%d: %s: <EOF>", pos.Line+1, pos.Col+1, fmt.Sprintf(expected, args...))
 	} else {
-		return errors.New("syntax error")
+		return fmt.Errorf("syntax error at L%d,C%d: %s: %q", pos.Line+1, pos.Col+1, fmt.Sprintf(expected, args...), b)
 	}
-
-	// Fraction part
-	if b == '.' {
-		numberBytes = append(numberBytes, b)
-		b, err = r.buf.ReadByte()
-		if err != nil {
-			return err
-		}
-		b, n, err = readDigits(r.buf, b, &numberBytes)
-		if err != nil {
-			return err
-		}
-		if n == 0 {
-			return errors.New("syntax error")
-		}
-	}
-
-	// Exponent part
-	if b == 'e' || b == 'E' {
-		numberBytes = append(numberBytes, b)
-		b, err = r.buf.ReadByte()
-		if err != nil {
-			return err
-		}
-		if b == '-' || b == '+' {
-			numberBytes = append(numberBytes, b)
-			b, err = r.buf.ReadByte()
-			if err != nil {
-				return err
-			}
-		}
-		_, n, err = readDigits(r.buf, b, &numberBytes)
-		if err != nil {
-			return err
-		}
-		if n == 0 {
-			return errors.New("syntax error")
-		}
-	}
-	r.buf.UnreadByte()
-	out <- NewScalar(Number, numberBytes)
-	return nil
 }
 
-func parseString(buf *bufio.Reader) (*Scalar, error) {
-	stringBytes := []byte{'"'}
+func parseString(scanr *scanner.Scanner) (*Scalar, error) {
+	scanr.StartToken()
+	err := expectByte(scanr, '"')
+	if err != nil {
+		return nil, err
+	}
 	isAlnum := true
+	firstChar := true
 	for {
-		b, err := buf.ReadByte()
+		b, err := scanr.Read()
 		if err != nil {
 			return nil, err
 		}
 		switch b {
 		case '\\':
-			stringBytes = append(stringBytes, b)
-			x, err := buf.ReadByte()
+			x, err := scanr.Read()
 			if err != nil {
 				return nil, err
 			}
-			stringBytes = append(stringBytes, x)
 			switch x {
 			case '"', '\\', '/', 'b', 'f', 'n', 'r', 't':
 				continue
 			case 'u':
-				hex := make([]byte, 4)
-				_, err := io.ReadFull(buf, hex)
-				if err != nil {
-					return nil, err
-				}
-				stringBytes = append(stringBytes, hex...)
-				for _, d := range hex {
-					if !(d >= '0' && d <= '9' || d >= 'a' && d <= 'f' || d >= 'A' && d <= 'F') {
-						return nil, fmt.Errorf("syntax error: expected hex, got %q", d)
+				for i := 0; i < 4; i++ {
+					b, err = scanr.Read()
+					if err != nil {
+						return nil, err
+					}
+					if !(b >= '0' && b <= '9' || b >= 'a' && b <= 'f' || b >= 'A' && b <= 'F') {
+						scanr.Back()
+						return nil, unexpectedByte(scanr, "expected hex, got")
 					}
 				}
 			}
 		case '"':
-			stringBytes = append(stringBytes, '"')
+			stringBytes := scanr.EndToken()
 			scalar := NewScalar(String, stringBytes)
 			if isAlnum {
 				scalar.TypeAndFlags |= AlnumMask
@@ -322,59 +251,105 @@ func parseString(buf *bufio.Reader) (*Scalar, error) {
 			return scalar, nil
 		default:
 			if isctrl(b) {
-				return nil, fmt.Errorf("syntax error: found control character in string: %q", b)
+				scanr.Back()
+				return nil, unexpectedByte(scanr, "invalid control character in string")
 			}
 			if isAlnum {
-				if len(stringBytes) == 1 {
+				if firstChar {
 					isAlnum = isalpha(b)
+					firstChar = false
 				} else {
 					isAlnum = isalnum(b)
 				}
 			}
-			stringBytes = append(stringBytes, b)
 		}
 	}
 }
 
-func readDigits(reader *bufio.Reader, b byte, appendTo *[]byte) (byte, int, error) {
-	var err error
+func parseNumber(scanr *scanner.Scanner) (*Scalar, error) {
+	scanr.StartToken()
 	var n int
-	for b >= '0' && b <= '9' {
-		if appendTo != nil {
-			*appendTo = append(*appendTo, b)
+	b, err := scanr.Read()
+
+	// Sign part
+	if b == '-' {
+		b, err = scanr.Read()
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	// Integer part
+	if b == '0' {
+		b, err = scanr.Read()
+		if err != nil {
+			return nil, err
+		}
+	} else if b >= '1' && b <= '9' {
+		b, _, err = readDigits(scanr)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		scanr.Back()
+		return nil, unexpectedByte(scanr, "expected digit, got")
+	}
+
+	// Fraction part
+	if b == '.' {
+		b, n, err = readDigits(scanr)
+		if err != nil {
+			return nil, err
+		}
+		if n == 0 {
+			scanr.Back()
+			return nil, unexpectedByte(scanr, "expected digit, got")
+		}
+	}
+
+	// Exponent part
+	if b == 'e' || b == 'E' {
+		b, err = scanr.Peek()
+		if err != nil {
+			return nil, err
+		}
+		if b == '-' || b == '+' {
+			scanr.Read()
+		}
+		_, n, err = readDigits(scanr)
+		if err != nil {
+			return nil, err
+		}
+		if n == 0 {
+			scanr.Back()
+			return nil, unexpectedByte(scanr, "expected digit, got")
+		}
+	}
+	scanr.Back()
+	return NewScalar(Number, scanr.EndToken()), nil
+}
+
+func readDigits(scanr *scanner.Scanner) (byte, int, error) {
+	var n int
+	for {
+		b, err := scanr.Read()
+		if err != nil {
+			return 0, n, err
+		}
+		if !isdigit(b) {
+			return b, n, nil
 		}
 		n++
-		b, err = reader.ReadByte()
-		if err != nil {
-			return 0, 0, err
-		}
 	}
-	return b, n, nil
 }
 
-func check(reader *bufio.Reader, expected []byte) (bool, error) {
-	b := make([]byte, len(expected))
-	_, err := io.ReadFull(reader, b)
-	if err != nil {
-		return false, err
-	}
-	eq := bytes.Equal(b, expected)
-	return eq, nil
-}
-
-func skipSpace(reader *bufio.Reader) (byte, error) {
-	for {
-		b, error := reader.ReadByte()
-		if error != nil {
-			return b, error
-		}
-		switch b {
-		case ' ', '\t', '\n', '\r':
-			continue
-		default:
-			return b, nil
+func checkBytes(scanr *scanner.Scanner, expected []byte) error {
+	for _, xb := range expected {
+		if err := expectByte(scanr, xb); err != nil {
+			return err
 		}
 	}
+	return nil
 }
 
 var (
