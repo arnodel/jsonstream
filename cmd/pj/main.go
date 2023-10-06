@@ -5,15 +5,17 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
-	"runtime"
 	"runtime/debug"
 	"strconv"
 	"strings"
 	"syscall"
 
 	"github.com/arnodel/jsonstream"
+	"github.com/mattn/go-colorable"
+	"github.com/mattn/go-isatty"
 )
 
 func main() {
@@ -34,7 +36,8 @@ func main() {
 	var inputFormat string
 	var colorizer *jsonstream.Colorizer
 	var quoteKeys bool
-	if isaTTY(os.Stdout) {
+
+	if isatty.IsTerminal(os.Stdout.Fd()) {
 		colorizer = &defaultColorizer
 	}
 
@@ -46,12 +49,20 @@ func main() {
 		colorizer = nil
 		return nil
 	})
+
 	flag.StringVar(&filename, "file", "", "json input filename (stdin if omitted)")
 	flag.IntVar(&indent, "indent", 2, "indent step for json output (negative means no new lines)")
 	flag.StringVar(&outputFormat, "out", "json", "output format")
 	flag.StringVar(&inputFormat, "in", "auto", "input format")
 	flag.BoolVar(&quoteKeys, "quotekeys", false, "always use quoted keys in JSON Path output")
 	flag.Parse()
+
+	// Set up stdout for handling colors
+
+	var stdout io.Writer = os.Stdout
+	if colorizer != nil {
+		stdout = colorable.NewColorableStdout()
+	}
 
 	// Open input file
 	var input *os.File
@@ -105,11 +116,11 @@ func main() {
 	}
 
 	// Write the output stream to stdout
-	stdout := bufio.NewWriter(os.Stdout)
-	defer stdout.Flush()
+	out := bufio.NewWriter(stdout)
+	defer out.Flush()
 
 	printer := &jsonstream.DefaultPrinter{
-		Writer:     stdout,
+		Writer:     out,
 		IndentSize: indent,
 	}
 
@@ -218,13 +229,4 @@ var defaultColorizer = jsonstream.Colorizer{
 	ScalarColorCodes: [4][]byte{DimWhite, Yellow, White, Green},
 	KeyColorCode:     BrightBlue,
 	ResetCode:        Reset,
-}
-
-func isaTTY(f *os.File) bool {
-	// For now don't assume you can do colors on windows as I don't know what happens.
-	if runtime.GOOS == "windows" {
-		return false
-	}
-	fi, _ := f.Stat()
-	return fi.Mode()&os.ModeCharDevice != 0
 }
