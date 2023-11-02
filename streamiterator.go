@@ -5,11 +5,11 @@ import (
 )
 
 type StreamIterator struct {
-	stream       <-chan StreamItem
+	stream       <-chan Token
 	currentValue StreamedValue
 }
 
-func NewStreamIterator(stream <-chan StreamItem) *StreamIterator {
+func NewStreamIterator(stream <-chan Token) *StreamIterator {
 	return &StreamIterator{stream: stream}
 }
 
@@ -32,7 +32,7 @@ func (i *StreamIterator) CurrentValue() StreamedValue {
 
 type StreamedValue interface {
 	Discard()
-	Copy(out chan<- StreamItem)
+	Copy(out chan<- Token)
 }
 
 type StreamedScalar Scalar
@@ -41,7 +41,7 @@ var _ StreamedValue = &StreamedScalar{}
 
 func (s *StreamedScalar) Discard() {}
 
-func (s *StreamedScalar) Copy(out chan<- StreamItem) {
+func (s *StreamedScalar) Copy(out chan<- Token) {
 	out <- (*Scalar)(s)
 }
 
@@ -58,8 +58,8 @@ type StreamedCollection interface {
 }
 
 type streamedCollectionBase struct {
-	startItem StreamItem
-	stream    <-chan StreamItem
+	startItem Token
+	stream    <-chan Token
 
 	started bool
 	done    bool
@@ -90,7 +90,7 @@ func (c *streamedCollectionBase) Discard() {
 	}
 }
 
-func (c *streamedCollectionBase) Copy(out chan<- StreamItem) {
+func (c *streamedCollectionBase) Copy(out chan<- Token) {
 	if c.started {
 		panic("cannot copy a started iterator")
 	}
@@ -197,7 +197,7 @@ func (a *StreamedArray) Advance() bool {
 	}
 }
 
-func nextStreamedValue(firstItem StreamItem, stream <-chan StreamItem) StreamedValue {
+func nextStreamedValue(firstItem Token, stream <-chan Token) StreamedValue {
 	switch v := firstItem.(type) {
 	case *StartArray:
 		return &StreamedArray{

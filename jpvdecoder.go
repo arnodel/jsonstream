@@ -41,7 +41,7 @@ func NewJPVDecoder(in io.Reader) *JPVDecoder {
 
 // Produce reads a stream of JPV values and streams them, until it runs out of
 // input or encounters invalid JPV, in which case it will return an error.
-func (d *JPVDecoder) Produce(out chan<- StreamItem) error {
+func (d *JPVDecoder) Produce(out chan<- Token) error {
 	defer func() {
 		unwindPath(d.lastPath, false, out)
 	}()
@@ -57,7 +57,7 @@ func (d *JPVDecoder) Produce(out chan<- StreamItem) error {
 	}
 }
 
-func (d *JPVDecoder) parseLine(out chan<- StreamItem) error {
+func (d *JPVDecoder) parseLine(out chan<- Token) error {
 	err := expectByte(d.scanr, '$')
 	if err != nil {
 		return err
@@ -83,7 +83,7 @@ func (d *JPVDecoder) parseLine(out chan<- StreamItem) error {
 	return jsonDecoder.parseValue(out)
 }
 
-func (d *JPVDecoder) updatePath(newPath []*Scalar, out chan<- StreamItem) error {
+func (d *JPVDecoder) updatePath(newPath []*Scalar, out chan<- Token) error {
 	if len(d.lastPath) == 0 {
 		followPath(newPath, false, out)
 		d.lastPath = newPath
@@ -116,7 +116,7 @@ func (d *JPVDecoder) updatePath(newPath []*Scalar, out chan<- StreamItem) error 
 	return nil
 }
 
-func unwindPath(path []*Scalar, inCollection bool, out chan<- StreamItem) {
+func unwindPath(path []*Scalar, inCollection bool, out chan<- Token) {
 	for i := len(path) - 1; i >= 0; i-- {
 		if i > 0 || !inCollection {
 			switch path[i].Type() {
@@ -131,7 +131,7 @@ func unwindPath(path []*Scalar, inCollection bool, out chan<- StreamItem) {
 	}
 }
 
-func followPath(path []*Scalar, inCollection bool, out chan<- StreamItem) {
+func followPath(path []*Scalar, inCollection bool, out chan<- Token) {
 	for _, key := range path {
 		switch key.Type() {
 		case String:

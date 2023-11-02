@@ -5,12 +5,12 @@ import (
 	"fmt"
 )
 
-// A StreamItem is an item in a stream that encodes a JSON value
+// A Token is an item in a stream that encodes a JSON value
 // For example, the JSON value
 //
 //	{"id": 123, "tags": ["important", "new"]}
 //
-// would be represented by the stream of StreamItem (in pseudocode for
+// would be represented by the stream of Token (in pseudocode for
 // clarity):
 //
 //	{            -> StartObject
@@ -23,10 +23,32 @@ import (
 //	]            -> EndArray
 //	}            -> EndObject
 //
-// encoded of a JSON input into a stream of StreamItem values, processing of
+// encoded of a JSON input into a stream of Token values, processing of
 // this stream and outputting the outcome can be done concurrently using
-// channels of StreamItem values.
-type StreamItem interface{}
+// channels of Token values.
+type Token interface{}
+
+type TokenReader interface {
+	Read([]Token) (int, error)
+}
+
+type TokenWriter interface {
+	Write([]Token)
+}
+
+type TokenReadStream interface {
+	Next() Token
+}
+
+type TokenWriteStream interface {
+	Put(Token)
+}
+
+type TokenReadBuf struct {
+	reader TokenReader
+	buf    []Token
+	pos    int
+}
 
 // StartObject represents the start of a JSON object (introduced by '{').
 // Values of type *StartObject implement the StreamItem interface.
@@ -36,7 +58,7 @@ func (s *StartObject) String() string {
 	return "StartObject"
 }
 
-var _ StreamItem = &StartObject{}
+var _ Token = &StartObject{}
 
 // EndObject represents the end of a JSON object (introduced by '}')
 // Values of type *EndObject implement the StreamItem interface.
@@ -46,7 +68,7 @@ func (e *EndObject) String() string {
 	return "EndObject"
 }
 
-var _ StreamItem = &EndObject{}
+var _ Token = &EndObject{}
 
 // StartArray represents the start of a JSON array (introduced by '[').
 // Values of type *StartArray implement the StreamItem interface.
@@ -56,7 +78,7 @@ func (s *StartArray) String() string {
 	return "StartArray"
 }
 
-var _ StreamItem = &StartArray{}
+var _ Token = &StartArray{}
 
 // EndArray represents the end of a JSON array (introduced by '}')
 // Values of type *EndArray implement the StreamItem interface.
@@ -66,7 +88,7 @@ func (e *EndArray) String() string {
 	return "EndArray"
 }
 
-var _ StreamItem = &EndArray{}
+var _ Token = &EndArray{}
 
 // Elision is not part of the JSON syntax but is used to remove contents
 // from an array or an object but signal to the user that the content has
@@ -77,7 +99,7 @@ func (e *Elision) String() string {
 	return "Elision"
 }
 
-var _ StreamItem = &Elision{}
+var _ Token = &Elision{}
 
 // Scalar is the type used to represent all scalar JSON values, i.e.
 // - strings

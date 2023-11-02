@@ -26,7 +26,7 @@ var _ StreamSink = &JPVEncoder{}
 //
 // And error can be returned if the Printer could not perform some writing
 // operation.  A typical example is if it attempt to write to a closed pipe.
-func (e *JPVEncoder) Consume(stream <-chan StreamItem) (err error) {
+func (e *JPVEncoder) Consume(stream <-chan Token) (err error) {
 	defer CatchPrinterError(&err)
 	iterator := NewStreamIterator(stream)
 	for iterator.Advance() {

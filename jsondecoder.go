@@ -22,7 +22,7 @@ func NewJSONDecoder(in io.Reader) *JSONDecoder {
 // Produce reads a stream of JSON values and streams them, until it runs
 // out of input or encounter invalid JSON, in which case it will return an
 // error.
-func (d *JSONDecoder) Produce(out chan<- StreamItem) error {
+func (d *JSONDecoder) Produce(out chan<- Token) error {
 	for {
 		b, err := d.scanr.SkipSpaceAndPeek()
 		if err != nil || b == scanner.EOF {
@@ -37,7 +37,7 @@ func (d *JSONDecoder) Produce(out chan<- StreamItem) error {
 
 // parseValue reads a single JSON value and streams it.  It can return a
 // non-nil error if the input is invalid JSON.
-func (d *JSONDecoder) parseValue(out chan<- StreamItem) error {
+func (d *JSONDecoder) parseValue(out chan<- Token) error {
 	b, err := d.scanr.SkipSpaceAndPeek()
 	if err != nil {
 		return err
@@ -88,7 +88,7 @@ func (d *JSONDecoder) parseValue(out chan<- StreamItem) error {
 	}
 }
 
-func (d *JSONDecoder) parseArray(out chan<- StreamItem) error {
+func (d *JSONDecoder) parseArray(out chan<- Token) error {
 	var b byte
 	var err error
 	err = expectByte(d.scanr, '[')
@@ -127,7 +127,7 @@ func (d *JSONDecoder) parseArray(out chan<- StreamItem) error {
 	}
 }
 
-func (d *JSONDecoder) parseObject(out chan<- StreamItem) error {
+func (d *JSONDecoder) parseObject(out chan<- Token) error {
 	var b byte
 	err := expectByte(d.scanr, '{')
 	if err != nil {

@@ -20,7 +20,7 @@ var _ StreamSink = &JSONEncoder{}
 //
 // And error can be returned if the Printer could not perform some writing
 // operation.  A typical example is if it attempt to write to a closed pipe.
-func (sw *JSONEncoder) Consume(stream <-chan StreamItem) (err error) {
+func (sw *JSONEncoder) Consume(stream <-chan Token) (err error) {
 	defer CatchPrinterError(&err)
 	iterator := NewStreamIterator(stream)
 	for iterator.Advance() {

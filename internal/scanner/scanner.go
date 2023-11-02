@@ -19,7 +19,7 @@ type Scanner struct {
 	fillIndex int
 
 	// Current position in buf
-	// 0 <= currentIndex <= currentIndex
+	// 0 <= currentIndex <= fillIndex
 	currentIndex int
 
 	// Records lineno and colno of current position (from when the scanning

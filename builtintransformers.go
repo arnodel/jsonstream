@@ -26,7 +26,7 @@ type MaxDepthFilter struct {
 }
 
 // Transform implements the MaxDepthFilter tansform.
-func (f *MaxDepthFilter) Transform(in <-chan StreamItem, out chan<- StreamItem) {
+func (f *MaxDepthFilter) Transform(in <-chan Token, out chan<- Token) {
 	depth := 0
 	for item := range in {
 		postIncr := 0
@@ -60,7 +60,7 @@ type KeyExtractor struct {
 }
 
 // TransformValue implements the KeyExtractor transform
-func (f *KeyExtractor) TransformValue(value StreamedValue, out chan<- StreamItem) {
+func (f *KeyExtractor) TransformValue(value StreamedValue, out chan<- Token) {
 	if obj, ok := value.(*StreamedObject); ok {
 		for obj.Advance() {
 			key, val := obj.CurrentKeyVal()
@@ -82,7 +82,7 @@ type DeepKeyExtractor struct {
 }
 
 // TransformValue implements the DeepKeyExtractor transform
-func (f *DeepKeyExtractor) TransformValue(value StreamedValue, out chan<- StreamItem) {
+func (f *DeepKeyExtractor) TransformValue(value StreamedValue, out chan<- Token) {
 	switch v := value.(type) {
 	case *StreamedObject:
 		f.transformObject(v, out)
@@ -93,7 +93,7 @@ func (f *DeepKeyExtractor) TransformValue(value StreamedValue, out chan<- Stream
 	}
 }
 
-func (f *DeepKeyExtractor) transformObject(obj *StreamedObject, out chan<- StreamItem) {
+func (f *DeepKeyExtractor) transformObject(obj *StreamedObject, out chan<- Token) {
 	for obj.Advance() {
 		key, val := obj.CurrentKeyVal()
 		if key.EqualsString(f.Key) {
@@ -113,7 +113,7 @@ func (f *DeepKeyExtractor) transformObject(obj *StreamedObject, out chan<- Strea
 type ExplodeArray struct{}
 
 // TransformValue implements the ExplodeArray transform
-func (f ExplodeArray) TransformValue(value StreamedValue, out chan<- StreamItem) {
+func (f ExplodeArray) TransformValue(value StreamedValue, out chan<- Token) {
 	switch v := value.(type) {
 	case *StreamedArray:
 		for v.Advance() {
@@ -135,7 +135,7 @@ func (f ExplodeArray) TransformValue(value StreamedValue, out chan<- StreamItem)
 type JoinStream struct{}
 
 // Transform implements the JoinStream transform
-func (f JoinStream) Transform(in <-chan StreamItem, out chan<- StreamItem) {
+func (f JoinStream) Transform(in <-chan Token, out chan<- Token) {
 	out <- &StartArray{}
 	for item := range in {
 		out <- item
@@ -148,7 +148,7 @@ func (f JoinStream) Transform(in <-chan StreamItem, out chan<- StreamItem) {
 type TraceStream struct{}
 
 // Transform implements the TraceStream transform
-func (t TraceStream) Transform(in <-chan StreamItem, out chan<- StreamItem) {
+func (t TraceStream) Transform(in <-chan Token, out chan<- Token) {
 	for item := range in {
 		log.Printf("%s", item)
 	}
