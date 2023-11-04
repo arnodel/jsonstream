@@ -1,6 +1,6 @@
 ## JSONStream
 
-So far, this is a one weekend project...
+So far, this is a 3 weekend project...
 
 ## The `jsonstream` package
 
@@ -65,6 +65,32 @@ You can choose an input format with the `-in` option:
   :-|) as the format described in https://github.com/tomnomnom/gron. This allows
   a workflow of the type `pj -out jpv | grep | pj -in jpv` (`-in jpv` is not
   required because the input format should be guessed correctly)
+- `csv` selects the `CSV` format.  Each CSV record is streamed as an array of values
+  E.g. the following input
+  ```
+  first_name,last_name,age
+  John,Doe,33
+  Arnaud,Delobelle,7
+  ```
+  is streamed as
+  ```
+  ["first_name", "last_name", "age"]
+  ["John", "Doe", 33]
+  ["Arnaud", "Delobelle", 7]
+  ```
+- `csv-header` or `csvh` selects the `CSV` format too, but the first record is considered
+  to be a header, so that each subsequent record is streamed as an object.
+  E.g. the following input
+  ```
+  first_name,last_name,age
+  John,Doe,33
+  Arnaud,Delobelle,7
+  ```
+  is streamed as
+  ```
+  {"first_name": "John", "last_name": "Doe", "age": 33} 
+  {"first_name": "Arnaud", "last_name": "Delobelle", "age": 7} 
+  ```
 - `auto` (the default value) tries to guess the format, falling back to JSON if
   it can't
 
