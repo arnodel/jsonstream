@@ -36,6 +36,10 @@ type Scanner struct {
 	tokenParts [][]byte
 
 	err error
+
+	// Tracks how many EOFs have been read.  This is required to make
+	// Back() work after an EOF has been read.
+	eofCount int
 }
 
 func NewScanner(reader io.Reader) *Scanner {
@@ -104,7 +108,11 @@ func (s *Scanner) Read() (byte, error) {
 		s.currentIndex++
 		return b, nil
 	}
-	return s.errOrEOF()
+	if s.err == io.EOF {
+		s.eofCount++
+		return EOF, nil
+	}
+	return 0, s.err
 }
 
 func (s *Scanner) StartToken() Pos {
@@ -149,6 +157,10 @@ func (s *Scanner) Back() {
 	}
 	if s.prevPos.Line < 0 {
 		panic("cannot go back twice")
+	}
+	if s.eofCount > 0 {
+		s.eofCount--
+		return
 	}
 	s.currentIndex--
 	s.currentPos = s.prevPos

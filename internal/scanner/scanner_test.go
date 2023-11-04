@@ -1,7 +1,6 @@
 package scanner
 
 import (
-	"io"
 	"strings"
 	"testing"
 )
@@ -71,7 +70,9 @@ func TestSimple(t *testing.T) {
 	assertRead(t, scanner, 'u', nil)
 	assertRead(t, scanner, 'r', nil)
 	assertCurrentPos(t, scanner, 0, 7)
-	assertRead(t, scanner, 0, io.EOF)
+	assertRead(t, scanner, EOF, nil)
+	scanner.Back()
+	assertRead(t, scanner, EOF, nil)
 	assertCurrentPos(t, scanner, 0, 7)
 	assertEndToken(t, scanner, "jour")
 }
