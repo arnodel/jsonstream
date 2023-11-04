@@ -93,6 +93,13 @@ func main() {
 		decoder = jsonstream.NewJSONDecoder(bufInput)
 	case "jpv", "path":
 		decoder = jsonstream.NewJPVDecoder(bufInput)
+	case "csv":
+		decoder = jsonstream.NewCSVDecoder(bufInput)
+	case "csv-header", "csvh":
+		csvDecoder := jsonstream.NewCSVDecoder(bufInput)
+		csvDecoder.HasHeader = true
+		csvDecoder.RecordsProduceObjects = true
+		decoder = csvDecoder
 	default:
 		fmt.Fprintf(os.Stderr, "invalid input format: %q", outputFormat)
 		os.Exit(1)
