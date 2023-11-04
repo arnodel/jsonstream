@@ -2,12 +2,14 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"os"
 	"os/signal"
+	"regexp"
 	"runtime/debug"
 	"strconv"
 	"strings"
@@ -65,7 +67,7 @@ func main() {
 	}
 
 	// Open input file
-	var input *os.File
+	var input io.Reader
 	if filename != "" {
 		var err error
 		input, err = os.Open(filename)
@@ -75,34 +77,40 @@ func main() {
 	} else {
 		input = os.Stdin
 	}
-	bufInput := bufio.NewReader(input)
 
 	// Choose the input decoder
 	if inputFormat == "auto" {
-		start, err := bufInput.Peek(10)
+		var start = make([]byte, 40)
+		_, err := input.Read(start)
+		if err == io.EOF {
+			fatalError("unable to guess format of empty file")
+		}
 		if err != nil {
 			fatalError("unable to read input: %s", err)
 		}
 		inputFormat = guessFormat(start)
+		if inputFormat == "" {
+			fatalError("unable to guess input format, please specify -in FORMAT")
+		}
+		input = io.MultiReader(bytes.NewReader(start), input)
 	}
 
 	var decoder jsonstream.StreamSource
 
 	switch inputFormat {
 	case "json":
-		decoder = jsonstream.NewJSONDecoder(bufInput)
+		decoder = jsonstream.NewJSONDecoder(input)
 	case "jpv", "path":
-		decoder = jsonstream.NewJPVDecoder(bufInput)
+		decoder = jsonstream.NewJPVDecoder(input)
 	case "csv":
-		decoder = jsonstream.NewCSVDecoder(bufInput)
+		decoder = jsonstream.NewCSVDecoder(input)
 	case "csv-header", "csvh":
-		csvDecoder := jsonstream.NewCSVDecoder(bufInput)
+		csvDecoder := jsonstream.NewCSVDecoder(input)
 		csvDecoder.HasHeader = true
 		csvDecoder.RecordsProduceObjects = true
 		decoder = csvDecoder
 	default:
-		fmt.Fprintf(os.Stderr, "invalid input format: %q", outputFormat)
-		os.Exit(1)
+		fatalError("invalid input format: %q", outputFormat)
 	}
 
 	// Start parsing the input file
@@ -182,16 +190,32 @@ func parseTransformer(arg string) (jsonstream.StreamTransformer, error) {
 	return nil, errors.New("invalid filter")
 }
 
+type FormatGuesser struct {
+	pattern *regexp.Regexp
+	format  string
+}
+
+func formatGuesser(format string, pattern string) FormatGuesser {
+	return FormatGuesser{
+		pattern: regexp.MustCompile(pattern),
+		format:  format,
+	}
+}
+
+var formatGuessers = []FormatGuesser{
+	formatGuesser("jpv", `^$`),
+	formatGuesser("json", `^[{[]`),
+	formatGuesser("csv-header", `^[a-zA-Z][a-zA-Z_0-9-]*(,[a-zA-Z][a-zA-Z_0-9-]*)+(\n|,?$)`),
+	formatGuesser("csv", `^([^,"\n]*|("[^"]*"))(,[^,"\n]*|,("[^"]*"))+(\n|,?$)`),
+}
+
 func guessFormat(start []byte) string {
-	if len(start) == 0 {
-		return "json"
+	for _, guesser := range formatGuessers {
+		if guesser.pattern.Match(start) {
+			return guesser.format
+		}
 	}
-	switch start[0] {
-	case '$':
-		return "jpv"
-	default:
-		return "json"
-	}
+	return ""
 }
 
 func fatalError(msg string, args ...interface{}) {
