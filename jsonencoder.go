@@ -22,7 +22,7 @@ var _ StreamSink = &JSONEncoder{}
 // operation.  A typical example is if it attempt to write to a closed pipe.
 func (sw *JSONEncoder) Consume(stream <-chan Token) (err error) {
 	defer CatchPrinterError(&err)
-	iterator := NewStreamIterator(stream)
+	iterator := NewStreamIterator(ChannelTokenReadStream(stream))
 	for iterator.Advance() {
 		sw.writeValue(iterator.CurrentValue())
 		sw.Printer.Reset()

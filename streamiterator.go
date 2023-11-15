@@ -5,11 +5,11 @@ import (
 )
 
 type StreamIterator struct {
-	stream       <-chan Token
+	stream       TokenReadStream
 	currentValue StreamedValue
 }
 
-func NewStreamIterator(stream <-chan Token) *StreamIterator {
+func NewStreamIterator(stream TokenReadStream) *StreamIterator {
 	return &StreamIterator{stream: stream}
 }
 
@@ -17,8 +17,8 @@ func (i *StreamIterator) Advance() (ok bool) {
 	if i.currentValue != nil {
 		i.currentValue.Discard()
 	}
-	nextItem, ok := <-i.stream
-	if !ok {
+	nextItem := i.stream.Next()
+	if nextItem == nil {
 		i.currentValue = nil
 		return false
 	}
@@ -31,6 +31,7 @@ func (i *StreamIterator) CurrentValue() StreamedValue {
 }
 
 type StreamedValue interface {
+	MakeRestartable() RestartFunc
 	Discard()
 	Copy(out chan<- Token)
 }
@@ -38,6 +39,10 @@ type StreamedValue interface {
 type StreamedScalar Scalar
 
 var _ StreamedValue = &StreamedScalar{}
+
+func (s *StreamedScalar) MakeRestartable() RestartFunc {
+	return nil
+}
 
 func (s *StreamedScalar) Discard() {}
 
@@ -59,13 +64,29 @@ type StreamedCollection interface {
 
 type streamedCollectionBase struct {
 	startItem Token
-	stream    <-chan Token
+	stream    TokenReadStream
 
 	started bool
 	done    bool
 	elided  bool
 
 	currentValue StreamedValue
+}
+
+type RestartFunc func()
+
+func (c *streamedCollectionBase) MakeRestartable() RestartFunc {
+	if c.started {
+		panic("cannot make started collection restartable")
+	}
+	restartableStream := &RestartableTokenReadStream{stream: c.stream}
+	c.stream = restartableStream
+	return func() {
+		restartableStream.Restart()
+		c.done = false
+		c.started = false
+		c.currentValue = nil
+	}
 }
 
 func (c *streamedCollectionBase) Discard() {
@@ -77,7 +98,11 @@ func (c *streamedCollectionBase) Discard() {
 	}
 	c.done = true
 	depth := 0
-	for item := range c.stream {
+	for {
+		item := c.stream.Next()
+		if item == nil {
+			return
+		}
 		switch item.(type) {
 		case *StartArray, *StartObject:
 			depth++
@@ -97,7 +122,11 @@ func (c *streamedCollectionBase) Copy(out chan<- Token) {
 	out <- c.startItem
 	c.done = true
 	depth := 0
-	for item := range c.stream {
+	for {
+		item := c.stream.Next()
+		if item == nil {
+			return
+		}
 		switch item.(type) {
 		case *StartArray, *StartObject:
 			depth++
@@ -141,16 +170,16 @@ func (o *StreamedObject) Advance() bool {
 	if o.started {
 		o.currentValue.Discard()
 	}
-	item, ok := <-o.stream
-	if !ok {
+	item := o.stream.Next()
+	if item == nil {
 		panic("stream ended inside object - expected key")
 	}
 	switch v := item.(type) {
 	case *Scalar:
 		o.started = true
 		o.currentKey = v
-		item, ok := <-o.stream
-		if !ok {
+		item := o.stream.Next()
+		if item == nil {
 			panic("stream ended inside obejct - expected value")
 		}
 		o.currentValue = nextStreamedValue(item, o.stream)
@@ -163,7 +192,7 @@ func (o *StreamedObject) Advance() bool {
 		// After this we expect o.done to be true
 		return o.Advance()
 	default:
-		panic(fmt.Sprintf("invalid stream %#v", item))
+		panic(fmt.Sprintf("invalid stream %#v, %#v", item, o.stream))
 	}
 }
 
@@ -178,8 +207,8 @@ func (a *StreamedArray) Advance() bool {
 	if a.started {
 		a.currentValue.Discard()
 	}
-	item, ok := <-a.stream
-	if !ok {
+	item := a.stream.Next()
+	if item == nil {
 		panic("stream ended inside array")
 	}
 	switch item.(type) {
@@ -197,7 +226,7 @@ func (a *StreamedArray) Advance() bool {
 	}
 }
 
-func nextStreamedValue(firstItem Token, stream <-chan Token) StreamedValue {
+func nextStreamedValue(firstItem Token, stream TokenReadStream) StreamedValue {
 	switch v := firstItem.(type) {
 	case *StartArray:
 		return &StreamedArray{

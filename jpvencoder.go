@@ -28,7 +28,7 @@ var _ StreamSink = &JPVEncoder{}
 // operation.  A typical example is if it attempt to write to a closed pipe.
 func (e *JPVEncoder) Consume(stream <-chan Token) (err error) {
 	defer CatchPrinterError(&err)
-	iterator := NewStreamIterator(stream)
+	iterator := NewStreamIterator(ChannelTokenReadStream(stream))
 	for iterator.Advance() {
 		e.writeValue(iterator.CurrentValue())
 		e.path = e.path[:0]

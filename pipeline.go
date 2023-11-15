@@ -65,7 +65,7 @@ type valueTransformerAdapter struct {
 }
 
 func (f *valueTransformerAdapter) Transform(in <-chan Token, out chan<- Token) {
-	iterator := NewStreamIterator(in)
+	iterator := NewStreamIterator(ChannelTokenReadStream(in))
 	for iterator.Advance() {
 		f.valueTransformer.TransformValue(iterator.CurrentValue(), out)
 	}
