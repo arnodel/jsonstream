@@ -215,6 +215,7 @@ func parseString(scanr *scanner.Scanner) (*Scalar, error) {
 		return nil, err
 	}
 	isAlnum := true
+	isUnescaped := true
 	firstChar := true
 	for {
 		b, err := scanr.Read()
@@ -223,6 +224,7 @@ func parseString(scanr *scanner.Scanner) (*Scalar, error) {
 		}
 		switch b {
 		case '\\':
+			isUnescaped = false
 			x, err := scanr.Read()
 			if err != nil {
 				return nil, err
@@ -247,6 +249,9 @@ func parseString(scanr *scanner.Scanner) (*Scalar, error) {
 			scalar := NewScalar(String, stringBytes)
 			if isAlnum {
 				scalar.TypeAndFlags |= AlnumMask
+			}
+			if isUnescaped {
+				scalar.TypeAndFlags |= UnescapedMask
 			}
 			return scalar, nil
 		default:

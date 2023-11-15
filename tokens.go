@@ -157,6 +157,10 @@ func (s *Scalar) IsAlnum() bool {
 	return AlnumMask&s.TypeAndFlags != 0
 }
 
+func (s *Scalar) IsUnescaped() bool {
+	return UnescapedMask&s.TypeAndFlags != 0
+}
+
 func (s *Scalar) String() string {
 	return fmt.Sprintf("Scalar(%s)", s.Bytes)
 }
@@ -189,7 +193,8 @@ const (
 )
 
 const (
-	TypeMask  = 0b0011
-	KeyMask   = 0b0100
-	AlnumMask = 0b1000
+	TypeMask      = 0b00011
+	KeyMask       = 0b00100
+	AlnumMask     = 0b01000
+	UnescapedMask = 0b10000
 )
