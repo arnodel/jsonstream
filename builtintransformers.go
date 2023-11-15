@@ -109,7 +109,7 @@ func (f *DeepKeyExtractor) transformObject(obj *StreamedObject, out chan<- Token
 //
 //	E.g.
 //	 [1, 2, 3]        -> 1 2 3
-//	 {"x": 2, "y": 5} -> {"x": 2, "y": 5
+//	 {"x": 2, "y": 5} -> {"x": 2, "y": 5}
 type ExplodeArray struct{}
 
 // TransformValue implements the ExplodeArray transform
