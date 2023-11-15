@@ -475,7 +475,7 @@ func TestGrammar(t *testing.T) {
 							ast.FilterSelector{
 								Condition: ast.ComparisonExpr{
 									Left: ast.SingularQuery{
-										RootNodeIdentifier: ast.CurrentNodeIdentifier,
+										RootNode: ast.CurrentNodeIdentifier,
 										Segments: []ast.SingularQuerySegment{
 											ast.NameSegment{Name: "price"},
 										},

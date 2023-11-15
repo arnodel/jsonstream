@@ -38,6 +38,7 @@ var _ Selector = NameSelector{}
 var _ Selector = WildcardSelector{}
 var _ Selector = IndexSelector{}
 var _ Selector = FilterSelector{}
+var _ Selector = SliceSelector{}
 
 type NameSelector struct {
 	Name string
@@ -53,8 +54,6 @@ type SliceSelector struct {
 	Start, End *int64
 	Step       int64
 }
-
-var _ Selector = SliceSelector{}
 
 type FilterSelector struct {
 	Condition LogicalExpr
@@ -125,8 +124,8 @@ type Literal struct {
 //
 
 type SingularQuery struct {
-	RootNodeIdentifier NodeIdentifier
-	Segments           []SingularQuerySegment
+	RootNode NodeIdentifier
+	Segments []SingularQuerySegment
 }
 
 type SingularQuerySegment interface{}

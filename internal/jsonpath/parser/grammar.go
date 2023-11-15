@@ -371,8 +371,8 @@ func (q *RelSingularQuery) CompileToSingularQuery() ast.SingularQuery {
 		segments[i] = s.CompileToSingularQuerySegment()
 	}
 	return ast.SingularQuery{
-		RootNodeIdentifier: ast.CurrentNodeIdentifier,
-		Segments:           segments,
+		RootNode: ast.CurrentNodeIdentifier,
+		Segments: segments,
 	}
 }
 
@@ -388,8 +388,8 @@ func (q *AbsSingularQuery) CompileToSingularQuery() ast.SingularQuery {
 		segments[i] = s.CompileToSingularQuerySegment()
 	}
 	return ast.SingularQuery{
-		RootNodeIdentifier: ast.RootNodeIdentifier,
-		Segments:           segments,
+		RootNode: ast.RootNodeIdentifier,
+		Segments: segments,
 	}
 }
 
