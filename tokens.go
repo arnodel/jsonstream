@@ -28,28 +28,6 @@ import (
 // channels of Token values.
 type Token interface{}
 
-type TokenReader interface {
-	Read([]Token) (int, error)
-}
-
-type TokenWriter interface {
-	Write([]Token)
-}
-
-type TokenReadStream interface {
-	Next() Token
-}
-
-type TokenWriteStream interface {
-	Put(Token)
-}
-
-type TokenReadBuf struct {
-	reader TokenReader
-	buf    []Token
-	pos    int
-}
-
 // StartObject represents the start of a JSON object (introduced by '{').
 // Values of type *StartObject implement the StreamItem interface.
 type StartObject struct{}
