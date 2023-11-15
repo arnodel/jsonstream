@@ -16,6 +16,7 @@ import (
 	"syscall"
 
 	"github.com/arnodel/jsonstream"
+	"github.com/arnodel/jsonstream/internal/jsonpath"
 	"github.com/mattn/go-colorable"
 	"github.com/mattn/go-isatty"
 )
@@ -186,6 +187,13 @@ func parseTransformer(arg string) (jsonstream.StreamTransformer, error) {
 			return nil, err
 		}
 		return &jsonstream.MaxDepthFilter{MaxDepth: int(depth)}, nil
+	}
+	if strings.HasPrefix(arg, "$") {
+		query, err := jsonpath.ParseQueryString(arg)
+		if err != nil {
+			return nil, err
+		}
+		return jsonstream.NewJsonPathQueryTransformer(query), nil
 	}
 	return nil, errors.New("invalid filter")
 }
