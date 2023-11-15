@@ -15,7 +15,7 @@ func parseInt(s string) int64 {
 }
 
 func parseDoubleQuotedString(s string) string {
-	return parseJsonLiteral(s).(string)
+	return ParseJsonLiteral(s).(string)
 }
 
 func parseSingleQuotedString(s string) string {
@@ -30,10 +30,10 @@ func parseSingleQuotedString(s string) string {
 }
 
 func parseNumber(s string) float64 {
-	return parseJsonLiteral(s).(float64)
+	return ParseJsonLiteral(s).(float64)
 }
 
-func parseJsonLiteral(s string) json.Token {
+func ParseJsonLiteral(s string) json.Token {
 	dec := json.NewDecoder(strings.NewReader(s))
 	tok, err := dec.Token()
 	if err != nil {
