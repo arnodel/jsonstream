@@ -5,6 +5,7 @@ import (
 	"io"
 
 	"github.com/arnodel/jsonstream/internal/scanner"
+	"github.com/arnodel/jsonstream/token"
 )
 
 // A JSONDecoder reads JSON input and streams it into a JSON stream.
@@ -12,7 +13,7 @@ type JSONDecoder struct {
 	scanr *scanner.Scanner
 }
 
-var _ StreamSource = &JSONDecoder{}
+var _ token.StreamSource = &JSONDecoder{}
 
 // NewJSONDecoder sets up a new JSONDecoder instance to read from the giver input.
 func NewJSONDecoder(in io.Reader) *JSONDecoder {
@@ -22,7 +23,7 @@ func NewJSONDecoder(in io.Reader) *JSONDecoder {
 // Produce reads a stream of JSON values and streams them, until it runs
 // out of input or encounter invalid JSON, in which case it will return an
 // error.
-func (d *JSONDecoder) Produce(out chan<- Token) error {
+func (d *JSONDecoder) Produce(out chan<- token.Token) error {
 	for {
 		b, err := d.scanr.SkipSpaceAndPeek()
 		if err != nil || b == scanner.EOF {
@@ -37,7 +38,7 @@ func (d *JSONDecoder) Produce(out chan<- Token) error {
 
 // parseValue reads a single JSON value and streams it.  It can return a
 // non-nil error if the input is invalid JSON.
-func (d *JSONDecoder) parseValue(out chan<- Token) error {
+func (d *JSONDecoder) parseValue(out chan<- token.Token) error {
 	b, err := d.scanr.SkipSpaceAndPeek()
 	if err != nil {
 		return err
@@ -88,21 +89,21 @@ func (d *JSONDecoder) parseValue(out chan<- Token) error {
 	}
 }
 
-func (d *JSONDecoder) parseArray(out chan<- Token) error {
+func (d *JSONDecoder) parseArray(out chan<- token.Token) error {
 	var b byte
 	var err error
 	err = expectByte(d.scanr, '[')
 	if err != nil {
 		return err
 	}
-	out <- &StartArray{}
+	out <- &token.StartArray{}
 	b, err = d.scanr.SkipSpaceAndPeek()
 	if err != nil {
 		return err
 	}
 	if b == ']' {
 		d.scanr.Read()
-		out <- &EndArray{}
+		out <- &token.EndArray{}
 		return nil
 	}
 	for {
@@ -117,7 +118,7 @@ func (d *JSONDecoder) parseArray(out chan<- Token) error {
 		switch b {
 		case ']':
 			d.scanr.Read()
-			out <- &EndArray{}
+			out <- &token.EndArray{}
 			return nil
 		case ',':
 			d.scanr.Read()
@@ -127,20 +128,20 @@ func (d *JSONDecoder) parseArray(out chan<- Token) error {
 	}
 }
 
-func (d *JSONDecoder) parseObject(out chan<- Token) error {
+func (d *JSONDecoder) parseObject(out chan<- token.Token) error {
 	var b byte
 	err := expectByte(d.scanr, '{')
 	if err != nil {
 		return err
 	}
-	out <- &StartObject{}
+	out <- &token.StartObject{}
 	b, err = d.scanr.SkipSpaceAndPeek()
 	if err != nil {
 		return err
 	}
 	if b == '}' {
 		d.scanr.Read()
-		out <- &EndObject{}
+		out <- &token.EndObject{}
 		return nil
 	}
 	for {
@@ -148,7 +149,7 @@ func (d *JSONDecoder) parseObject(out chan<- Token) error {
 		if err != nil {
 			return err
 		}
-		key.TypeAndFlags |= KeyMask
+		key.TypeAndFlags |= token.KeyMask
 		out <- key
 		b, err = d.scanr.SkipSpaceAndPeek()
 		if err != nil {
@@ -169,7 +170,7 @@ func (d *JSONDecoder) parseObject(out chan<- Token) error {
 		switch b {
 		case '}':
 			d.scanr.Read()
-			out <- &EndObject{}
+			out <- &token.EndObject{}
 			return nil
 		case ',':
 			d.scanr.Read()
@@ -208,7 +209,7 @@ func unexpectedByte(scanr *scanner.Scanner, expected string, args ...interface{}
 	}
 }
 
-func parseString(scanr *scanner.Scanner) (*Scalar, error) {
+func parseString(scanr *scanner.Scanner) (*token.Scalar, error) {
 	scanr.StartToken()
 	err := expectByte(scanr, '"')
 	if err != nil {
@@ -246,12 +247,12 @@ func parseString(scanr *scanner.Scanner) (*Scalar, error) {
 			}
 		case '"':
 			stringBytes := scanr.EndToken()
-			scalar := NewScalar(String, stringBytes)
+			scalar := token.NewScalar(token.String, stringBytes)
 			if isAlnum {
-				scalar.TypeAndFlags |= AlnumMask
+				scalar.TypeAndFlags |= token.AlnumMask
 			}
 			if isUnescaped {
-				scalar.TypeAndFlags |= UnescapedMask
+				scalar.TypeAndFlags |= token.UnescapedMask
 			}
 			return scalar, nil
 		default:
@@ -271,7 +272,7 @@ func parseString(scanr *scanner.Scanner) (*Scalar, error) {
 	}
 }
 
-func parseNumber(scanr *scanner.Scanner) (*Scalar, error) {
+func parseNumber(scanr *scanner.Scanner) (*token.Scalar, error) {
 	scanr.StartToken()
 	var n int
 	b, err := scanr.Read()
@@ -331,7 +332,7 @@ func parseNumber(scanr *scanner.Scanner) (*Scalar, error) {
 		}
 	}
 	scanr.Back()
-	return NewScalar(Number, scanr.EndToken()), nil
+	return token.NewScalar(token.Number, scanr.EndToken()), nil
 }
 
 func readDigits(scanr *scanner.Scanner) (byte, int, error) {
@@ -364,7 +365,7 @@ var (
 )
 
 var (
-	trueInstance  = NewScalar(Boolean, trueBytes)
-	falseInstance = NewScalar(Boolean, falseBytes)
-	nullInstance  = NewScalar(Null, nullBytes)
+	trueInstance  = token.NewScalar(token.Boolean, trueBytes)
+	falseInstance = token.NewScalar(token.Boolean, falseBytes)
+	nullInstance  = token.NewScalar(token.Null, nullBytes)
 )

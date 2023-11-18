@@ -1,19 +1,21 @@
 package jsonstream
 
+import "github.com/arnodel/jsonstream/token"
+
 type Colorizer struct {
 	KeyColorCode     []byte
 	ScalarColorCodes [4][]byte
 	ResetCode        []byte
 }
 
-func (c *Colorizer) ScalarColorCode(scalar *Scalar) []byte {
+func (c *Colorizer) ScalarColorCode(scalar *token.Scalar) []byte {
 	if scalar.IsKey() {
 		return c.KeyColorCode
 	}
 	return c.ScalarColorCodes[scalar.Type()]
 }
 
-func (c *Colorizer) PrintScalar(p Printer, scalar *Scalar) {
+func (c *Colorizer) PrintScalar(p Printer, scalar *token.Scalar) {
 	if c != nil {
 		p.PrintBytes(c.ScalarColorCode(scalar))
 	}
@@ -23,7 +25,7 @@ func (c *Colorizer) PrintScalar(p Printer, scalar *Scalar) {
 	}
 }
 
-func (c *Colorizer) PrintSuccintScalar(p Printer, scalar *Scalar) {
+func (c *Colorizer) PrintSuccintScalar(p Printer, scalar *token.Scalar) {
 	if c != nil {
 		p.PrintBytes(c.ScalarColorCode(scalar))
 	}

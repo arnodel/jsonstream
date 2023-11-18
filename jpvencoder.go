@@ -3,6 +3,9 @@ package jsonstream
 import (
 	"fmt"
 	"strconv"
+
+	"github.com/arnodel/jsonstream/iterator"
+	"github.com/arnodel/jsonstream/token"
 )
 
 // A JPVEncoder can output a stream encoding a JSON value using the given
@@ -14,10 +17,10 @@ type JPVEncoder struct {
 
 	AlwaysQuoteKeys bool
 
-	path []*Scalar // keeps track of the current path
+	path []*token.Scalar // keeps track of the current path
 }
 
-var _ StreamSink = &JPVEncoder{}
+var _ token.StreamSink = &JPVEncoder{}
 
 // Consume formats the JSON stream encoded in the given channel using the
 // instance's Printer.  It assumes that the stream is well-formed, i.e. is a
@@ -26,9 +29,9 @@ var _ StreamSink = &JPVEncoder{}
 //
 // And error can be returned if the Printer could not perform some writing
 // operation.  A typical example is if it attempt to write to a closed pipe.
-func (e *JPVEncoder) Consume(stream <-chan Token) (err error) {
+func (e *JPVEncoder) Consume(stream <-chan token.Token) (err error) {
 	defer CatchPrinterError(&err)
-	iterator := NewStreamIterator(ChannelTokenReadStream(stream))
+	iterator := iterator.New(token.ChannelReadStream(stream))
 	for iterator.Advance() {
 		e.writeValue(iterator.CurrentValue())
 		e.path = e.path[:0]
@@ -37,20 +40,20 @@ func (e *JPVEncoder) Consume(stream <-chan Token) (err error) {
 	return nil
 }
 
-func (e *JPVEncoder) writeValue(value StreamedValue) {
+func (e *JPVEncoder) writeValue(value iterator.Value) {
 	switch v := value.(type) {
-	case *StreamedScalar:
+	case *iterator.Scalar:
 		e.writeScalar(v.Scalar())
-	case *StreamedObject:
+	case *iterator.Object:
 		e.writeObject(v)
-	case *StreamedArray:
+	case *iterator.Array:
 		e.writeArray(v)
 	default:
 		panic(fmt.Sprintf("invalid stream item: %#v", value))
 	}
 }
 
-func (e *JPVEncoder) writeObject(obj *StreamedObject) {
+func (e *JPVEncoder) writeObject(obj *iterator.Object) {
 	var count = 0
 	for obj.Advance() {
 		key, value := obj.CurrentKeyVal()
@@ -72,10 +75,10 @@ func (e *JPVEncoder) writeObject(obj *StreamedObject) {
 	}
 }
 
-func (e *JPVEncoder) writeArray(arr *StreamedArray) {
+func (e *JPVEncoder) writeArray(arr *iterator.Array) {
 	var index = 0
 	for arr.Advance() {
-		e.pushKey(NewKey(Number, []byte(strconv.Itoa(index))))
+		e.pushKey(token.NewKey(token.Number, []byte(strconv.Itoa(index))))
 		value := arr.CurrentValue()
 		e.writeValue(value)
 		e.popKey()
@@ -94,7 +97,7 @@ func (e *JPVEncoder) writeArray(arr *StreamedArray) {
 	}
 }
 
-func (e *JPVEncoder) writeScalar(scalar *Scalar) {
+func (e *JPVEncoder) writeScalar(scalar *token.Scalar) {
 	e.writePath()
 	e.PrintScalar(e.Printer, scalar)
 	e.NewLine()
@@ -115,7 +118,7 @@ func (e *JPVEncoder) writePath() {
 	e.PrintBytes(pathValueSeparatorBytes)
 }
 
-func (e *JPVEncoder) pushKey(key *Scalar) {
+func (e *JPVEncoder) pushKey(key *token.Scalar) {
 	e.path = append(e.path, key)
 }
 

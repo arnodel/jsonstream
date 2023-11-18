@@ -1,4 +1,4 @@
-package jsonstream
+package token
 
 // A StreamTransformer can transform a json stream into another.
 // Use the TransformStream function to apply it.
@@ -12,13 +12,6 @@ type StreamSource interface {
 
 type StreamSink interface {
 	Consume(<-chan Token) error
-}
-
-// A ValueTransformer can transform a StreamedValue into a json stream.
-// Use the AsStreamTransformer function to turn it into a
-// StreamTransformer which can then be applied.
-type ValueTransformer interface {
-	TransformValue(iter StreamedValue, out chan<- Token)
 }
 
 // TransformStream applies the transformer to the incoming json stream,
@@ -52,21 +45,4 @@ func StartStream(source StreamSource, handleError func(error)) <-chan Token {
 
 func ConsumeStream(in <-chan Token, sink StreamSink) error {
 	return sink.Consume(in)
-}
-
-// AsStreamTransformer turns a ValueTransformer into a StreamTransformer,
-// so it can be applied to a json stream.
-func AsStreamTransformer(transformer ValueTransformer) StreamTransformer {
-	return &valueTransformerAdapter{valueTransformer: transformer}
-}
-
-type valueTransformerAdapter struct {
-	valueTransformer ValueTransformer
-}
-
-func (f *valueTransformerAdapter) Transform(in <-chan Token, out chan<- Token) {
-	iterator := NewStreamIterator(ChannelTokenReadStream(in))
-	for iterator.Advance() {
-		f.valueTransformer.TransformValue(iterator.CurrentValue(), out)
-	}
 }

@@ -1,4 +1,4 @@
-package jsonstream
+package token
 
 import (
 	"bytes"

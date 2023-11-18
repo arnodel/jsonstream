@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/arnodel/jsonstream/internal/scanner"
+	"github.com/arnodel/jsonstream/token"
 )
 
 // A CSVDecoder reads CSV input and streams it into a JSON stream.
@@ -14,10 +15,10 @@ type CSVDecoder struct {
 	reader                *csv.Reader
 	HasHeader             bool // When true, treat the first record as a header
 	RecordsProduceObjects bool // When false, produce an array for each record, else an object
-	fieldNames            []*Scalar
+	fieldNames            []*token.Scalar
 }
 
-var _ StreamSource = &CSVDecoder{}
+var _ token.StreamSource = &CSVDecoder{}
 
 // NewCSVDecoder sets up a new CSVDecoder isntance to read from the given input.
 func NewCSVDecoder(in io.Reader) *CSVDecoder {
@@ -26,7 +27,7 @@ func NewCSVDecoder(in io.Reader) *CSVDecoder {
 
 // Produce reads a stream of CSV records, until it runs out of input or
 // encounters invalid CSV, in which case it will return an error
-func (d *CSVDecoder) Produce(out chan<- Token) error {
+func (d *CSVDecoder) Produce(out chan<- token.Token) error {
 	recordCount := 0
 	for {
 		record, err := d.reader.Read()
@@ -53,24 +54,24 @@ func (d *CSVDecoder) SetFieldNames(record []string) {
 	}
 }
 
-func (d *CSVDecoder) produceRecord(record []string, out chan<- Token) {
+func (d *CSVDecoder) produceRecord(record []string, out chan<- token.Token) {
 	if d.RecordsProduceObjects {
-		out <- &StartObject{}
+		out <- &token.StartObject{}
 		for i, field := range record {
 			out <- d.getFieldName(i)
 			out <- fieldToScalar(field, false)
 		}
-		out <- &EndObject{}
+		out <- &token.EndObject{}
 	} else {
-		out <- &StartArray{}
+		out <- &token.StartArray{}
 		for _, field := range record {
 			out <- fieldToScalar(field, false)
 		}
-		out <- &EndArray{}
+		out <- &token.EndArray{}
 	}
 }
 
-func (d *CSVDecoder) getFieldName(i int) *Scalar {
+func (d *CSVDecoder) getFieldName(i int) *token.Scalar {
 	if i >= len(d.fieldNames) {
 		for j := len(d.fieldNames); j <= i; j++ {
 			d.fieldNames = append(d.fieldNames, fieldToScalar(fmt.Sprintf("field_%d", j+1), true))
@@ -79,7 +80,7 @@ func (d *CSVDecoder) getFieldName(i int) *Scalar {
 	return d.fieldNames[i]
 }
 
-func fieldToScalar(field string, isHeader bool) *Scalar {
+func fieldToScalar(field string, isHeader bool) *token.Scalar {
 	if !isHeader {
 		switch field {
 		case "":
@@ -118,23 +119,23 @@ func fieldToScalar(field string, isHeader bool) *Scalar {
 	}
 	scalar := simpleCSVFieldToStringScalar(field)
 	if fieldIsAlnum {
-		scalar.TypeAndFlags |= AlnumMask
+		scalar.TypeAndFlags |= token.AlnumMask
 	}
 	if isHeader {
-		scalar.TypeAndFlags |= KeyMask
+		scalar.TypeAndFlags |= token.KeyMask
 	}
 	return scalar
 }
 
-func simpleCSVFieldToStringScalar(field string) *Scalar {
+func simpleCSVFieldToStringScalar(field string) *token.Scalar {
 	var tokenBytes = make([]byte, len(field)+2)
 	tokenBytes[0] = '"'
 	copy(tokenBytes[1:], []byte(field))
 	tokenBytes[len(tokenBytes)-1] = '"'
-	return NewScalar(String, tokenBytes)
+	return token.NewScalar(token.String, tokenBytes)
 }
 
-func csvFieldToStringScalar(field string, escapeCount int) *Scalar {
+func csvFieldToStringScalar(field string, escapeCount int) *token.Scalar {
 	var tokenBytes = make([]byte, len(field)+escapeCount+2)
 	tokenBytes[0] = '"'
 	var i = 1
@@ -152,5 +153,5 @@ func csvFieldToStringScalar(field string, escapeCount int) *Scalar {
 		i++
 	}
 	tokenBytes[i] = '"'
-	return NewScalar(String, tokenBytes)
+	return token.NewScalar(token.String, tokenBytes)
 }

@@ -2,6 +2,9 @@ package jsonstream
 
 import (
 	"fmt"
+
+	"github.com/arnodel/jsonstream/iterator"
+	"github.com/arnodel/jsonstream/token"
 )
 
 // A JSONEncoder can output a stream encoding a (stream of) JSON values
@@ -11,7 +14,7 @@ type JSONEncoder struct {
 	*Colorizer
 }
 
-var _ StreamSink = &JSONEncoder{}
+var _ token.StreamSink = &JSONEncoder{}
 
 // Consume formats the JSON stream encoded in the given channel using the
 // instance's Printer.  It assumes that the stream is well-formed, i.e.
@@ -20,9 +23,9 @@ var _ StreamSink = &JSONEncoder{}
 //
 // And error can be returned if the Printer could not perform some writing
 // operation.  A typical example is if it attempt to write to a closed pipe.
-func (sw *JSONEncoder) Consume(stream <-chan Token) (err error) {
+func (sw *JSONEncoder) Consume(stream <-chan token.Token) (err error) {
 	defer CatchPrinterError(&err)
-	iterator := NewStreamIterator(ChannelTokenReadStream(stream))
+	iterator := iterator.New(token.ChannelReadStream(stream))
 	for iterator.Advance() {
 		sw.writeValue(iterator.CurrentValue())
 		sw.Printer.Reset()
@@ -30,20 +33,20 @@ func (sw *JSONEncoder) Consume(stream <-chan Token) (err error) {
 	return nil
 }
 
-func (sw *JSONEncoder) writeValue(value StreamedValue) {
+func (sw *JSONEncoder) writeValue(value iterator.Value) {
 	switch v := value.(type) {
-	case *StreamedScalar:
+	case *iterator.Scalar:
 		sw.Colorizer.PrintScalar(sw.Printer, v.Scalar())
-	case *StreamedObject:
+	case *iterator.Object:
 		sw.writeObject(v)
-	case *StreamedArray:
+	case *iterator.Array:
 		sw.writeArray(v)
 	default:
 		panic(fmt.Sprintf("invalid stream item: %#v", value))
 	}
 }
 
-func (sw *JSONEncoder) writeObject(obj *StreamedObject) {
+func (sw *JSONEncoder) writeObject(obj *iterator.Object) {
 	sw.PrintBytes(openObjectBytes)
 	firstItem := true
 	for obj.Advance() {
@@ -71,7 +74,7 @@ func (sw *JSONEncoder) writeObject(obj *StreamedObject) {
 	sw.PrintBytes(closeObjectBytes)
 }
 
-func (sw *JSONEncoder) writeArray(arr *StreamedArray) {
+func (sw *JSONEncoder) writeArray(arr *iterator.Array) {
 	sw.PrintBytes(openArrayBytes)
 	firstItem := true
 	for arr.Advance() {

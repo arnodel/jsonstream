@@ -1,6 +1,11 @@
 package jsonstream
 
-import "log"
+import (
+	"log"
+
+	"github.com/arnodel/jsonstream/iterator"
+	"github.com/arnodel/jsonstream/token"
+)
 
 // MaxDepthFilter is a Transformer that truncates the stream to a given depth.
 // Collections which are more deeply nested than MaxDepth are elided
@@ -26,21 +31,21 @@ type MaxDepthFilter struct {
 }
 
 // Transform implements the MaxDepthFilter tansform.
-func (f *MaxDepthFilter) Transform(in <-chan Token, out chan<- Token) {
+func (f *MaxDepthFilter) Transform(in <-chan token.Token, out chan<- token.Token) {
 	depth := 0
 	for item := range in {
 		postIncr := 0
 		switch item.(type) {
-		case *StartArray, *StartObject:
+		case *token.StartArray, *token.StartObject:
 			postIncr++
-		case *EndArray, *EndObject:
+		case *token.EndArray, *token.EndObject:
 			depth--
 		}
 		if depth <= f.MaxDepth {
 			out <- item
 		}
 		if depth == f.MaxDepth && postIncr > 0 {
-			out <- &Elision{}
+			out <- &token.Elision{}
 		}
 		depth += postIncr
 	}
@@ -60,8 +65,8 @@ type KeyExtractor struct {
 }
 
 // TransformValue implements the KeyExtractor transform
-func (f *KeyExtractor) TransformValue(value StreamedValue, out chan<- Token) {
-	if obj, ok := value.(*StreamedObject); ok {
+func (f *KeyExtractor) TransformValue(value iterator.Value, out chan<- token.Token) {
+	if obj, ok := value.(*iterator.Object); ok {
 		for obj.Advance() {
 			key, val := obj.CurrentKeyVal()
 			if key.EqualsString(f.Key) {
@@ -82,18 +87,18 @@ type DeepKeyExtractor struct {
 }
 
 // TransformValue implements the DeepKeyExtractor transform
-func (f *DeepKeyExtractor) TransformValue(value StreamedValue, out chan<- Token) {
+func (f *DeepKeyExtractor) TransformValue(value iterator.Value, out chan<- token.Token) {
 	switch v := value.(type) {
-	case *StreamedObject:
+	case *iterator.Object:
 		f.transformObject(v, out)
-	case *StreamedArray:
+	case *iterator.Array:
 		for v.Advance() {
 			f.TransformValue(v.CurrentValue(), out)
 		}
 	}
 }
 
-func (f *DeepKeyExtractor) transformObject(obj *StreamedObject, out chan<- Token) {
+func (f *DeepKeyExtractor) transformObject(obj *iterator.Object, out chan<- token.Token) {
 	for obj.Advance() {
 		key, val := obj.CurrentKeyVal()
 		if key.EqualsString(f.Key) {
@@ -113,9 +118,9 @@ func (f *DeepKeyExtractor) transformObject(obj *StreamedObject, out chan<- Token
 type ExplodeArray struct{}
 
 // TransformValue implements the ExplodeArray transform
-func (f ExplodeArray) TransformValue(value StreamedValue, out chan<- Token) {
+func (f ExplodeArray) TransformValue(value iterator.Value, out chan<- token.Token) {
 	switch v := value.(type) {
-	case *StreamedArray:
+	case *iterator.Array:
 		for v.Advance() {
 			v.CurrentValue().Copy(out)
 		}
@@ -135,12 +140,12 @@ func (f ExplodeArray) TransformValue(value StreamedValue, out chan<- Token) {
 type JoinStream struct{}
 
 // Transform implements the JoinStream transform
-func (f JoinStream) Transform(in <-chan Token, out chan<- Token) {
-	out <- &StartArray{}
+func (f JoinStream) Transform(in <-chan token.Token, out chan<- token.Token) {
+	out <- &token.StartArray{}
 	for item := range in {
 		out <- item
 	}
-	out <- &EndArray{}
+	out <- &token.EndArray{}
 }
 
 // TraceStream logs all the stream items and doesn't send any items on.
@@ -148,7 +153,7 @@ func (f JoinStream) Transform(in <-chan Token, out chan<- Token) {
 type TraceStream struct{}
 
 // Transform implements the TraceStream transform
-func (t TraceStream) Transform(in <-chan Token, out chan<- Token) {
+func (t TraceStream) Transform(in <-chan token.Token, out chan<- token.Token) {
 	for item := range in {
 		log.Printf("%s", item)
 	}

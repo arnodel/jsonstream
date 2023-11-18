@@ -17,6 +17,9 @@ import (
 
 	"github.com/arnodel/jsonstream"
 	"github.com/arnodel/jsonstream/internal/jsonpath"
+	"github.com/arnodel/jsonstream/iterator"
+	"github.com/arnodel/jsonstream/jsonpathtransformer"
+	"github.com/arnodel/jsonstream/token"
 	"github.com/mattn/go-colorable"
 	"github.com/mattn/go-isatty"
 )
@@ -96,7 +99,7 @@ func main() {
 		input = io.MultiReader(bytes.NewReader(start), input)
 	}
 
-	var decoder jsonstream.StreamSource
+	var decoder token.StreamSource
 
 	switch inputFormat {
 	case "json":
@@ -115,7 +118,7 @@ func main() {
 	}
 
 	// Start parsing the input file
-	stream := jsonstream.StartStream(
+	stream := token.StartStream(
 		decoder,
 		func(err error) {
 			fmt.Fprintf(os.Stderr, "error while parsing: %s", err)
@@ -128,7 +131,7 @@ func main() {
 		if err != nil {
 			fatalError("error: %s", err)
 		}
-		stream = jsonstream.TransformStream(stream, transformer)
+		stream = token.TransformStream(stream, transformer)
 	}
 
 	// Write the output stream to stdout
@@ -140,7 +143,7 @@ func main() {
 		IndentSize: indent,
 	}
 
-	var encoder jsonstream.StreamSink
+	var encoder token.StreamSink
 	switch outputFormat {
 	case "json":
 		encoder = &jsonstream.JSONEncoder{Printer: printer, Colorizer: colorizer}
@@ -154,7 +157,7 @@ func main() {
 		fatalError("invalid output format: %q", outputFormat)
 	}
 
-	err := jsonstream.ConsumeStream(stream, encoder)
+	err := token.ConsumeStream(stream, encoder)
 	if err != nil {
 		if errors.Is(err, syscall.EPIPE) {
 			// stdout is a pipe and something closed it (e.g. 'head' or 'less').
@@ -165,9 +168,9 @@ func main() {
 	}
 }
 
-func parseTransformer(arg string) (jsonstream.StreamTransformer, error) {
+func parseTransformer(arg string) (token.StreamTransformer, error) {
 	if arg == "split" {
-		return jsonstream.AsStreamTransformer(jsonstream.ExplodeArray{}), nil
+		return iterator.AsStreamTransformer(jsonstream.ExplodeArray{}), nil
 	}
 	if arg == "join" {
 		return jsonstream.JoinStream{}, nil
@@ -176,10 +179,10 @@ func parseTransformer(arg string) (jsonstream.StreamTransformer, error) {
 		return jsonstream.TraceStream{}, nil
 	}
 	if strings.HasPrefix(arg, "...") {
-		return jsonstream.AsStreamTransformer(&jsonstream.DeepKeyExtractor{Key: strings.TrimPrefix(arg, "...")}), nil
+		return iterator.AsStreamTransformer(&jsonstream.DeepKeyExtractor{Key: strings.TrimPrefix(arg, "...")}), nil
 	}
 	if strings.HasPrefix(arg, ".") {
-		return jsonstream.AsStreamTransformer(&jsonstream.KeyExtractor{Key: strings.TrimPrefix(arg, ".")}), nil
+		return iterator.AsStreamTransformer(&jsonstream.KeyExtractor{Key: strings.TrimPrefix(arg, ".")}), nil
 	}
 	if strings.HasPrefix(arg, "depth=") {
 		depth, err := strconv.ParseInt(strings.TrimPrefix(arg, "depth="), 10, 64)
@@ -193,7 +196,7 @@ func parseTransformer(arg string) (jsonstream.StreamTransformer, error) {
 		if err != nil {
 			return nil, err
 		}
-		return jsonstream.NewJsonPathQueryTransformer(query), nil
+		return jsonpathtransformer.NewJsonPathQueryTransformer(query), nil
 	}
 	return nil, errors.New("invalid filter")
 }

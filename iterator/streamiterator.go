@@ -1,19 +1,21 @@
-package jsonstream
+package iterator
 
 import (
 	"fmt"
+
+	"github.com/arnodel/jsonstream/token"
 )
 
-type StreamIterator struct {
-	stream       TokenReadStream
-	currentValue StreamedValue
+type Iterator struct {
+	stream       token.ReadStream
+	currentValue Value
 }
 
-func NewStreamIterator(stream TokenReadStream) *StreamIterator {
-	return &StreamIterator{stream: stream}
+func New(stream token.ReadStream) *Iterator {
+	return &Iterator{stream: stream}
 }
 
-func (i *StreamIterator) Advance() (ok bool) {
+func (i *Iterator) Advance() (ok bool) {
 	if i.currentValue != nil {
 		i.currentValue.Discard()
 	}
@@ -26,60 +28,60 @@ func (i *StreamIterator) Advance() (ok bool) {
 	return true
 }
 
-func (i *StreamIterator) CurrentValue() StreamedValue {
+func (i *Iterator) CurrentValue() Value {
 	return i.currentValue
 }
 
-type StreamedValue interface {
+type Value interface {
 	MakeRestartable() RestartFunc
 	Discard()
-	Copy(out chan<- Token)
+	Copy(out chan<- token.Token)
 }
 
-type StreamedScalar Scalar
+type Scalar token.Scalar
 
-var _ StreamedValue = &StreamedScalar{}
+var _ Value = &Scalar{}
 
-func (s *StreamedScalar) MakeRestartable() RestartFunc {
+func (s *Scalar) MakeRestartable() RestartFunc {
 	return nil
 }
 
-func (s *StreamedScalar) Discard() {}
+func (s *Scalar) Discard() {}
 
-func (s *StreamedScalar) Copy(out chan<- Token) {
-	out <- (*Scalar)(s)
+func (s *Scalar) Copy(out chan<- token.Token) {
+	out <- (*token.Scalar)(s)
 }
 
-func (s *StreamedScalar) Scalar() *Scalar {
-	return (*Scalar)(s)
+func (s *Scalar) Scalar() *token.Scalar {
+	return (*token.Scalar)(s)
 }
 
-type StreamedCollection interface {
-	StreamedValue
+type Collection interface {
+	Value
 	Advance() bool
 	Done() bool
 	Elided() bool
-	CurrentValue() StreamedValue
+	CurrentValue() Value
 }
 
-type streamedCollectionBase struct {
-	startItem Token
-	stream    TokenReadStream
+type collectionBase struct {
+	startItem token.Token
+	stream    token.ReadStream
 
 	started bool
 	done    bool
 	elided  bool
 
-	currentValue StreamedValue
+	currentValue Value
 }
 
 type RestartFunc func()
 
-func (c *streamedCollectionBase) MakeRestartable() RestartFunc {
+func (c *collectionBase) MakeRestartable() RestartFunc {
 	if c.started {
 		panic("cannot make started collection restartable")
 	}
-	restartableStream := &RestartableTokenReadStream{stream: c.stream}
+	restartableStream := token.NewRestartableReadStream(c.stream)
 	c.stream = restartableStream
 	return func() {
 		restartableStream.Restart()
@@ -89,7 +91,7 @@ func (c *streamedCollectionBase) MakeRestartable() RestartFunc {
 	}
 }
 
-func (c *streamedCollectionBase) Discard() {
+func (c *collectionBase) Discard() {
 	if c.done {
 		return
 	}
@@ -104,9 +106,9 @@ func (c *streamedCollectionBase) Discard() {
 			return
 		}
 		switch item.(type) {
-		case *StartArray, *StartObject:
+		case *token.StartArray, *token.StartObject:
 			depth++
-		case *EndArray, *EndObject:
+		case *token.EndArray, *token.EndObject:
 			depth--
 		}
 		if depth < 0 {
@@ -115,7 +117,7 @@ func (c *streamedCollectionBase) Discard() {
 	}
 }
 
-func (c *streamedCollectionBase) Copy(out chan<- Token) {
+func (c *collectionBase) Copy(out chan<- token.Token) {
 	if c.started {
 		panic("cannot copy a started iterator")
 	}
@@ -128,9 +130,9 @@ func (c *streamedCollectionBase) Copy(out chan<- Token) {
 			return
 		}
 		switch item.(type) {
-		case *StartArray, *StartObject:
+		case *token.StartArray, *token.StartObject:
 			depth++
-		case *EndArray, *EndObject:
+		case *token.EndArray, *token.EndObject:
 			depth--
 		}
 		out <- item
@@ -140,30 +142,30 @@ func (c *streamedCollectionBase) Copy(out chan<- Token) {
 	}
 }
 
-func (c *streamedCollectionBase) Elided() bool {
+func (c *collectionBase) Elided() bool {
 	return c.elided
 }
 
-func (c *streamedCollectionBase) CurrentValue() StreamedValue {
+func (c *collectionBase) CurrentValue() Value {
 	if c.done {
 		panic("iterator done")
 	}
 	return c.currentValue
 }
 
-type StreamedObject struct {
-	streamedCollectionBase
-	currentKey *Scalar
+type Object struct {
+	collectionBase
+	currentKey *token.Scalar
 }
 
-func (o *StreamedObject) CurrentKeyVal() (*Scalar, StreamedValue) {
+func (o *Object) CurrentKeyVal() (*token.Scalar, Value) {
 	if o.done {
 		panic("iterator done")
 	}
 	return o.currentKey, o.currentValue
 }
 
-func (o *StreamedObject) Advance() bool {
+func (o *Object) Advance() bool {
 	if o.done {
 		return false
 	}
@@ -175,7 +177,7 @@ func (o *StreamedObject) Advance() bool {
 		panic("stream ended inside object - expected key")
 	}
 	switch v := item.(type) {
-	case *Scalar:
+	case *token.Scalar:
 		o.started = true
 		o.currentKey = v
 		item := o.stream.Next()
@@ -184,10 +186,10 @@ func (o *StreamedObject) Advance() bool {
 		}
 		o.currentValue = nextStreamedValue(item, o.stream)
 		return true
-	case *EndObject:
+	case *token.EndObject:
 		o.done = true
 		return false
-	case *Elision:
+	case *token.Elision:
 		o.elided = true
 		// After this we expect o.done to be true
 		return o.Advance()
@@ -196,11 +198,11 @@ func (o *StreamedObject) Advance() bool {
 	}
 }
 
-type StreamedArray struct {
-	streamedCollectionBase
+type Array struct {
+	collectionBase
 }
 
-func (a *StreamedArray) Advance() bool {
+func (a *Array) Advance() bool {
 	if a.done {
 		return false
 	}
@@ -212,10 +214,10 @@ func (a *StreamedArray) Advance() bool {
 		panic("stream ended inside array")
 	}
 	switch item.(type) {
-	case *EndArray:
+	case *token.EndArray:
 		a.done = true
 		return false
-	case *Elision:
+	case *token.Elision:
 		a.elided = true
 		return a.Advance()
 		// After this we expect a.done to be true
@@ -226,16 +228,18 @@ func (a *StreamedArray) Advance() bool {
 	}
 }
 
-func nextStreamedValue(firstItem Token, stream TokenReadStream) StreamedValue {
+func nextStreamedValue(firstItem token.Token, stream token.ReadStream) Value {
 	switch v := firstItem.(type) {
-	case *StartArray:
-		return &StreamedArray{
-			streamedCollectionBase: streamedCollectionBase{startItem: firstItem, stream: stream}}
-	case *StartObject:
-		return &StreamedObject{
-			streamedCollectionBase: streamedCollectionBase{startItem: firstItem, stream: stream}}
-	case *Scalar:
-		return (*StreamedScalar)(v)
+	case *token.StartArray:
+		return &Array{
+			collectionBase: collectionBase{startItem: firstItem, stream: stream},
+		}
+	case *token.StartObject:
+		return &Object{
+			collectionBase: collectionBase{startItem: firstItem, stream: stream},
+		}
+	case *token.Scalar:
+		return (*Scalar)(v)
 	default:
 		panic(fmt.Sprintf("invalid stream %#v", firstItem))
 	}

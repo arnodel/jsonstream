@@ -5,6 +5,7 @@ import (
 	"io"
 
 	"github.com/arnodel/jsonstream/internal/scanner"
+	"github.com/arnodel/jsonstream/token"
 )
 
 // JPVDecoder reads input in JPV format and streams it into a JSON stream.
@@ -28,10 +29,10 @@ import (
 // other unix utilites to be filtered / transformed, then turned back into JSON.
 type JPVDecoder struct {
 	scanr    *scanner.Scanner
-	lastPath []*Scalar
+	lastPath []*token.Scalar
 }
 
-var _ StreamSource = &JPVDecoder{}
+var _ token.StreamSource = &JPVDecoder{}
 
 // NewJPVDecoder sets up a new GRONDecoder instance to read from the given
 // input.
@@ -41,7 +42,7 @@ func NewJPVDecoder(in io.Reader) *JPVDecoder {
 
 // Produce reads a stream of JPV values and streams them, until it runs out of
 // input or encounters invalid JPV, in which case it will return an error.
-func (d *JPVDecoder) Produce(out chan<- Token) error {
+func (d *JPVDecoder) Produce(out chan<- token.Token) error {
 	defer func() {
 		unwindPath(d.lastPath, false, out)
 	}()
@@ -57,7 +58,7 @@ func (d *JPVDecoder) Produce(out chan<- Token) error {
 	}
 }
 
-func (d *JPVDecoder) parseLine(out chan<- Token) error {
+func (d *JPVDecoder) parseLine(out chan<- token.Token) error {
 	err := expectByte(d.scanr, '$')
 	if err != nil {
 		return err
@@ -83,7 +84,7 @@ func (d *JPVDecoder) parseLine(out chan<- Token) error {
 	return jsonDecoder.parseValue(out)
 }
 
-func (d *JPVDecoder) updatePath(newPath []*Scalar, out chan<- Token) error {
+func (d *JPVDecoder) updatePath(newPath []*token.Scalar, out chan<- token.Token) error {
 	if len(d.lastPath) == 0 {
 		followPath(newPath, false, out)
 		d.lastPath = newPath
@@ -116,14 +117,14 @@ func (d *JPVDecoder) updatePath(newPath []*Scalar, out chan<- Token) error {
 	return nil
 }
 
-func unwindPath(path []*Scalar, inCollection bool, out chan<- Token) {
+func unwindPath(path []*token.Scalar, inCollection bool, out chan<- token.Token) {
 	for i := len(path) - 1; i >= 0; i-- {
 		if i > 0 || !inCollection {
 			switch path[i].Type() {
-			case String:
-				out <- &EndObject{}
-			case Number:
-				out <- &EndArray{}
+			case token.String:
+				out <- &token.EndObject{}
+			case token.Number:
+				out <- &token.EndArray{}
 			default:
 				panic("invalid key type (must be string or number)")
 			}
@@ -131,17 +132,17 @@ func unwindPath(path []*Scalar, inCollection bool, out chan<- Token) {
 	}
 }
 
-func followPath(path []*Scalar, inCollection bool, out chan<- Token) {
+func followPath(path []*token.Scalar, inCollection bool, out chan<- token.Token) {
 	for _, key := range path {
 		switch key.Type() {
-		case String:
+		case token.String:
 			if !inCollection {
-				out <- &StartObject{}
+				out <- &token.StartObject{}
 			}
 			out <- key
-		case Number:
+		case token.Number:
 			if !inCollection {
-				out <- &StartArray{}
+				out <- &token.StartArray{}
 			}
 		default:
 			panic("invalid key type (must be string or number)")
@@ -150,8 +151,8 @@ func followPath(path []*Scalar, inCollection bool, out chan<- Token) {
 	}
 }
 
-func parsePath(scanr *scanner.Scanner) ([]*Scalar, error) {
-	var path []*Scalar
+func parsePath(scanr *scanner.Scanner) ([]*token.Scalar, error) {
+	var path []*token.Scalar
 	for {
 		b, err := scanr.Read()
 		if err != nil {
@@ -169,7 +170,7 @@ func parsePath(scanr *scanner.Scanner) ([]*Scalar, error) {
 				if err != nil {
 					return nil, err
 				}
-				s.TypeAndFlags |= KeyMask
+				s.TypeAndFlags |= token.KeyMask
 				path = append(path, s)
 				b, err = scanr.Read()
 				if err != nil {
@@ -186,7 +187,7 @@ func parsePath(scanr *scanner.Scanner) ([]*Scalar, error) {
 					scanr.Back()
 					return nil, unexpectedByte(scanr, "expected digit, got")
 				}
-				path = append(path, NewKey(Number, scanr.EndToken()))
+				path = append(path, token.NewKey(token.Number, scanr.EndToken()))
 			}
 			if b != ']' {
 				return nil, errors.New("syntax error: expected ']'")
@@ -209,8 +210,8 @@ func parsePath(scanr *scanner.Scanner) ([]*Scalar, error) {
 				if !isalnum(b) {
 					scanr.Back()
 					keyBytes := scanr.EndToken()
-					key := NewScalar(String, append(append([]byte{'"'}, keyBytes...), '"'))
-					key.TypeAndFlags |= AlnumMask | KeyMask
+					key := token.NewScalar(token.String, append(append([]byte{'"'}, keyBytes...), '"'))
+					key.TypeAndFlags |= token.AlnumMask | token.KeyMask
 					path = append(path, key)
 					break
 				}
