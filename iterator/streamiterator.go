@@ -33,7 +33,7 @@ func (i *Iterator) CurrentValue() Value {
 }
 
 type Value interface {
-	MakeRestartable() RestartFunc
+	Clone() Value
 	Discard()
 	Copy(out chan<- token.Token)
 }
@@ -42,8 +42,8 @@ type Scalar token.Scalar
 
 var _ Value = &Scalar{}
 
-func (s *Scalar) MakeRestartable() RestartFunc {
-	return nil
+func (s *Scalar) Clone() Value {
+	return s
 }
 
 func (s *Scalar) Discard() {}
@@ -75,20 +75,13 @@ type collectionBase struct {
 	currentValue Value
 }
 
-type RestartFunc func()
-
-func (c *collectionBase) MakeRestartable() RestartFunc {
+func (c *collectionBase) clone() collectionBase {
 	if c.started {
-		panic("cannot make started collection restartable")
+		panic("cannot clone started collection")
 	}
-	restartableStream := token.NewRestartableReadStream(c.stream)
-	c.stream = restartableStream
-	return func() {
-		restartableStream.Restart()
-		c.done = false
-		c.started = false
-		c.currentValue = nil
-	}
+	clone := *c
+	c.stream, clone.stream = token.CloneReadStream(c.stream)
+	return clone
 }
 
 func (c *collectionBase) Discard() {
@@ -158,6 +151,11 @@ type Object struct {
 	currentKey *token.Scalar
 }
 
+func (o *Object) Clone() Value {
+	return &Object{
+		collectionBase: o.clone(),
+	}
+}
 func (o *Object) CurrentKeyVal() (*token.Scalar, Value) {
 	if o.done {
 		panic("iterator done")
@@ -202,6 +200,9 @@ type Array struct {
 	collectionBase
 }
 
+func (a *Array) Clone() Value {
+	return &Array{collectionBase: a.clone()}
+}
 func (a *Array) Advance() bool {
 	if a.done {
 		return false

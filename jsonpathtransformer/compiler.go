@@ -27,17 +27,29 @@ func (c *Compiler) CompileQuery(query ast.Query) QueryRunner {
 
 func (c *Compiler) CompileSegment(segment ast.Segment) SegmentRunner {
 	selectors := make([]SelectorRunner, len(segment.Selectors))
+	var lookahead int64
 	for i, s := range segment.Selectors {
-		selectors[i] = c.CompileSelector(s)
+		cs := c.CompileSelector(s)
+		selectors[i] = cs
+		l := cs.Lookahead()
+		if l > lookahead {
+			lookahead = l
+		}
 	}
 	switch segment.Type {
 	case ast.ChildSegmentType:
 		return ChildSegmentRunner{
-			selectors: selectors,
+			segmentRunnerBase: segmentRunnerBase{
+				selectors: selectors,
+				lookahead: lookahead,
+			},
 		}
 	case ast.DescendantSegmentType:
 		return DescendantSegmentRunner{
-			selectors: selectors,
+			segmentRunnerBase: segmentRunnerBase{
+				selectors: selectors,
+				lookahead: lookahead,
+			},
 		}
 	default:
 		panic("invalid segment")
@@ -57,28 +69,25 @@ func (c *Compiler) CompileSelector(selector ast.Selector) SelectorRunner {
 	case ast.SliceSelector:
 		var start, end int64
 
-		switch {
-		case x.Start == nil:
-			start = 0
-		case *x.Start < 0:
-			panic("unimplemented")
-		default:
-			start = *x.Start
-		}
-
-		switch {
-		case x.End == nil:
-			end = math.MaxInt64
-		case *x.End < 0:
-			panic("unimplemented")
-		default:
-			end = *x.End
-		}
-
 		if x.Step < 0 {
 			panic("unimplemented")
 		}
 
+		if x.Start == nil {
+			start = 0
+		} else {
+			start = *x.Start
+		}
+
+		if x.End == nil {
+			end = math.MaxInt64
+		} else {
+			end = *x.End
+		}
+
+		if end >= 0 && end <= start || start < 0 && start >= end {
+			return NothingSelectorRunner{}
+		}
 		return SliceSelectorRunner{
 			start: start,
 			end:   end,

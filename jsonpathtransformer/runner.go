@@ -10,7 +10,11 @@ import (
 //
 
 type SelectorRunner interface {
+	Lookahead() int64
 	SelectsFromKey(key any) Decision
+
+	// Selects promises not to advance Value, so it must clone it first if it wants
+	// to look inside.
 	Selects(key any, Value iterator.Value) bool
 }
 
@@ -20,7 +24,14 @@ var _ SelectorRunner = IndexSelectorRunner{}
 var _ SelectorRunner = SliceSelectorRunner{}
 var _ SelectorRunner = NothingSelectorRunner{}
 
+type NoLookaheadSelector struct{}
+
+func (s NoLookaheadSelector) Lookahead() int64 {
+	return 0
+}
+
 type NameSelectorRunner struct {
+	NoLookaheadSelector
 	name string
 }
 
@@ -32,7 +43,9 @@ func (r NameSelectorRunner) Selects(key any, value iterator.Value) bool {
 	return key == r.name
 }
 
-type WildcardSelectorRunner struct{}
+type WildcardSelectorRunner struct {
+	NoLookaheadSelector
+}
 
 func (r WildcardSelectorRunner) SelectsFromKey(key any) Decision {
 	return Yes
@@ -44,6 +57,13 @@ func (r WildcardSelectorRunner) Selects(key any, value iterator.Value) bool {
 
 type IndexSelectorRunner struct {
 	index int64
+}
+
+func (r IndexSelectorRunner) Lookahead() int64 {
+	if r.index < 0 {
+		return r.index
+	}
+	return 0
 }
 
 func (r IndexSelectorRunner) SelectsFromKey(key any) Decision {
@@ -58,6 +78,20 @@ type SliceSelectorRunner struct {
 	start, end, step int64
 }
 
+func (r SliceSelectorRunner) Lookahead() int64 {
+	// For now negative step is unsupported, so lookahead is only for negative
+	// start and end
+	// max(-r.start, -r.end, 0)
+	lookahead := -r.start
+	if -r.end > lookahead {
+		lookahead = -r.end
+	}
+	if lookahead > 0 {
+		return lookahead
+	}
+	return 0
+}
+
 func (r SliceSelectorRunner) SelectsFromKey(key any) Decision {
 	index, ok := key.(int64)
 	return madeDecision(ok && index >= r.start && index < r.end && (index-r.start)%r.step == 0)
@@ -68,7 +102,9 @@ func (r SliceSelectorRunner) Selects(key any, value iterator.Value) bool {
 	return ok && index >= r.start && index < r.end && (index-r.start)%r.step == 0
 }
 
-type NothingSelectorRunner struct{}
+type NothingSelectorRunner struct {
+	NoLookaheadSelector
+}
 
 func (r NothingSelectorRunner) SelectsFromKey(key any) Decision {
 	return No
@@ -86,47 +122,59 @@ type SegmentRunner interface {
 	iterator.ValueTransformer
 }
 
-type ChildSegmentRunner struct {
+type segmentRunnerBase struct {
 	selectors []SelectorRunner
+	lookahead int64
+}
+
+func (r *segmentRunnerBase) applySelectors(key any, value iterator.Value, decisions []Decision, out chan<- token.Token) []Decision {
+	var selectCounts [3]int
+	decisions, selectCounts = countSelectsFromKey(r.selectors, key, decisions[:0])
+	perhapsCount := selectCounts[Yes] + selectCounts[DontKnow]
+	for i, selector := range r.selectors {
+		switch decisions[i] {
+		case DontKnow:
+			perhapsCount--
+			if !selector.Selects(key, value) {
+				continue
+			}
+		case Yes:
+			perhapsCount--
+		default:
+			continue
+		}
+		if perhapsCount > 0 {
+			value.Clone().Copy(out)
+		} else {
+			value.Copy(out)
+		}
+	}
+	return decisions
+}
+
+type ChildSegmentRunner struct {
+	segmentRunnerBase
 }
 
 func (t ChildSegmentRunner) TransformValue(value iterator.Value, out chan<- token.Token) {
+	// We allocate decisions here because otherwise we would allocate a new
+	// slice fore each item in the collection.
+	//
+	// Hopefully escape analysis will prove that the slice can't escape, and
+	// since its capacity is known, it should be allocated on the stack.
+	decisions := make([]Decision, 0, 10)
 	switch x := value.(type) {
 	case *iterator.Object:
 		for x.Advance() {
 			keyScalar, value := x.CurrentKeyVal()
 			key := scalarValue(keyScalar)
-			selectCounts := countSelectsFromKey(t.selectors, key)
-			var restart iterator.RestartFunc
-			if selectCounts[DontKnow] > 0 || selectCounts[Yes] > 1 {
-				restart = value.MakeRestartable()
-			}
-			for _, selector := range t.selectors {
-				if selector.Selects(key, value) {
-					value.Copy(out)
-				}
-				if restart != nil {
-					restart()
-				}
-			}
+			decisions = t.applySelectors(key, value, decisions, out)
 		}
 	case *iterator.Array:
 		var index int64
 		for x.Advance() {
 			value := x.CurrentValue()
-			selectCounts := countSelectsFromKey(t.selectors, index)
-			var restart iterator.RestartFunc
-			if selectCounts[DontKnow] > 0 || selectCounts[Yes] > 1 {
-				restart = value.MakeRestartable()
-			}
-			for _, selector := range t.selectors {
-				if selector.Selects(index, value) {
-					value.Copy(out)
-				}
-				if restart != nil {
-					restart()
-				}
-			}
+			decisions = t.applySelectors(index, value, decisions, out)
 			index++
 		}
 	default:
@@ -135,48 +183,35 @@ func (t ChildSegmentRunner) TransformValue(value iterator.Value, out chan<- toke
 }
 
 type DescendantSegmentRunner struct {
-	selectors []SelectorRunner
+	segmentRunnerBase
 }
 
 func (t DescendantSegmentRunner) TransformValue(value iterator.Value, out chan<- token.Token) {
+	// We allocate decisions here because otherwise we would allocate a new
+	// slice fore each item in the collection.
+	//
+	// Hopefully escape analysis will prove that the slice can't escape, and
+	// since its capacity is known, it should be allocated on the stack.  I
+	// don't know if that will work because transformValue is recursive.
+	decisions := make([]Decision, 0, 10)
+	t.transformValue(value, decisions, out)
+}
+
+func (t DescendantSegmentRunner) transformValue(value iterator.Value, decisions []Decision, out chan<- token.Token) {
 	switch x := value.(type) {
 	case *iterator.Object:
 		for x.Advance() {
 			keyScalar, value := x.CurrentKeyVal()
 			key := scalarValue(keyScalar)
-			selectCounts := countSelectsFromKey(t.selectors, key)
-			var restart iterator.RestartFunc
-			if selectCounts[DontKnow] > 0 || selectCounts[Yes] > 0 {
-				restart = value.MakeRestartable()
-			}
-			for _, selector := range t.selectors {
-				if selector.Selects(key, value) {
-					value.Copy(out)
-				}
-				if restart != nil {
-					restart()
-				}
-			}
-			t.TransformValue(value, out)
+			decisions = t.applySelectors(key, value, decisions, out)
+			t.transformValue(value, decisions, out)
 		}
 	case *iterator.Array:
 		var index int64
 		for x.Advance() {
 			value := x.CurrentValue()
-			selectCounts := countSelectsFromKey(t.selectors, index)
-			var restart iterator.RestartFunc
-			if selectCounts[DontKnow] > 0 || selectCounts[Yes] > 0 {
-				restart = value.MakeRestartable()
-			}
-			for _, selector := range t.selectors {
-				if selector.Selects(index, value) {
-					value.Copy(out)
-				}
-				if restart != nil {
-					restart()
-				}
-			}
-			t.TransformValue(value, out)
+			decisions = t.applySelectors(index, value, decisions, out)
+			t.transformValue(value, decisions, out)
 		}
 	default:
 		x.Discard()
@@ -184,11 +219,14 @@ func (t DescendantSegmentRunner) TransformValue(value iterator.Value, out chan<-
 
 }
 
-func countSelectsFromKey(selectors []SelectorRunner, key any) (counts [3]int) {
+func countSelectsFromKey(selectors []SelectorRunner, key any, dest []Decision) ([]Decision, [3]int) {
+	var counts [3]int
 	for _, selector := range selectors {
-		counts[selector.SelectsFromKey(key)]++
+		decision := selector.SelectsFromKey(key)
+		dest = append(dest, decision)
+		counts[decision]++
 	}
-	return
+	return dest, counts
 }
 
 //
@@ -205,7 +243,6 @@ type RootNodeQueryRunner struct {
 
 func (r RootNodeQueryRunner) Transform(in <-chan token.Token, out chan<- token.Token) {
 	for _, segment := range r.segments {
-
 		segmentTransformer := iterator.AsStreamTransformer(segment)
 		in = token.TransformStream(in, segmentTransformer)
 	}

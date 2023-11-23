@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"bytes"
 	"encoding/json"
 	"strconv"
 	"strings"
@@ -35,6 +36,15 @@ func parseNumber(s string) float64 {
 
 func ParseJsonLiteral(s string) json.Token {
 	dec := json.NewDecoder(strings.NewReader(s))
+	tok, err := dec.Token()
+	if err != nil {
+		panic(err)
+	}
+	return tok
+}
+
+func ParseJsonLiteralBytes(b []byte) json.Token {
+	dec := json.NewDecoder(bytes.NewReader(b))
 	tok, err := dec.Token()
 	if err != nil {
 		panic(err)

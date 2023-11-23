@@ -16,7 +16,7 @@ func scalarValue(scalar *token.Scalar) any {
 	if scalar.IsUnescaped() {
 		return string(scalar.Bytes[1 : len(scalar.Bytes)-1])
 	}
-	return parser.ParseJsonLiteral(string(scalar.Bytes))
+	return parser.ParseJsonLiteralBytes(scalar.Bytes)
 }
 
 type Decision uint8
