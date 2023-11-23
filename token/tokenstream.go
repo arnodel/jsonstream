@@ -2,6 +2,7 @@ package token
 
 import (
 	"math"
+	"slices"
 )
 
 type Reader interface {
@@ -117,7 +118,7 @@ func (p *CursorPool) advanceWindow() {
 		copy(p.window, p.window[shiftRight:])
 		p.window = p.window[:newLen]
 	} else {
-		p.window = p.window[shiftRight:len(p.window):newLen]
+		p.window = slices.Clone(p.window[shiftRight:])
 	}
 }
 

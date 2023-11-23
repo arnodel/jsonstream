@@ -36,23 +36,10 @@ func (c *Compiler) CompileSegment(segment ast.Segment) SegmentRunner {
 			lookahead = l
 		}
 	}
-	switch segment.Type {
-	case ast.ChildSegmentType:
-		return ChildSegmentRunner{
-			segmentRunnerBase: segmentRunnerBase{
-				selectors: selectors,
-				lookahead: lookahead,
-			},
-		}
-	case ast.DescendantSegmentType:
-		return DescendantSegmentRunner{
-			segmentRunnerBase: segmentRunnerBase{
-				selectors: selectors,
-				lookahead: lookahead,
-			},
-		}
-	default:
-		panic("invalid segment")
+	return SegmentRunner{
+		selectors:           selectors,
+		lookahead:           lookahead,
+		isDescendantSegment: segment.Type == ast.DescendantSegmentType,
 	}
 }
 

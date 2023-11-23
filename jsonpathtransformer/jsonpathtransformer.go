@@ -2,21 +2,12 @@ package jsonpathtransformer
 
 import (
 	"github.com/arnodel/jsonstream/internal/jsonpath/ast"
-	"github.com/arnodel/jsonstream/internal/jsonpath/parser"
 	"github.com/arnodel/jsonstream/iterator"
-	"github.com/arnodel/jsonstream/token"
 )
 
 func NewJsonPathQueryTransformer(query ast.Query) QueryRunner {
 	var c Compiler
 	return c.CompileQuery(query)
-}
-
-func scalarValue(scalar *token.Scalar) any {
-	if scalar.IsUnescaped() {
-		return string(scalar.Bytes[1 : len(scalar.Bytes)-1])
-	}
-	return parser.ParseJsonLiteralBytes(scalar.Bytes)
 }
 
 type Decision uint8

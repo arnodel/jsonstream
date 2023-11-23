@@ -200,9 +200,14 @@ type Array struct {
 	collectionBase
 }
 
-func (a *Array) Clone() Value {
+func (a *Array) CloneArray() *Array {
 	return &Array{collectionBase: a.clone()}
 }
+
+func (a *Array) Clone() Value {
+	return a.CloneArray()
+}
+
 func (a *Array) Advance() bool {
 	if a.done {
 		return false
