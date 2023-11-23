@@ -45,7 +45,12 @@ they can be chained!
 
 Here is a list of transforms:
 
-- `depth=<n>`: truncate output below a certain depth. E.g. `depth=1` will not expand nested arrays or object.
+- a JSONPath expression starting with `$`, e.g `$[-10:].foo` or
+  `$..parent.children[10:]`, etc.  Currently filter selectors are not
+  implemented but that's what I want to work on.  More documentation needs
+  writing for this as it's becoming the main feature of the command.
+- `depth=<n>`: truncate output below a certain depth. E.g. `depth=1` will not
+  expand nested arrays or object.
 - `.<key>`: just output the value associated with a key, e.g. `.id`
 - `...<key>`: just output the values associated with a key, but it can be at
   any depth in the input. So the result may be a stream of values (as the key
