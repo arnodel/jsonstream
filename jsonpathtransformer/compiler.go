@@ -73,7 +73,7 @@ func (c *Compiler) CompileSelector(selector ast.Selector) SelectorRunner {
 		}
 
 		if end >= 0 && end <= start || start < 0 && start >= end {
-			return NothingSelectorRunner{}
+			return DefaultSelectorRunner{}
 		}
 		return SliceSelectorRunner{
 			start: start,
