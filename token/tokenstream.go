@@ -1,8 +1,8 @@
 package token
 
 import (
+	"log"
 	"math"
-	"slices"
 )
 
 type Reader interface {
@@ -74,11 +74,12 @@ func (r *RestartableReadStream) Restart() {
 }
 
 type CursorPool struct {
-	stream       ReadStream
-	window       []Token
-	windowPos    int
-	catchupCount int
-	cursors      []*Cursor
+	stream        ReadStream
+	window        []Token
+	windowPos     int
+	catchupCount  int
+	cursors       []*Cursor
+	maxWindowSize int // for debugging purposes
 }
 
 func NewCursorPool(stream ReadStream) *CursorPool {
@@ -89,7 +90,16 @@ func NewCursorPool(stream ReadStream) *CursorPool {
 	return &CursorPool{stream: stream}
 }
 
+func (p *CursorPool) checkWindowSize() {
+	current := len(p.window)
+	if current > p.maxWindowSize {
+		p.maxWindowSize = current
+		log.Printf("max window size = %d, pos = %d", current, p.windowPos)
+	}
+}
+
 func (p *CursorPool) advanceWindow() {
+	p.checkWindowSize()
 	minPos := math.MaxInt
 	for _, c := range p.cursors {
 		if c.position < minPos {
@@ -114,11 +124,14 @@ func (p *CursorPool) advanceWindow() {
 	// If the reduced window is big enough, we reuse the same underlying array
 	// for the new window slice, otherwise we make a new slice so the current
 	// big slice can be GCed.
-	if newLen*2 > cap(p.window) {
+	if cap(p.window) <= 1024 || newLen*2 > cap(p.window) {
 		copy(p.window, p.window[shiftRight:])
 		p.window = p.window[:newLen]
 	} else {
-		p.window = slices.Clone(p.window[shiftRight:])
+		log.Printf("reducing window capacity %d to %d", cap(p.window), newLen)
+		newWindow := make([]Token, newLen)
+		copy(newWindow, p.window[shiftRight:])
+		p.window = newWindow
 	}
 }
 

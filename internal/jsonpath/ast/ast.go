@@ -130,17 +130,16 @@ type SingularQuery struct {
 
 type SingularQuerySegment interface{}
 
+var _ SingularQuerySegment = NameSegment{}
+var _ SingularQuerySegment = IndexSegment{}
+
 type NameSegment struct {
 	Name string
 }
 
-var _ SingularQuerySegment = NameSegment{}
-
 type IndexSegment struct {
 	Index int
 }
-
-var _ SingularQuerySegment = IndexSegment{}
 
 //
 // Function Expr

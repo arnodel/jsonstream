@@ -62,6 +62,7 @@ func (r SegmentRunner) transformValue(value iterator.Value, decisions []Decision
 
 		if r.lookahead > 0 {
 			ahead = x.CloneArray()
+			defer ahead.Discard()
 			for negIndex+r.lookahead >= 0 && ahead.Advance() {
 				negIndex--
 			}

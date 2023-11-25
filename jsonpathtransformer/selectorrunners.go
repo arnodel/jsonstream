@@ -54,10 +54,11 @@ type SelectorRunner interface {
 // Here are the different kinds of SectorRunner.
 
 var _ SelectorRunner = DefaultSelectorRunner{}
-var _ SelectorRunner = NameSelectorRunner{}
-var _ SelectorRunner = WildcardSelectorRunner{}
-var _ SelectorRunner = IndexSelectorRunner{}
-var _ SelectorRunner = SliceSelectorRunner{}
+var _ SelectorRunner = NameSelectorRunner{}     // $.foo or $["foo"]
+var _ SelectorRunner = WildcardSelectorRunner{} // $.* or $[*]
+var _ SelectorRunner = IndexSelectorRunner{}    // $[42]
+var _ SelectorRunner = SliceSelectorRunner{}    // $[:10] or $[-10:] or $[1::2]
+var _ SelectorRunner = FilterSelectorRunner{}
 
 // And here are their implmentations.
 
@@ -121,20 +122,20 @@ type IndexSelectorRunner struct {
 	index int64
 }
 
-func (r IndexSelectorRunner) SelectsFromIndex(index, negIndex int64) Decision {
-	if r.index >= 0 {
-		return madeDecision(index == r.index)
-	} else {
-		return madeDecision(negIndex == r.index)
-	}
-}
-
 // Lookahead returns a non-zero value of the index of the selector is negative.
 func (r IndexSelectorRunner) Lookahead() int64 {
 	if r.index < 0 {
 		return -r.index
 	}
 	return 0
+}
+
+func (r IndexSelectorRunner) SelectsFromIndex(index, negIndex int64) Decision {
+	if r.index >= 0 {
+		return madeDecision(index == r.index)
+	} else {
+		return madeDecision(negIndex == r.index)
+	}
 }
 
 // SliceSelectorRunner implements the selector that selects a slice of an array.
@@ -180,3 +181,44 @@ func (r SliceSelectorRunner) SelectsFromIndex(index, negIndex int64) Decision {
 	}
 	return madeDecision(startOffset >= 0 && endOffset < 0 && startOffset%r.step == 0)
 }
+
+type FilterSelectorRunner struct {
+	DefaultSelectorRunner
+	condition LogicalEvaluator
+}
+
+func (r FilterSelectorRunner) SelectsFromKey(key string) Decision {
+	return DontKnow
+}
+
+func (r FilterSelectorRunner) SelectsFromIndex(index, negIndex int64) Decision {
+	return DontKnow
+}
+
+func (r FilterSelectorRunner) SelectsFromValue(value iterator.Value) bool {
+	return r.condition.Evaluate(value)
+}
+
+// Decision is a 3-valued type with possible values DontKnow, Yes, No.  Sort of
+// a boolean for undecided people...
+type Decision uint8
+
+// IsMade is true if the Decision is not DontKnow
+func (d Decision) IsMade() bool {
+	return d != DontKnow
+}
+
+func madeDecision(yes bool) Decision {
+	if yes {
+		return Yes
+	} else {
+		return No
+	}
+}
+
+// Possible values ofr Decision
+const (
+	DontKnow Decision = 0
+	Yes      Decision = 1
+	No       Decision = 2
+)

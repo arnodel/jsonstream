@@ -2,7 +2,10 @@ package token
 
 import (
 	"bytes"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"strconv"
 )
 
 // A Token is an item in a stream that encodes a JSON value
@@ -176,3 +179,61 @@ const (
 	AlnumMask     = 0b01000
 	UnescapedMask = 0b10000
 )
+
+var (
+	trueBytes  = []byte("true")
+	falseBytes = []byte("false")
+	nullBytes  = []byte("null")
+)
+
+var (
+	TrueScalar  = NewScalar(Boolean, trueBytes)
+	FalseScalar = NewScalar(Boolean, falseBytes)
+	NullScalar  = NewScalar(Null, nullBytes)
+)
+
+func StringScalar(s string) *Scalar {
+	var b bytes.Buffer
+	encoder := json.NewEncoder(&b)
+	if err := encoder.Encode(s); err != nil {
+		panic(err)
+	}
+	var encodedBytes = b.Bytes()
+	// Remove the new line at the end
+	return NewScalar(String, encodedBytes[:len(encodedBytes)-1])
+}
+
+func Float64Scalar(x float64) *Scalar {
+	return NewScalar(Number, []byte(strconv.FormatFloat(x, 'e', -1, 64)))
+}
+
+func Int64Scalar(n int64) *Scalar {
+	return NewScalar(Number, []byte(strconv.FormatInt(n, 10)))
+}
+
+func BoolScalar(b bool) *Scalar {
+	if b {
+		return TrueScalar
+	}
+	return FalseScalar
+}
+
+func ToScalar(value any) (*Scalar, error) {
+	if value == nil {
+		return NullScalar, nil
+	}
+	switch x := value.(type) {
+	case string:
+		return StringScalar(x), nil
+	case float64:
+		return Float64Scalar(x), nil
+	case int64:
+		return Int64Scalar(x), nil
+	case int:
+		return Int64Scalar(int64(x)), nil
+	case bool:
+		return BoolScalar(x), nil
+	default:
+		return nil, errors.New("not a scalar value")
+	}
+}
