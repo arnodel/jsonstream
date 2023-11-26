@@ -201,7 +201,7 @@ func parseTransformer(arg string) (token.StreamTransformer, error) {
 		if err != nil {
 			return nil, err
 		}
-		return jsonpathtransformer.NewJsonPathQueryTransformer(query), nil
+		return jsonpathtransformer.CompileQuery(query), nil
 	}
 	return nil, errors.New("invalid filter")
 }

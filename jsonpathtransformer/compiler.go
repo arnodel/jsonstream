@@ -8,12 +8,19 @@ import (
 	"github.com/arnodel/jsonstream/token"
 )
 
-type Compiler struct{}
+// CompileQuery compiles a JSON query AST to a QueryRunner.
+func CompileQuery(query ast.Query) QueryRunner {
+	var c compiler
+	return c.compileQuery(query)
+}
 
-func (c *Compiler) CompileQuery(query ast.Query) QueryRunner {
+// This type may have some state or configuration parameters in the future.
+type compiler struct{}
+
+func (c *compiler) compileQuery(query ast.Query) QueryRunner {
 	segments := make([]SegmentRunner, len(query.Segments))
 	for i, s := range query.Segments {
-		segments[i] = c.CompileSegment(s)
+		segments[i] = c.compileSegment(s)
 	}
 	switch query.RootNode {
 	case ast.RootNodeIdentifier:
@@ -27,11 +34,11 @@ func (c *Compiler) CompileQuery(query ast.Query) QueryRunner {
 	}
 }
 
-func (c *Compiler) CompileSegment(segment ast.Segment) SegmentRunner {
+func (c *compiler) compileSegment(segment ast.Segment) SegmentRunner {
 	selectors := make([]SelectorRunner, len(segment.Selectors))
 	var lookahead int64
 	for i, s := range segment.Selectors {
-		cs := c.CompileSelector(s)
+		cs := c.compileSelector(s)
 		selectors[i] = cs
 		l := cs.Lookahead()
 		if l > lookahead {
@@ -45,7 +52,7 @@ func (c *Compiler) CompileSegment(segment ast.Segment) SegmentRunner {
 	}
 }
 
-func (c *Compiler) CompileSelector(selector ast.Selector) SelectorRunner {
+func (c *compiler) compileSelector(selector ast.Selector) SelectorRunner {
 	switch x := selector.(type) {
 	case ast.NameSelector:
 		return NameSelectorRunner{name: x.Name}
@@ -54,40 +61,15 @@ func (c *Compiler) CompileSelector(selector ast.Selector) SelectorRunner {
 	case ast.IndexSelector:
 		return IndexSelectorRunner{index: x.Index}
 	case ast.FilterSelector:
-		return FilterSelectorRunner{condition: c.CompileCondition(x.Condition)}
+		return FilterSelectorRunner{condition: c.compileCondition(x.Condition)}
 	case ast.SliceSelector:
-		var start, end int64
-
-		if x.Step < 0 {
-			panic("unimplemented")
-		}
-
-		if x.Start == nil {
-			start = 0
-		} else {
-			start = *x.Start
-		}
-
-		if x.End == nil {
-			end = math.MaxInt64
-		} else {
-			end = *x.End
-		}
-
-		if end >= 0 && end <= start || start < 0 && start >= end {
-			return DefaultSelectorRunner{}
-		}
-		return SliceSelectorRunner{
-			start: start,
-			end:   end,
-			step:  x.Step,
-		}
+		return c.compileSliceSelector(x)
 	default:
 		panic("invalid selector")
 	}
 }
 
-func (c *Compiler) CompileCondition(condition ast.LogicalExpr) LogicalEvaluator {
+func (c *compiler) compileCondition(condition ast.LogicalExpr) LogicalEvaluator {
 	switch x := condition.(type) {
 	case ast.OrExpr:
 		return LogicalOrEvaluator{
@@ -99,10 +81,10 @@ func (c *Compiler) CompileCondition(condition ast.LogicalExpr) LogicalEvaluator 
 		}
 	case ast.NotExpr:
 		return LogicalNotEvaluator{
-			Argument: c.CompileCondition(x.Argument),
+			Argument: c.compileCondition(x.Argument),
 		}
 	case ast.ComparisonExpr:
-		return c.CompileComparison(x)
+		return c.compileComparison(x)
 	case ast.Query:
 		panic("unimplemented")
 	case ast.FunctionExpr:
@@ -112,14 +94,47 @@ func (c *Compiler) CompileCondition(condition ast.LogicalExpr) LogicalEvaluator 
 	}
 }
 
-func (c *Compiler) compileConditions(conditions []ast.LogicalExpr) []LogicalEvaluator {
-	return transformSlice(conditions, c.CompileCondition)
+func (c *compiler) compileConditions(conditions []ast.LogicalExpr) []LogicalEvaluator {
+	return mapSlice(conditions, c.compileCondition)
 }
 
-func (c *Compiler) CompileComparison(comparison ast.ComparisonExpr) ComparisonEvaluator {
+func (c *compiler) compileSliceSelector(slice ast.SliceSelector) SelectorRunner {
+	var start, end int64
+
+	// I don't kow yet how to support negative steps as it reverses the order of
+	// the output.
+	if slice.Step < 0 {
+		panic("unimplemented")
+	}
+
+	if slice.Start == nil {
+		start = 0
+	} else {
+		start = *slice.Start
+	}
+
+	if slice.End == nil {
+		// We'll never get such a big array, right?
+		end = math.MaxInt64
+	} else {
+		end = *slice.End
+	}
+
+	if end >= 0 && end <= start || start < 0 && start >= end {
+		// In this case, the slice selects nothing.
+		return DefaultSelectorRunner{}
+	}
+	return SliceSelectorRunner{
+		start: start,
+		end:   end,
+		step:  slice.Step,
+	}
+}
+
+func (c *compiler) compileComparison(comparison ast.ComparisonExpr) ComparisonEvaluator {
 	var flags ComparisonFlags
-	left := c.CompileComparable(comparison.Left)
-	right := c.CompileComparable(comparison.Right)
+	left := c.compileComparable(comparison.Left)
+	right := c.compileComparable(comparison.Right)
 	switch comparison.Op {
 	case ast.EqualOp:
 		flags = CheckEquals
@@ -145,7 +160,7 @@ func (c *Compiler) CompileComparison(comparison ast.ComparisonExpr) ComparisonEv
 	}
 }
 
-func (c *Compiler) CompileComparable(comparable ast.Comparable) ComparableEvaluator {
+func (c *compiler) compileComparable(comparable ast.Comparable) ComparableEvaluator {
 	switch x := comparable.(type) {
 	case ast.Literal:
 		scalar, err := token.ToScalar(x.Value)
@@ -154,7 +169,7 @@ func (c *Compiler) CompileComparable(comparable ast.Comparable) ComparableEvalua
 		}
 		return LiteralEvaluator{value: (*iterator.Scalar)(scalar)}
 	case ast.SingularQuery:
-		return c.CompileSingularQuery(x)
+		return c.compileSingularQuery(x)
 	case ast.FunctionExpr:
 		panic("unimplmemented")
 	default:
@@ -162,11 +177,11 @@ func (c *Compiler) CompileComparable(comparable ast.Comparable) ComparableEvalua
 	}
 }
 
-func (c *Compiler) CompileSingularQuery(query ast.SingularQuery) CurrentNodeSingularQueryRunner {
+func (c *compiler) compileSingularQuery(query ast.SingularQuery) CurrentNodeSingularQueryRunner {
 	switch query.RootNode {
 	case ast.CurrentNodeIdentifier:
 		return CurrentNodeSingularQueryRunner{
-			selectors: transformSlice(query.Segments, c.CompileSingularQuerySegment),
+			selectors: mapSlice(query.Segments, c.compileSingularQuerySegment),
 		}
 	case ast.RootNodeIdentifier:
 		panic("unimplemented")
@@ -175,7 +190,7 @@ func (c *Compiler) CompileSingularQuery(query ast.SingularQuery) CurrentNodeSing
 	}
 }
 
-func (c *Compiler) CompileSingularQuerySegment(segment ast.SingularQuerySegment) SingularSelectorRunner {
+func (c *compiler) compileSingularQuerySegment(segment ast.SingularQuerySegment) SingularSelectorRunner {
 	switch x := segment.(type) {
 	case ast.NameSegment:
 		return NameSingularSelectorRunner{nameSelector: NameSelectorRunner{name: x.Name}}
@@ -186,7 +201,7 @@ func (c *Compiler) CompileSingularQuerySegment(segment ast.SingularQuerySegment)
 	}
 }
 
-func transformSlice[T, U any](slice []T, transform func(T) U) []U {
+func mapSlice[T, U any](slice []T, transform func(T) U) []U {
 	result := make([]U, len(slice))
 	for i, x := range slice {
 		result[i] = transform(x)
