@@ -143,6 +143,11 @@ func main() {
 		IndentSize: indent,
 	}
 
+	// If we are writing to a terminal, flush after each line so user gets feedback early.
+	if isatty.IsTerminal(os.Stdout.Fd()) {
+		printer.Flusher = out
+	}
+
 	var encoder token.StreamSink
 	switch outputFormat {
 	case "json":

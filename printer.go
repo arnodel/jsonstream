@@ -61,19 +61,36 @@ func (e *PrinterError) Unwrap() error {
 	return e.Err
 }
 
+type Flusher interface {
+	Flush() error
+}
+
 // DefaultPrinter implements a Printer which uses an io.Writer to send output,
 // using IndentSize spaces for each indent level.
 // If IndentSize is negative, then NewLine() does nothing so all the output
 // is on one single line.
 // If IndentSize is 0, then there is no indentation but there are still new
 // lines.
+// If Flusher is not nil, then the printer will call Flush() at the end of each
+// line (good when writing to terminal).
 type DefaultPrinter struct {
 	io.Writer
+	Flusher
 	IndentSize  int
 	indentLevel int
 }
 
 var _ Printer = &DefaultPrinter{}
+
+func (p *DefaultPrinter) writeNL() {
+	_, err := p.Write([]byte{'\n'})
+	if err == nil && p.Flusher != nil {
+		err = p.Flush()
+	}
+	if err != nil {
+		panic(wrapError(err))
+	}
+}
 
 // NewLines outputs '\n' followed by a number of spaces corresponding to the
 // current indentation level.
@@ -81,12 +98,9 @@ func (p *DefaultPrinter) NewLine() {
 	if p.IndentSize < 0 {
 		return
 	}
-	_, err := p.Write([]byte{'\n'})
-	if err != nil {
-		panic(wrapError(err))
-	}
+	p.writeNL()
 	for i := p.IndentSize * p.indentLevel; i > 0; i-- {
-		_, err = p.Write([]byte{' '})
+		_, err := p.Write([]byte{' '})
 		if err != nil {
 			panic(wrapError(err))
 		}
@@ -108,10 +122,7 @@ func (p *DefaultPrinter) Dedent() {
 // Reset outputs '\n' unconditionally and resets the indent level.
 func (p *DefaultPrinter) Reset() {
 	p.indentLevel = 0
-	_, err := p.Write([]byte{'\n'})
-	if err != nil {
-		panic(wrapError(err))
-	}
+	p.writeNL()
 }
 
 // PrintBytes sends the gives bytes verbatim to the printer's writer.
