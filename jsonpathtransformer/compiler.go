@@ -54,8 +54,7 @@ func (c *Compiler) CompileSelector(selector ast.Selector) SelectorRunner {
 	case ast.IndexSelector:
 		return IndexSelectorRunner{index: x.Index}
 	case ast.FilterSelector:
-		return FilterSelectorRunner{
-			condition: c.CompileCondition(x.Condition)}
+		return FilterSelectorRunner{condition: c.CompileCondition(x.Condition)}
 	case ast.SliceSelector:
 		var start, end int64
 

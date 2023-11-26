@@ -27,21 +27,19 @@ type SegmentRunner struct {
 	isDescendantSegment bool
 }
 
-var _ iterator.ValueTransformer = SegmentRunner{}
-
 // TransformValue transforms the incoming value according to the definition of
 // the query segment.
-func (r SegmentRunner) TransformValue(value iterator.Value, out chan<- token.Token) {
+func (r SegmentRunner) TransformValue(value iterator.Value, next valueProcessor) {
 	// We allocate decisions here because otherwise we would allocate a new
 	// slice fore each item in the collection.
 	//
 	// Hopefully escape analysis will prove that the slice can't escape, and
 	// since its capacity is known, it should be allocated on the stack.
 	decisions := make([]Decision, 0, 10)
-	r.transformValue(value, decisions, out)
+	r.transformValue(value, decisions, next)
 }
 
-func (r SegmentRunner) transformValue(value iterator.Value, decisions []Decision, out chan<- token.Token) {
+func (r SegmentRunner) transformValue(value iterator.Value, decisions []Decision, next valueProcessor) {
 	switch x := value.(type) {
 	case *iterator.Object:
 		for x.Advance() {
@@ -51,9 +49,9 @@ func (r SegmentRunner) transformValue(value iterator.Value, decisions []Decision
 			for _, selector := range r.selectors {
 				decisions = append(decisions, selector.SelectsFromKey(key))
 			}
-			r.applySelectors(value, decisions, out)
+			r.applySelectors(value, decisions, next)
 			if r.isDescendantSegment {
-				r.transformValue(value, decisions, out)
+				r.transformValue(value, decisions, next)
 			}
 		}
 	case *iterator.Array:
@@ -76,13 +74,13 @@ func (r SegmentRunner) transformValue(value iterator.Value, decisions []Decision
 			for _, selector := range r.selectors {
 				decisions = append(decisions, selector.SelectsFromIndex(index, negIndex))
 			}
-			r.applySelectors(value, decisions, out)
+			r.applySelectors(value, decisions, next)
 			index++
 			if ahead != nil && !ahead.Advance() {
 				negIndex++
 			}
 			if r.isDescendantSegment {
-				r.transformValue(value, decisions, out)
+				r.transformValue(value, decisions, next)
 			}
 		}
 	default:
@@ -90,7 +88,7 @@ func (r SegmentRunner) transformValue(value iterator.Value, decisions []Decision
 	}
 }
 
-func (r *SegmentRunner) applySelectors(value iterator.Value, decisions []Decision, out chan<- token.Token) {
+func (r *SegmentRunner) applySelectors(value iterator.Value, decisions []Decision, next valueProcessor) {
 	// We need to count decisions which may select the value so that we know
 	// when not to clone it before copying it to the output.  This may appear
 	// like a small optimization but in practice almost all segments are made
@@ -115,9 +113,9 @@ func (r *SegmentRunner) applySelectors(value iterator.Value, decisions []Decisio
 			continue
 		}
 		if perhapsCount > 0 {
-			value.Clone().Copy(out)
+			next.ProcessValue(value.Clone())
 		} else {
-			value.Copy(out)
+			next.ProcessValue(value)
 		}
 	}
 }

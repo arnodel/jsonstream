@@ -18,11 +18,36 @@ type RootNodeQueryRunner struct {
 }
 
 func (r RootNodeQueryRunner) Transform(in <-chan token.Token, out chan<- token.Token) {
-	for _, segment := range r.segments {
-		segmentTransformer := iterator.AsStreamTransformer(segment)
-		in = token.TransformStream(in, segmentTransformer)
+	var p valueProcessor = valueToChannelAdapter{out: out}
+	for i := len(r.segments) - 1; i >= 0; i-- {
+		p = segmentProcessor{
+			SegmentRunner: r.segments[i],
+			next:          p,
+		}
 	}
-	for token := range in {
-		out <- token
+	iterator := iterator.New(token.ChannelReadStream(in))
+	for iterator.Advance() {
+		p.ProcessValue(iterator.CurrentValue())
 	}
+}
+
+type valueProcessor interface {
+	ProcessValue(value iterator.Value)
+}
+
+type valueToChannelAdapter struct {
+	out chan<- token.Token
+}
+
+func (a valueToChannelAdapter) ProcessValue(value iterator.Value) {
+	value.Copy(a.out)
+}
+
+type segmentProcessor struct {
+	SegmentRunner
+	next valueProcessor
+}
+
+func (p segmentProcessor) ProcessValue(value iterator.Value) {
+	p.TransformValue(value, p.next)
 }
