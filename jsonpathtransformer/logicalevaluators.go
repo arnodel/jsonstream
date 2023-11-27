@@ -16,6 +16,7 @@ var _ LogicalEvaluator = LogicalOrEvaluator{}
 var _ LogicalEvaluator = LogicalAndEvaluator{}
 var _ LogicalEvaluator = LogicalNotEvaluator{}
 var _ LogicalEvaluator = ComparisonEvaluator{}
+var _ LogicalEvaluator = QueryRunner{}
 
 type LogicalOrEvaluator struct {
 	Arguments []LogicalEvaluator

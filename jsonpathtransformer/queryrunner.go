@@ -9,26 +9,37 @@ import (
 // Query runner (still provisional)
 //
 
-type QueryRunner interface {
-	token.StreamTransformer
+type QueryRunner struct {
+	isRootNodeQuery bool
+	segments        []SegmentRunner
 }
 
-type RootNodeQueryRunner struct {
-	segments []SegmentRunner
+func (r QueryRunner) Transform(in <-chan token.Token, out chan<- token.Token) {
+	p := r.getValueProcessor(valueToChannelAdapter{out: out})
+	iterator := iterator.New(token.ChannelReadStream(in))
+	for iterator.Advance() {
+		p.ProcessValue(iterator.CurrentValue())
+	}
 }
 
-func (r RootNodeQueryRunner) Transform(in <-chan token.Token, out chan<- token.Token) {
-	var p valueProcessor = valueToChannelAdapter{out: out}
+func (r QueryRunner) Evaluate(value iterator.Value) bool {
+	value = value.Clone()
+	var p countingProcessor
+	// TODO as soon as a value is received, stop processing.  This would require
+	// something like ProcessValue returning a boolean to make the caller return.
+	r.getValueProcessor(&p).ProcessValue(value)
+	value.Discard()
+	return p.count > 0
+}
+
+func (r QueryRunner) getValueProcessor(p valueProcessor) valueProcessor {
 	for i := len(r.segments) - 1; i >= 0; i-- {
 		p = segmentProcessor{
 			SegmentRunner: r.segments[i],
 			next:          p,
 		}
 	}
-	iterator := iterator.New(token.ChannelReadStream(in))
-	for iterator.Advance() {
-		p.ProcessValue(iterator.CurrentValue())
-	}
+	return p
 }
 
 type valueProcessor interface {
@@ -50,4 +61,13 @@ type segmentProcessor struct {
 
 func (p segmentProcessor) ProcessValue(value iterator.Value) {
 	p.TransformValue(value, p.next)
+}
+
+type countingProcessor struct {
+	count int
+}
+
+func (p *countingProcessor) ProcessValue(value iterator.Value) {
+	value.Discard()
+	p.count++
 }

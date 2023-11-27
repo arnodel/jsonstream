@@ -63,7 +63,6 @@ func (p *CursorPool) advanceWindow() {
 
 // We want this inlined
 func (p *CursorPool) updateCatchupCount(n int) {
-	// log.Printf("updateCC %d + %d", p.catchupCount, n)
 	p.catchupCount += n
 	if p.catchupCount > 100 {
 		p.catchupCount = 0

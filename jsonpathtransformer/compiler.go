@@ -22,15 +22,9 @@ func (c *compiler) compileQuery(query ast.Query) QueryRunner {
 	for i, s := range query.Segments {
 		segments[i] = c.compileSegment(s)
 	}
-	switch query.RootNode {
-	case ast.RootNodeIdentifier:
-		return RootNodeQueryRunner{
-			segments: segments,
-		}
-	case ast.CurrentNodeIdentifier:
-		panic("unimplemented")
-	default:
-		panic("invalid query")
+	return QueryRunner{
+		isRootNodeQuery: query.RootNode == ast.RootNodeIdentifier,
+		segments:        segments,
 	}
 }
 
@@ -86,7 +80,11 @@ func (c *compiler) compileCondition(condition ast.LogicalExpr) LogicalEvaluator 
 	case ast.ComparisonExpr:
 		return c.compileComparison(x)
 	case ast.Query:
-		panic("unimplemented")
+		q := c.compileQuery(x)
+		if q.isRootNodeQuery {
+			panic("root node query filter unimplemented")
+		}
+		return q
 	case ast.FunctionExpr:
 		panic("unimplemented")
 	default:
