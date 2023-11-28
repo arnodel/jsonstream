@@ -32,7 +32,11 @@ type CurrentNodeSingularQueryRunner struct {
 var _ ComparableEvaluator = CurrentNodeSingularQueryRunner{}
 
 func (r CurrentNodeSingularQueryRunner) Evaluate(value iterator.Value) iterator.Value {
-	value = value.Clone()
+	var detach func()
+	value, detach = value.Clone()
+	if detach != nil {
+		defer detach()
+	}
 	for _, selector := range r.selectors {
 		switch x := value.(type) {
 		case *iterator.Object:
@@ -92,8 +96,9 @@ func (r IndexSingularSelectorRunner) SelectFromArray(arr *iterator.Array) iterat
 	var ahead *iterator.Array
 
 	if lookahead > 0 {
-		ahead = arr.CloneArray()
-		defer ahead.Discard()
+		var detach func()
+		ahead, detach = arr.CloneArray()
+		defer detach()
 		for negIndex+lookahead >= 0 && ahead.Advance() {
 			negIndex--
 		}

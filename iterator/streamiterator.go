@@ -33,7 +33,7 @@ func (i *Iterator) CurrentValue() Value {
 }
 
 type Value interface {
-	Clone() Value
+	Clone() (Value, func())
 	Discard()
 	Copy(out chan<- token.Token)
 }
@@ -42,8 +42,8 @@ type Scalar token.Scalar
 
 var _ Value = &Scalar{}
 
-func (s *Scalar) Clone() Value {
-	return s
+func (s *Scalar) Clone() (Value, func()) {
+	return s, nil
 }
 
 func (s *Scalar) Discard() {}
@@ -75,13 +75,15 @@ type collectionBase struct {
 	currentValue Value
 }
 
-func (c *collectionBase) clone() collectionBase {
+func (c *collectionBase) clone() (collectionBase, func()) {
 	if c.started {
 		panic("cannot clone started collection")
 	}
 	clone := *c
-	c.stream, clone.stream = token.CloneReadStream(c.stream)
-	return clone
+	var cloneStream *token.Cursor
+	c.stream, cloneStream = token.CloneReadStream(c.stream)
+	clone.stream = cloneStream
+	return clone, cloneStream.Detach
 }
 
 func (c *collectionBase) Discard() {
@@ -151,10 +153,11 @@ type Object struct {
 	currentKey *token.Scalar
 }
 
-func (o *Object) Clone() Value {
+func (o *Object) Clone() (Value, func()) {
+	clone, detach := o.clone()
 	return &Object{
-		collectionBase: o.clone(),
-	}
+		collectionBase: clone,
+	}, detach
 }
 func (o *Object) CurrentKeyVal() (*token.Scalar, Value) {
 	if o.done {
@@ -200,11 +203,12 @@ type Array struct {
 	collectionBase
 }
 
-func (a *Array) CloneArray() *Array {
-	return &Array{collectionBase: a.clone()}
+func (a *Array) CloneArray() (*Array, func()) {
+	clone, detach := a.clone()
+	return &Array{collectionBase: clone}, detach
 }
 
-func (a *Array) Clone() Value {
+func (a *Array) Clone() (Value, func()) {
 	return a.CloneArray()
 }
 

@@ -23,12 +23,15 @@ func (r QueryRunner) Transform(in <-chan token.Token, out chan<- token.Token) {
 }
 
 func (r QueryRunner) Evaluate(value iterator.Value) bool {
-	value = value.Clone()
+	var detach func()
+	value, detach = value.Clone()
+	if detach != nil {
+		defer detach()
+	}
 	var p countingProcessor
 	// TODO as soon as a value is received, stop processing.  This would require
 	// something like ProcessValue returning a boolean to make the caller return.
 	r.getValueProcessor(&p).ProcessValue(value)
-	value.Discard()
 	return p.count > 0
 }
 

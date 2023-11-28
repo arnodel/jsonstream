@@ -59,7 +59,9 @@ func (r SegmentRunner) transformValue(value iterator.Value, decisions []Decision
 		var ahead *iterator.Array
 
 		if r.lookahead > 0 {
-			ahead = x.CloneArray()
+			var detach func()
+			ahead, detach = x.CloneArray()
+			defer detach()
 			defer ahead.Discard()
 			for negIndex+r.lookahead >= 0 && ahead.Advance() {
 				negIndex--
@@ -113,7 +115,11 @@ func (r *SegmentRunner) applySelectors(value iterator.Value, decisions []Decisio
 			continue
 		}
 		if perhapsCount > 0 {
-			next.ProcessValue(value.Clone())
+			clone, detach := value.Clone()
+			if detach != nil {
+				defer detach()
+			}
+			next.ProcessValue(clone)
 		} else {
 			next.ProcessValue(value)
 		}
