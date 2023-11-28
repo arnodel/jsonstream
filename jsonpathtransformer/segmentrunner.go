@@ -28,18 +28,18 @@ type SegmentRunner struct {
 }
 
 // TransformValue transforms the incoming value according to the definition of
-// the query segment.
-func (r SegmentRunner) TransformValue(value iterator.Value, next valueProcessor) {
+// the query segment.  Returns true if the processing was cancelled
+func (r SegmentRunner) TransformValue(value iterator.Value, next valueProcessor) bool {
 	// We allocate decisions here because otherwise we would allocate a new
 	// slice fore each item in the collection.
 	//
 	// Hopefully escape analysis will prove that the slice can't escape, and
 	// since its capacity is known, it should be allocated on the stack.
 	decisions := make([]Decision, 0, 10)
-	r.transformValue(value, decisions, next)
+	return r.transformValue(value, decisions, next)
 }
 
-func (r SegmentRunner) transformValue(value iterator.Value, decisions []Decision, next valueProcessor) {
+func (r SegmentRunner) transformValue(value iterator.Value, decisions []Decision, next valueProcessor) bool {
 	switch x := value.(type) {
 	case *iterator.Object:
 		for x.Advance() {
@@ -49,9 +49,11 @@ func (r SegmentRunner) transformValue(value iterator.Value, decisions []Decision
 			for _, selector := range r.selectors {
 				decisions = append(decisions, selector.SelectsFromKey(key))
 			}
-			r.applySelectors(value, decisions, next)
-			if r.isDescendantSegment {
-				r.transformValue(value, decisions, next)
+			if !r.applySelectors(value, decisions, next) {
+				return false
+			}
+			if r.isDescendantSegment && !r.transformValue(value, decisions, next) {
+				return false
 			}
 		}
 	case *iterator.Array:
@@ -62,7 +64,6 @@ func (r SegmentRunner) transformValue(value iterator.Value, decisions []Decision
 			var detach func()
 			ahead, detach = x.CloneArray()
 			defer detach()
-			defer ahead.Discard()
 			for negIndex+r.lookahead >= 0 && ahead.Advance() {
 				negIndex--
 			}
@@ -76,21 +77,24 @@ func (r SegmentRunner) transformValue(value iterator.Value, decisions []Decision
 			for _, selector := range r.selectors {
 				decisions = append(decisions, selector.SelectsFromIndex(index, negIndex))
 			}
-			r.applySelectors(value, decisions, next)
+			if !r.applySelectors(value, decisions, next) {
+				return false
+			}
 			index++
 			if ahead != nil && !ahead.Advance() {
 				negIndex++
 			}
-			if r.isDescendantSegment {
-				r.transformValue(value, decisions, next)
+			if r.isDescendantSegment && !r.transformValue(value, decisions, next) {
+				return false
 			}
 		}
 	default:
 		x.Discard()
 	}
+	return true
 }
 
-func (r *SegmentRunner) applySelectors(value iterator.Value, decisions []Decision, next valueProcessor) {
+func (r *SegmentRunner) applySelectors(value iterator.Value, decisions []Decision, next valueProcessor) bool {
 	// We need to count decisions which may select the value so that we know
 	// when not to clone it before copying it to the output.  This may appear
 	// like a small optimization but in practice almost all segments are made
@@ -119,11 +123,16 @@ func (r *SegmentRunner) applySelectors(value iterator.Value, decisions []Decisio
 			if detach != nil {
 				defer detach()
 			}
-			next.ProcessValue(clone)
+			if !next.ProcessValue(clone) {
+				return false
+			}
 		} else {
-			next.ProcessValue(value)
+			if !next.ProcessValue(value) {
+				return false
+			}
 		}
 	}
+	return true
 }
 
 // This assumes the scalar is a string - it should always be the case for an

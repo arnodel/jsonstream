@@ -196,7 +196,7 @@ func (r FilterSelectorRunner) SelectsFromIndex(index, negIndex int64) Decision {
 }
 
 func (r FilterSelectorRunner) SelectsFromValue(value iterator.Value) bool {
-	return r.condition.Evaluate(value)
+	return r.condition.EvaluateTruth(value)
 }
 
 // Decision is a 3-valued type with possible values DontKnow, Yes, No.  Sort of

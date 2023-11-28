@@ -9,7 +9,7 @@ import (
 )
 
 type LogicalEvaluator interface {
-	Evaluate(value iterator.Value) bool
+	EvaluateTruth(value iterator.Value) bool
 }
 
 var _ LogicalEvaluator = LogicalOrEvaluator{}
@@ -22,9 +22,9 @@ type LogicalOrEvaluator struct {
 	Arguments []LogicalEvaluator
 }
 
-func (e LogicalOrEvaluator) Evaluate(value iterator.Value) bool {
+func (e LogicalOrEvaluator) EvaluateTruth(value iterator.Value) bool {
 	for _, arg := range e.Arguments {
-		if arg.Evaluate(value) {
+		if arg.EvaluateTruth(value) {
 			return true
 		}
 	}
@@ -35,9 +35,9 @@ type LogicalAndEvaluator struct {
 	Arguments []LogicalEvaluator
 }
 
-func (e LogicalAndEvaluator) Evaluate(value iterator.Value) bool {
+func (e LogicalAndEvaluator) EvaluateTruth(value iterator.Value) bool {
 	for _, arg := range e.Arguments {
-		if !arg.Evaluate(value) {
+		if !arg.EvaluateTruth(value) {
 			return false
 		}
 	}
@@ -48,8 +48,8 @@ type LogicalNotEvaluator struct {
 	Argument LogicalEvaluator
 }
 
-func (e LogicalNotEvaluator) Evaluate(value iterator.Value) bool {
-	return !e.Argument.Evaluate(value)
+func (e LogicalNotEvaluator) EvaluateTruth(value iterator.Value) bool {
+	return !e.Argument.EvaluateTruth(value)
 }
 
 type ComparisonEvaluator struct {
@@ -66,7 +66,7 @@ const (
 	NegateResult
 )
 
-func (e ComparisonEvaluator) Evaluate(value iterator.Value) bool {
+func (e ComparisonEvaluator) EvaluateTruth(value iterator.Value) bool {
 	leftValue := e.left.Evaluate(value)
 	rightValue := e.right.Evaluate(value)
 	result := false

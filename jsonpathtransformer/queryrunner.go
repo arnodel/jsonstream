@@ -22,17 +22,13 @@ func (r QueryRunner) Transform(in <-chan token.Token, out chan<- token.Token) {
 	}
 }
 
-func (r QueryRunner) Evaluate(value iterator.Value) bool {
+func (r QueryRunner) EvaluateTruth(value iterator.Value) bool {
 	var detach func()
 	value, detach = value.Clone()
 	if detach != nil {
 		defer detach()
 	}
-	var p countingProcessor
-	// TODO as soon as a value is received, stop processing.  This would require
-	// something like ProcessValue returning a boolean to make the caller return.
-	r.getValueProcessor(&p).ProcessValue(value)
-	return p.count > 0
+	return !r.getValueProcessor(haltingProcessor{}).ProcessValue(value)
 }
 
 func (r QueryRunner) getValueProcessor(p valueProcessor) valueProcessor {
@@ -46,15 +42,18 @@ func (r QueryRunner) getValueProcessor(p valueProcessor) valueProcessor {
 }
 
 type valueProcessor interface {
-	ProcessValue(value iterator.Value)
+	// ProcessValue processes the value and returns true if the caller should
+	// continue, false if the caller can stop.
+	ProcessValue(value iterator.Value) bool
 }
 
 type valueToChannelAdapter struct {
 	out chan<- token.Token
 }
 
-func (a valueToChannelAdapter) ProcessValue(value iterator.Value) {
+func (a valueToChannelAdapter) ProcessValue(value iterator.Value) bool {
 	value.Copy(a.out)
+	return true
 }
 
 type segmentProcessor struct {
@@ -62,15 +61,12 @@ type segmentProcessor struct {
 	next valueProcessor
 }
 
-func (p segmentProcessor) ProcessValue(value iterator.Value) {
-	p.TransformValue(value, p.next)
+func (p segmentProcessor) ProcessValue(value iterator.Value) bool {
+	return p.TransformValue(value, p.next)
 }
 
-type countingProcessor struct {
-	count int
-}
+type haltingProcessor struct{}
 
-func (p *countingProcessor) ProcessValue(value iterator.Value) {
-	value.Discard()
-	p.count++
+func (p haltingProcessor) ProcessValue(value iterator.Value) bool {
+	return false
 }
