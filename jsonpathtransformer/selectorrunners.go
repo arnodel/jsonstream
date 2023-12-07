@@ -48,7 +48,7 @@ type SelectorRunner interface {
 	//
 	// Selects should promise not to advance Value, so it must clone it first if
 	// it wants to look inside.
-	SelectsFromValue(value iterator.Value) bool
+	SelectsFromValue(ctx *RunContext, value iterator.Value) bool
 }
 
 // Here are the different kinds of SectorRunner.
@@ -82,7 +82,7 @@ func (r DefaultSelectorRunner) SelectsFromKey(key string) Decision {
 }
 
 // SelectsFromValue returns false.
-func (r DefaultSelectorRunner) SelectsFromValue(value iterator.Value) bool {
+func (r DefaultSelectorRunner) SelectsFromValue(ctx *RunContext, value iterator.Value) bool {
 	return false
 }
 
@@ -195,8 +195,8 @@ func (r FilterSelectorRunner) SelectsFromIndex(index, negIndex int64) Decision {
 	return DontKnow
 }
 
-func (r FilterSelectorRunner) SelectsFromValue(value iterator.Value) bool {
-	return r.condition.EvaluateTruth(value)
+func (r FilterSelectorRunner) SelectsFromValue(ctx *RunContext, value iterator.Value) bool {
+	return r.condition.EvaluateTruth(ctx, value)
 }
 
 // Decision is a 3-valued type with possible values DontKnow, Yes, No.  Sort of

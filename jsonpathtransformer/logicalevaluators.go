@@ -9,7 +9,7 @@ import (
 )
 
 type LogicalEvaluator interface {
-	EvaluateTruth(value iterator.Value) bool
+	EvaluateTruth(ctx *RunContext, value iterator.Value) bool
 }
 
 var _ LogicalEvaluator = LogicalOrEvaluator{}
@@ -17,14 +17,15 @@ var _ LogicalEvaluator = LogicalAndEvaluator{}
 var _ LogicalEvaluator = LogicalNotEvaluator{}
 var _ LogicalEvaluator = ComparisonEvaluator{}
 var _ LogicalEvaluator = QueryRunner{}
+var _ LogicalEvaluator = InnerQueryRunner{}
 
 type LogicalOrEvaluator struct {
 	Arguments []LogicalEvaluator
 }
 
-func (e LogicalOrEvaluator) EvaluateTruth(value iterator.Value) bool {
+func (e LogicalOrEvaluator) EvaluateTruth(ctx *RunContext, value iterator.Value) bool {
 	for _, arg := range e.Arguments {
-		if arg.EvaluateTruth(value) {
+		if arg.EvaluateTruth(ctx, value) {
 			return true
 		}
 	}
@@ -35,9 +36,9 @@ type LogicalAndEvaluator struct {
 	Arguments []LogicalEvaluator
 }
 
-func (e LogicalAndEvaluator) EvaluateTruth(value iterator.Value) bool {
+func (e LogicalAndEvaluator) EvaluateTruth(ctx *RunContext, value iterator.Value) bool {
 	for _, arg := range e.Arguments {
-		if !arg.EvaluateTruth(value) {
+		if !arg.EvaluateTruth(ctx, value) {
 			return false
 		}
 	}
@@ -48,8 +49,8 @@ type LogicalNotEvaluator struct {
 	Argument LogicalEvaluator
 }
 
-func (e LogicalNotEvaluator) EvaluateTruth(value iterator.Value) bool {
-	return !e.Argument.EvaluateTruth(value)
+func (e LogicalNotEvaluator) EvaluateTruth(ctx *RunContext, value iterator.Value) bool {
+	return !e.Argument.EvaluateTruth(ctx, value)
 }
 
 type ComparisonEvaluator struct {
@@ -66,9 +67,9 @@ const (
 	NegateResult
 )
 
-func (e ComparisonEvaluator) EvaluateTruth(value iterator.Value) bool {
-	leftValue := e.left.Evaluate(value)
-	rightValue := e.right.Evaluate(value)
+func (e ComparisonEvaluator) EvaluateTruth(ctx *RunContext, value iterator.Value) bool {
+	leftValue := e.left.Evaluate(ctx, value)
+	rightValue := e.right.Evaluate(ctx, value)
 	result := false
 	if e.flags&CheckEquals != 0 {
 		result = checkEquals(leftValue, rightValue)

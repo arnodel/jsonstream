@@ -7,17 +7,19 @@ import (
 )
 
 type ComparableEvaluator interface {
-	Evaluate(value iterator.Value) iterator.Value
+	// The returned value must be cloned first if it is consumed
+	Evaluate(ctx *RunContext, value iterator.Value) iterator.Value
 }
 
 var _ ComparableEvaluator = LiteralEvaluator{}
-var _ ComparableEvaluator = CurrentNodeSingularQueryRunner{}
+var _ ComparableEvaluator = SingularQueryRunner{}
+var _ ComparableEvaluator = InnerSingularQueryRunner{}
 
 type LiteralEvaluator struct {
 	value iterator.Value
 }
 
-func (e LiteralEvaluator) Evaluate(value iterator.Value) iterator.Value {
+func (e LiteralEvaluator) Evaluate(ctx *RunContext, value iterator.Value) iterator.Value {
 	return e.value
 }
 
@@ -25,13 +27,11 @@ func (e LiteralEvaluator) Evaluate(value iterator.Value) iterator.Value {
 // Singular query runner
 //
 
-type CurrentNodeSingularQueryRunner struct {
+type SingularQueryRunner struct {
 	selectors []SingularSelectorRunner
 }
 
-var _ ComparableEvaluator = CurrentNodeSingularQueryRunner{}
-
-func (r CurrentNodeSingularQueryRunner) Evaluate(value iterator.Value) iterator.Value {
+func (r SingularQueryRunner) Evaluate(ctx *RunContext, value iterator.Value) iterator.Value {
 	var detach func()
 	value, detach = value.Clone()
 	if detach != nil {

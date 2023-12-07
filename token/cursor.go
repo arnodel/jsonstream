@@ -24,6 +24,17 @@ func NewCursorPool(stream ReadStream) *CursorPool {
 	return &CursorPool{stream: stream}
 }
 
+func NewCursorFromData(data []Token) *Cursor {
+	// A pool with just the data and a cursor pointing at the start.
+	pool := &CursorPool{
+		stream: NewSliceReadStream(nil),
+		window: data,
+	}
+	cursor := &Cursor{pool: pool}
+	pool.cursors = append(pool.cursors, cursor)
+	return cursor
+}
+
 func (p *CursorPool) advanceWindow() {
 	p.checkWindowSize()
 	minPos := math.MaxInt

@@ -3,7 +3,7 @@ package token
 // A StreamTransformer can transform a json stream into another.
 // Use the TransformStream function to apply it.
 type StreamTransformer interface {
-	Transform(in <-chan Token, out chan<- Token)
+	Transform(in <-chan Token, out WriteStream)
 }
 
 type StreamSource interface {
@@ -19,9 +19,10 @@ type StreamSink interface {
 // transformer is computed in a goroutine.
 func TransformStream(in <-chan Token, transformer StreamTransformer) <-chan Token {
 	out := make(chan Token)
+	w := ChannelWriteStream(out)
 	go func() {
 		defer close(out)
-		transformer.Transform(in, out)
+		transformer.Transform(in, w)
 	}()
 	return out
 }

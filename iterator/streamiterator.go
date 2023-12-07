@@ -32,10 +32,21 @@ func (i *Iterator) CurrentValue() Value {
 	return i.currentValue
 }
 
+func (i *Iterator) Clone() (*Iterator, func()) {
+	if i.currentValue != nil {
+		panic("cannot clone started iterator")
+	}
+	clone := *i
+	var cloneStream *token.Cursor
+	i.stream, cloneStream = token.CloneReadStream(i.stream)
+	clone.stream = cloneStream
+	return &clone, cloneStream.Detach
+}
+
 type Value interface {
 	Clone() (Value, func())
 	Discard()
-	Copy(out chan<- token.Token)
+	Copy(token.WriteStream)
 }
 
 type Scalar token.Scalar
@@ -48,8 +59,8 @@ func (s *Scalar) Clone() (Value, func()) {
 
 func (s *Scalar) Discard() {}
 
-func (s *Scalar) Copy(out chan<- token.Token) {
-	out <- (*token.Scalar)(s)
+func (s *Scalar) Copy(w token.WriteStream) {
+	w.Put((*token.Scalar)(s))
 }
 
 func (s *Scalar) Scalar() *token.Scalar {
@@ -112,11 +123,11 @@ func (c *collectionBase) Discard() {
 	}
 }
 
-func (c *collectionBase) Copy(out chan<- token.Token) {
+func (c *collectionBase) Copy(w token.WriteStream) {
 	if c.started {
 		panic("cannot copy a started iterator")
 	}
-	out <- c.startItem
+	w.Put(c.startItem)
 	c.done = true
 	depth := 0
 	for {
@@ -130,7 +141,7 @@ func (c *collectionBase) Copy(out chan<- token.Token) {
 		case *token.EndArray, *token.EndObject:
 			depth--
 		}
-		out <- item
+		w.Put(item)
 		if depth < 0 {
 			return
 		}

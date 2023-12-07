@@ -6,7 +6,7 @@ import "github.com/arnodel/jsonstream/token"
 // Use the AsStreamTransformer function to turn it into a
 // StreamTransformer which can then be applied.
 type ValueTransformer interface {
-	TransformValue(iter Value, out chan<- token.Token)
+	TransformValue(value Value, out token.WriteStream)
 }
 
 // AsStreamTransformer turns a ValueTransformer into a StreamTransformer,
@@ -19,7 +19,7 @@ type valueTransformerAdapter struct {
 	valueTransformer ValueTransformer
 }
 
-func (f *valueTransformerAdapter) Transform(in <-chan token.Token, out chan<- token.Token) {
+func (f *valueTransformerAdapter) Transform(in <-chan token.Token, out token.WriteStream) {
 	iterator := New(token.ChannelReadStream(in))
 	for iterator.Advance() {
 		f.valueTransformer.TransformValue(iterator.CurrentValue(), out)

@@ -31,7 +31,7 @@ type MaxDepthFilter struct {
 }
 
 // Transform implements the MaxDepthFilter tansform.
-func (f *MaxDepthFilter) Transform(in <-chan token.Token, out chan<- token.Token) {
+func (f *MaxDepthFilter) Transform(in <-chan token.Token, out token.WriteStream) {
 	depth := 0
 	for item := range in {
 		postIncr := 0
@@ -42,10 +42,10 @@ func (f *MaxDepthFilter) Transform(in <-chan token.Token, out chan<- token.Token
 			depth--
 		}
 		if depth <= f.MaxDepth {
-			out <- item
+			out.Put(item)
 		}
 		if depth == f.MaxDepth && postIncr > 0 {
-			out <- &token.Elision{}
+			out.Put(&token.Elision{})
 		}
 		depth += postIncr
 	}
@@ -65,7 +65,7 @@ type KeyExtractor struct {
 }
 
 // TransformValue implements the KeyExtractor transform
-func (f *KeyExtractor) TransformValue(value iterator.Value, out chan<- token.Token) {
+func (f *KeyExtractor) TransformValue(value iterator.Value, out token.WriteStream) {
 	if obj, ok := value.(*iterator.Object); ok {
 		for obj.Advance() {
 			key, val := obj.CurrentKeyVal()
@@ -87,7 +87,7 @@ type DeepKeyExtractor struct {
 }
 
 // TransformValue implements the DeepKeyExtractor transform
-func (f *DeepKeyExtractor) TransformValue(value iterator.Value, out chan<- token.Token) {
+func (f *DeepKeyExtractor) TransformValue(value iterator.Value, out token.WriteStream) {
 	switch v := value.(type) {
 	case *iterator.Object:
 		f.transformObject(v, out)
@@ -98,7 +98,7 @@ func (f *DeepKeyExtractor) TransformValue(value iterator.Value, out chan<- token
 	}
 }
 
-func (f *DeepKeyExtractor) transformObject(obj *iterator.Object, out chan<- token.Token) {
+func (f *DeepKeyExtractor) transformObject(obj *iterator.Object, out token.WriteStream) {
 	for obj.Advance() {
 		key, val := obj.CurrentKeyVal()
 		if key.EqualsString(f.Key) {
@@ -118,7 +118,7 @@ func (f *DeepKeyExtractor) transformObject(obj *iterator.Object, out chan<- toke
 type ExplodeArray struct{}
 
 // TransformValue implements the ExplodeArray transform
-func (f ExplodeArray) TransformValue(value iterator.Value, out chan<- token.Token) {
+func (f ExplodeArray) TransformValue(value iterator.Value, out token.WriteStream) {
 	switch v := value.(type) {
 	case *iterator.Array:
 		for v.Advance() {
@@ -140,12 +140,12 @@ func (f ExplodeArray) TransformValue(value iterator.Value, out chan<- token.Toke
 type JoinStream struct{}
 
 // Transform implements the JoinStream transform
-func (f JoinStream) Transform(in <-chan token.Token, out chan<- token.Token) {
-	out <- &token.StartArray{}
+func (f JoinStream) Transform(in <-chan token.Token, out token.WriteStream) {
+	out.Put(&token.StartArray{})
 	for item := range in {
-		out <- item
+		out.Put(item)
 	}
-	out <- &token.EndArray{}
+	out.Put(&token.EndArray{})
 }
 
 // TraceStream logs all the stream items and doesn't send any items on.
@@ -153,7 +153,7 @@ func (f JoinStream) Transform(in <-chan token.Token, out chan<- token.Token) {
 type TraceStream struct{}
 
 // Transform implements the TraceStream transform
-func (t TraceStream) Transform(in <-chan token.Token, out chan<- token.Token) {
+func (t TraceStream) Transform(in <-chan token.Token, out token.WriteStream) {
 	for item := range in {
 		log.Printf("%s", item)
 	}

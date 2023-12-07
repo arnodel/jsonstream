@@ -2,6 +2,7 @@ package jsonpathtransformer
 
 import (
 	"math"
+	"reflect"
 
 	"github.com/arnodel/jsonstream/internal/jsonpath/ast"
 	"github.com/arnodel/jsonstream/iterator"
@@ -9,13 +10,44 @@ import (
 )
 
 // CompileQuery compiles a JSON query AST to a QueryRunner.
-func CompileQuery(query ast.Query) QueryRunner {
+func CompileQuery(query ast.Query) MainQueryRunner {
 	var c compiler
-	return c.compileQuery(query)
+	runner := c.compileQuery(query)
+	singularQueries, queries := c.getInnerQueries()
+	return MainQueryRunner{
+		mainRunner:           runner,
+		innerSingularQueries: singularQueries,
+		innerQueries:         queries,
+	}
+}
+
+type innerSingularQueryEntry struct {
+	query  ast.SingularQuery
+	runner SingularQueryRunner
+}
+
+type innerQueryEntry struct {
+	query  ast.Query
+	runner QueryRunner
 }
 
 // This type may have some state or configuration parameters in the future.
-type compiler struct{}
+type compiler struct {
+	innerSingularQueries []innerSingularQueryEntry
+	innerQueries         []innerQueryEntry
+}
+
+func (c *compiler) getInnerQueries() ([]SingularQueryRunner, []QueryRunner) {
+	singularQueries := make([]SingularQueryRunner, len(c.innerSingularQueries))
+	for i, e := range c.innerSingularQueries {
+		singularQueries[i] = e.runner
+	}
+	queries := make([]QueryRunner, len(c.innerQueries))
+	for i, e := range c.innerQueries {
+		queries[i] = e.runner
+	}
+	return singularQueries, queries
+}
 
 func (c *compiler) compileQuery(query ast.Query) QueryRunner {
 	segments := make([]SegmentRunner, len(query.Segments))
@@ -25,6 +57,27 @@ func (c *compiler) compileQuery(query ast.Query) QueryRunner {
 	return QueryRunner{
 		isRootNodeQuery: query.RootNode == ast.RootNodeIdentifier,
 		segments:        segments,
+	}
+}
+
+func (c *compiler) compileInnerQueryCondition(query ast.Query) LogicalEvaluator {
+	switch query.RootNode {
+	case ast.CurrentNodeIdentifier:
+		return c.compileQuery(query)
+	case ast.RootNodeIdentifier:
+		for i, entry := range c.innerQueries {
+			if reflect.DeepEqual(entry.query, query) {
+				return InnerQueryRunner{index: i}
+			}
+		}
+		q := c.compileQuery(query)
+		c.innerQueries = append(c.innerQueries, innerQueryEntry{
+			query:  query,
+			runner: q,
+		})
+		return InnerQueryRunner{index: len(c.innerQueries) - 1}
+	default:
+		panic("invalid query root node")
 	}
 }
 
@@ -80,11 +133,7 @@ func (c *compiler) compileCondition(condition ast.LogicalExpr) LogicalEvaluator 
 	case ast.ComparisonExpr:
 		return c.compileComparison(x)
 	case ast.Query:
-		q := c.compileQuery(x)
-		if q.isRootNodeQuery {
-			panic("root node query filter unimplemented")
-		}
-		return q
+		return c.compileInnerQueryCondition(x)
 	case ast.FunctionExpr:
 		panic("unimplemented")
 	default:
@@ -175,14 +224,26 @@ func (c *compiler) compileComparable(comparable ast.Comparable) ComparableEvalua
 	}
 }
 
-func (c *compiler) compileSingularQuery(query ast.SingularQuery) CurrentNodeSingularQueryRunner {
+func (c *compiler) compileSingularQuery(query ast.SingularQuery) ComparableEvaluator {
 	switch query.RootNode {
 	case ast.CurrentNodeIdentifier:
-		return CurrentNodeSingularQueryRunner{
+		return SingularQueryRunner{
 			selectors: mapSlice(query.Segments, c.compileSingularQuerySegment),
 		}
 	case ast.RootNodeIdentifier:
-		panic("unimplemented")
+		for i, e := range c.innerSingularQueries {
+			if reflect.DeepEqual(e.query, query) {
+				return InnerSingularQueryRunner{index: i}
+			}
+		}
+		q := SingularQueryRunner{
+			selectors: mapSlice(query.Segments, c.compileSingularQuerySegment),
+		}
+		c.innerSingularQueries = append(c.innerSingularQueries, innerSingularQueryEntry{
+			query:  query,
+			runner: q,
+		})
+		return InnerSingularQueryRunner{index: len(c.innerSingularQueries) - 1}
 	default:
 		panic("invalid root node value")
 	}
