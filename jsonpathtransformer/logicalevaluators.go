@@ -68,8 +68,17 @@ const (
 )
 
 func (e ComparisonEvaluator) EvaluateTruth(ctx *RunContext, value iterator.Value) bool {
-	leftValue := e.left.Evaluate(ctx, value)
-	rightValue := e.right.Evaluate(ctx, value)
+	value1, detach1 := value.Clone()
+	value2, detach2 := value.Clone()
+	if detach1 != nil {
+		defer detach1()
+	}
+	if detach2 != nil {
+		defer detach2()
+	}
+	leftValue := e.left.Evaluate(ctx, value1)
+
+	rightValue := e.right.Evaluate(ctx, value2)
 	result := false
 	if e.flags&CheckEquals != 0 {
 		result = checkEquals(leftValue, rightValue)
@@ -92,9 +101,19 @@ func checkEquals(left iterator.Value, right iterator.Value) bool {
 		}
 		return checkScalarEquals(x.Scalar(), y.Scalar())
 	case *iterator.Object:
-		panic("unimplemented")
+		y, ok := right.(*iterator.Object)
+		if !ok {
+			return false
+		}
+		return checkObjectEquals(x, y)
+	case *iterator.Array:
+		y, ok := right.(*iterator.Array)
+		if !ok {
+			return false
+		}
+		return checkArrayEquals(x, y)
 	default:
-		panic("invalid ")
+		panic("invalid value")
 	}
 }
 
@@ -124,6 +143,23 @@ func checkScalarEquals(left *token.Scalar, right *token.Scalar) bool {
 	}
 	// Fall back to slower conversion
 	return parser.ParseJsonLiteralBytes(left.Bytes) == parser.ParseJsonLiteralBytes(right.Bytes)
+}
+
+func checkObjectEquals(left *iterator.Object, right *iterator.Object) bool {
+	panic("unimplemented")
+}
+
+func checkArrayEquals(left *iterator.Array, right *iterator.Array) bool {
+	for left.Advance() {
+		if !right.Advance() {
+			return false
+		}
+		if !checkEquals(left.CurrentValue(), right.CurrentValue()) {
+			return false
+		}
+	}
+	// The arrays are equal if right has no more items.
+	return !right.Advance()
 }
 
 func checkLessThan(left iterator.Value, right iterator.Value) bool {

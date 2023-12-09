@@ -32,11 +32,6 @@ type SingularQueryRunner struct {
 }
 
 func (r SingularQueryRunner) Evaluate(ctx *RunContext, value iterator.Value) iterator.Value {
-	var detach func()
-	value, detach = value.Clone()
-	if detach != nil {
-		defer detach()
-	}
 	for _, selector := range r.selectors {
 		switch x := value.(type) {
 		case *iterator.Object:
