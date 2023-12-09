@@ -2,6 +2,7 @@ package jsonpathtransformer
 
 import (
 	"bytes"
+	"slices"
 
 	"github.com/arnodel/jsonstream/internal/jsonpath/parser"
 	"github.com/arnodel/jsonstream/iterator"
@@ -9,6 +10,9 @@ import (
 )
 
 type LogicalEvaluator interface {
+
+	// EvaluateTruth returns true if the value fulfils the condition.
+	// It should keep value untouched.
 	EvaluateTruth(ctx *RunContext, value iterator.Value) bool
 }
 
@@ -89,6 +93,7 @@ func (e ComparisonEvaluator) EvaluateTruth(ctx *RunContext, value iterator.Value
 	return result != (e.flags&NegateResult != 0)
 }
 
+// This does advance the arguments
 func checkEquals(left iterator.Value, right iterator.Value) bool {
 	if left == nil {
 		return right == nil
@@ -115,6 +120,20 @@ func checkEquals(left iterator.Value, right iterator.Value) bool {
 	default:
 		panic("invalid value")
 	}
+}
+
+// This doesn't advance the arguments
+func safeCheckEquals(left iterator.Value, right iterator.Value) bool {
+	// We could have a quick path for when left and right are scalars
+	val1, detach1 := left.Clone()
+	val2, detach2 := right.Clone()
+	if detach1 != nil {
+		defer detach1()
+	}
+	if detach2 != nil {
+		defer detach2()
+	}
+	return checkEquals(val1, val2)
 }
 
 func checkScalarEquals(left *token.Scalar, right *token.Scalar) bool {
@@ -146,7 +165,66 @@ func checkScalarEquals(left *token.Scalar, right *token.Scalar) bool {
 }
 
 func checkObjectEquals(left *iterator.Object, right *iterator.Object) bool {
-	panic("unimplemented")
+	// Currently optimised for the case when the number of keys is small or the
+	// keys are in a very similar order and the keys are unescaped because it
+	// makes the implementation simple.  It's also probably good enough for many
+	// cases, but can be very slow if both objects have many keys and they are
+	// in very different orders.
+
+	type kvPair struct {
+		key    *token.Scalar
+		val    iterator.Value
+		detach func()
+	}
+
+	var pending []kvPair // Stores key-values in right which haven't been matched yet
+
+	defer func() {
+		for _, p := range pending {
+			p.detach()
+		}
+	}()
+
+iterateLeft:
+	for left.Advance() {
+		key, val := left.CurrentKeyVal()
+		for i, p := range pending {
+			if !checkScalarEquals(p.key, key) {
+				continue
+			}
+			if !safeCheckEquals(p.val, val) {
+				return false
+			}
+			// We have matched the pending item with the current item from left.
+			if p.detach != nil {
+				p.detach()
+			}
+			pending = slices.Delete(pending, i, i+1)
+			continue iterateLeft
+		}
+		// Not found in pending, so consume right until we find it
+		for right.Advance() {
+			keyRight, valRight := right.CurrentKeyVal()
+
+			// If the key is not the one we want, store the key-value in pending
+			// items
+			if !checkScalarEquals(keyRight, key) {
+				valRightClone, detach := valRight.Clone()
+				pending = append(pending, kvPair{keyRight, valRightClone, detach})
+				continue
+			}
+			if !safeCheckEquals(valRight, val) {
+				return false
+			}
+			// We have matched!
+			continue iterateLeft
+		}
+		// At this point, we have consumed the whole of right and not found a
+		// matching key.
+		return false
+	}
+	// The objects are equal if right has no more items
+	return len(pending) == 0 && !right.Advance()
 }
 
 func checkArrayEquals(left *iterator.Array, right *iterator.Array) bool {
