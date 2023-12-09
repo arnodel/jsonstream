@@ -12,7 +12,7 @@ type MainQueryRunner struct {
 }
 
 func (r MainQueryRunner) Transform(in <-chan token.Token, out token.WriteStream) {
-	p := r.mainRunner.getValueProcessor(valueToWriteStreamAdapter{out: out})
+	p := r.mainRunner.getValueProcessor(streamWritingProcessor{out: out})
 	iter := iterator.New(token.ChannelReadStream(in))
 	for iter.Advance() {
 		value := iter.CurrentValue()
@@ -73,7 +73,7 @@ type QueryRunner struct {
 }
 
 func (r QueryRunner) TransformValue(ctx *RunContext, value iterator.Value, out token.WriteStream) {
-	r.getValueProcessor(valueToWriteStreamAdapter{out: out}).ProcessValue(ctx, value)
+	r.getValueProcessor(streamWritingProcessor{out: out}).ProcessValue(ctx, value)
 }
 
 func (r QueryRunner) EvaluateTruth(ctx *RunContext, value iterator.Value) bool {
@@ -101,11 +101,11 @@ type valueProcessor interface {
 	ProcessValue(ctx *RunContext, value iterator.Value) bool
 }
 
-type valueToWriteStreamAdapter struct {
+type streamWritingProcessor struct {
 	out token.WriteStream
 }
 
-func (a valueToWriteStreamAdapter) ProcessValue(ctx *RunContext, value iterator.Value) bool {
+func (a streamWritingProcessor) ProcessValue(ctx *RunContext, value iterator.Value) bool {
 	value.Copy(a.out)
 	return true
 }
