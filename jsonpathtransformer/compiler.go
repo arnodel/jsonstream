@@ -10,15 +10,18 @@ import (
 )
 
 // CompileQuery compiles a JSON query AST to a QueryRunner.
-func CompileQuery(query ast.Query) MainQueryRunner {
+func CompileQuery(query ast.Query) (MainQueryRunner, error) {
 	var c compiler
-	runner := c.compileQuery(query)
+	runner, err := c.compileQuery(query)
+	if err != nil {
+		return MainQueryRunner{}, err
+	}
 	singularQueries, queries := c.getInnerQueries()
 	return MainQueryRunner{
 		mainRunner:           runner,
 		innerSingularQueries: singularQueries,
 		innerQueries:         queries,
-	}
+	}, nil
 }
 
 type innerSingularQueryEntry struct {
@@ -49,106 +52,140 @@ func (c *compiler) getInnerQueries() ([]SingularQueryRunner, []QueryRunner) {
 	return singularQueries, queries
 }
 
-func (c *compiler) compileQuery(query ast.Query) QueryRunner {
+func (c *compiler) compileQuery(query ast.Query) (r QueryRunner, err error) {
 	segments := make([]SegmentRunner, len(query.Segments))
 	for i, s := range query.Segments {
-		segments[i] = c.compileSegment(s)
+		segments[i], err = c.compileSegment(s)
+		if err != nil {
+			return
+		}
 	}
-	return QueryRunner{
+	r = QueryRunner{
 		isRootNodeQuery: query.RootNode == ast.RootNodeIdentifier,
 		segments:        segments,
 	}
+	return
 }
 
-func (c *compiler) compileInnerQueryCondition(query ast.Query) LogicalEvaluator {
+func (c *compiler) compileInnerQueryCondition(query ast.Query) (LogicalEvaluator, error) {
 	switch query.RootNode {
 	case ast.CurrentNodeIdentifier:
 		return c.compileQuery(query)
 	case ast.RootNodeIdentifier:
 		for i, entry := range c.innerQueries {
 			if reflect.DeepEqual(entry.query, query) {
-				return InnerQueryRunner{index: i}
+				return InnerQueryRunner{index: i}, nil
 			}
 		}
-		q := c.compileQuery(query)
+		q, err := c.compileQuery(query)
+		if err != nil {
+			return nil, err
+		}
 		c.innerQueries = append(c.innerQueries, innerQueryEntry{
 			query:  query,
 			runner: q,
 		})
-		return InnerQueryRunner{index: len(c.innerQueries) - 1}
+		return InnerQueryRunner{index: len(c.innerQueries) - 1}, nil
 	default:
 		panic("invalid query root node")
 	}
 }
 
-func (c *compiler) compileSegment(segment ast.Segment) SegmentRunner {
+func (c *compiler) compileSegment(segment ast.Segment) (r SegmentRunner, err error) {
 	selectors := make([]SelectorRunner, len(segment.Selectors))
 	var lookahead int64
+	var cs SelectorRunner
 	for i, s := range segment.Selectors {
-		cs := c.compileSelector(s)
+		cs, err = c.compileSelector(s)
+		if err != nil {
+			return
+		}
 		selectors[i] = cs
 		l := cs.Lookahead()
 		if l > lookahead {
 			lookahead = l
 		}
 	}
-	return SegmentRunner{
+	r = SegmentRunner{
 		selectors:           selectors,
 		lookahead:           lookahead,
 		isDescendantSegment: segment.Type == ast.DescendantSegmentType,
 	}
+	return
 }
 
-func (c *compiler) compileSelector(selector ast.Selector) SelectorRunner {
+func (c *compiler) compileSelector(selector ast.Selector) (r SelectorRunner, err error) {
 	switch x := selector.(type) {
 	case ast.NameSelector:
-		return NameSelectorRunner{name: x.Name}
+		r = NameSelectorRunner{name: x.Name}
 	case ast.WildcardSelector:
-		return WildcardSelectorRunner{}
+		r = WildcardSelectorRunner{}
 	case ast.IndexSelector:
-		return IndexSelectorRunner{index: x.Index}
+		r = IndexSelectorRunner{index: x.Index}
 	case ast.FilterSelector:
-		return FilterSelectorRunner{condition: c.compileCondition(x.Condition)}
+		cond, err := c.compileCondition(x.Condition)
+		if err != nil {
+			return nil, err
+		}
+		r = FilterSelectorRunner{condition: cond}
 	case ast.SliceSelector:
-		return c.compileSliceSelector(x)
+		r, err = c.compileSliceSelector(x)
 	default:
 		panic("invalid selector")
 	}
+	return
 }
 
-func (c *compiler) compileCondition(condition ast.LogicalExpr) LogicalEvaluator {
+func (c *compiler) compileCondition(condition ast.LogicalExpr) (e LogicalEvaluator, err error) {
 	switch x := condition.(type) {
 	case ast.OrExpr:
-		return LogicalOrEvaluator{
-			Arguments: c.compileConditions(x.Arguments),
+		args, err := c.compileConditions(x.Arguments)
+		if err != nil {
+			return nil, err
 		}
+		e = LogicalOrEvaluator{Arguments: args}
 	case ast.AndExpr:
-		return LogicalAndEvaluator{
-			Arguments: c.compileConditions(x.Arguments),
+		args, err := c.compileConditions((x.Arguments))
+		if err != nil {
+			return nil, err
 		}
+		e = LogicalAndEvaluator{Arguments: args}
 	case ast.NotExpr:
-		return LogicalNotEvaluator{
-			Argument: c.compileCondition(x.Argument),
+		arg, err := c.compileCondition(x.Argument)
+		if err != nil {
+			return nil, err
+		}
+		e = LogicalNotEvaluator{
+			Argument: arg,
 		}
 	case ast.ComparisonExpr:
-		return c.compileComparison(x)
+		e, err = c.compileComparison(x)
 	case ast.Query:
-		return c.compileInnerQueryCondition(x)
+		e, err = c.compileInnerQueryCondition(x)
 	case ast.FunctionExpr:
 		panic("unimplemented")
 	default:
 		panic("invalid condition")
 	}
+	return
 }
 
-func (c *compiler) compileConditions(conditions []ast.LogicalExpr) []LogicalEvaluator {
-	return mapSlice(conditions, c.compileCondition)
+func (c *compiler) compileConditions(conditions []ast.LogicalExpr) ([]LogicalEvaluator, error) {
+	evs := make([]LogicalEvaluator, len(conditions))
+	for i, cond := range conditions {
+		ev, err := c.compileCondition(cond)
+		if err != nil {
+			return nil, err
+		}
+		evs[i] = ev
+	}
+	return evs, nil
 }
 
-func (c *compiler) compileSliceSelector(slice ast.SliceSelector) SelectorRunner {
+func (c *compiler) compileSliceSelector(slice ast.SliceSelector) (r SelectorRunner, err error) {
 	var start, end int64
 
-	// I don't kow yet how to support negative steps as it reverses the order of
+	// I don't know yet how to support negative steps as it reverses the order of
 	// the output.
 	if slice.Step < 0 {
 		panic("unimplemented")
@@ -169,19 +206,28 @@ func (c *compiler) compileSliceSelector(slice ast.SliceSelector) SelectorRunner 
 
 	if end >= 0 && end <= start || start < 0 && start >= end {
 		// In this case, the slice selects nothing.
-		return DefaultSelectorRunner{}
+		r = DefaultSelectorRunner{}
+	} else {
+		r = SliceSelectorRunner{
+			start: start,
+			end:   end,
+			step:  slice.Step,
+		}
 	}
-	return SliceSelectorRunner{
-		start: start,
-		end:   end,
-		step:  slice.Step,
-	}
+	return
 }
 
-func (c *compiler) compileComparison(comparison ast.ComparisonExpr) ComparisonEvaluator {
+func (c *compiler) compileComparison(comparison ast.ComparisonExpr) (e ComparisonEvaluator, err error) {
 	var flags ComparisonFlags
-	left := c.compileComparable(comparison.Left)
-	right := c.compileComparable(comparison.Right)
+	var left, right ComparableEvaluator
+	left, err = c.compileComparable(comparison.Left)
+	if err != nil {
+		return
+	}
+	right, err = c.compileComparable(comparison.Right)
+	if err != nil {
+		return
+	}
 	switch comparison.Op {
 	case ast.EqualOp:
 		flags = CheckEquals
@@ -200,23 +246,24 @@ func (c *compiler) compileComparison(comparison ast.ComparisonExpr) ComparisonEv
 	default:
 		panic("invalid comparison operator")
 	}
-	return ComparisonEvaluator{
+	e = ComparisonEvaluator{
 		left:  left,
 		flags: flags,
 		right: right,
 	}
+	return
 }
 
-func (c *compiler) compileComparable(comparable ast.Comparable) ComparableEvaluator {
+func (c *compiler) compileComparable(comparable ast.Comparable) (ComparableEvaluator, error) {
 	switch x := comparable.(type) {
 	case ast.Literal:
 		scalar, err := token.ToScalar(x.Value)
 		if err != nil {
 			panic("invalid value in literal")
 		}
-		return LiteralEvaluator{value: (*iterator.Scalar)(scalar)}
+		return LiteralEvaluator{value: (*iterator.Scalar)(scalar)}, nil
 	case ast.SingularQuery:
-		return c.compileSingularQuery(x)
+		return c.compileSingularQuery(x), nil
 	case ast.FunctionExpr:
 		panic("unimplmemented")
 	default:
