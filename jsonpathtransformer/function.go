@@ -81,6 +81,12 @@ func init() {
 		OutputType: LogicalType,
 		Run:        run_match,
 	})
+	DefaultFunctionRegistry.AddFunctionDef(FunctionDef{
+		Name:       "search",
+		InputTypes: []Type{ValueType, ValueType},
+		OutputType: LogicalType,
+		Run:        run_search,
+	})
 }
 
 func run_length(args []any) any {
@@ -113,27 +119,43 @@ func run_count(args []any) any {
 }
 
 func run_match(args []any) any {
+	loc := matchIndex(args)
+	return loc != nil && loc[0] == 0 && loc[1] == 0
+}
+
+func run_search(args []any) any {
+	loc := matchIndex(args)
+	return loc != nil
+}
+
+func matchIndex(args []any) (loc []int) {
 	arg1, ok := args[0].(*iterator.Scalar)
 	if !ok {
-		return false
+		return nil
 	}
 	arg2, ok := args[1].(*iterator.Scalar)
 	if !ok {
-		return false
+		return nil
 	}
 	if arg1.Scalar().Type() != token.String || arg2.Scalar().Type() != token.String {
-		return false
+		return nil
 	}
 	ptnString := parser.ParseJsonLiteralBytes(arg2.Bytes).(string)
 	ptn, err := regexp.Compile(ptnString)
 	if err != nil {
-		return false
+		return nil
 	}
 	if arg1.Scalar().IsUnescaped() {
-		loc := ptn.FindIndex(arg1.Bytes[1 : len(arg1.Bytes)-1])
-		return loc != nil && loc[0] == 0 && loc[1] == len(arg1.Bytes)-2
+		loc = ptn.FindIndex(arg1.Bytes[1 : len(arg1.Bytes)-1])
+		if loc != nil {
+			loc[1] -= len(arg1.Bytes) - 2
+		}
+	} else {
+		arg1String := parser.ParseJsonLiteralBytes(arg1.Bytes).(string)
+		loc = ptn.FindStringIndex(arg1String)
+		if loc != nil {
+			loc[1] -= len(arg1String)
+		}
 	}
-	arg1String := parser.ParseJsonLiteralBytes(arg1.Bytes).(string)
-	loc := ptn.FindStringIndex(arg1String)
-	return loc != nil && loc[0] == 0 && loc[1] == len(arg1String)
+	return loc
 }
