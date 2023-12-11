@@ -87,6 +87,12 @@ func init() {
 		OutputType: LogicalType,
 		Run:        run_search,
 	})
+	DefaultFunctionRegistry.AddFunctionDef(FunctionDef{
+		Name:       "value",
+		InputTypes: []Type{NodesType},
+		OutputType: ValueType,
+		Run:        run_value,
+	})
 }
 
 func run_length(args []any) any {
@@ -158,4 +164,17 @@ func matchIndex(args []any) (loc []int) {
 		}
 	}
 	return loc
+}
+
+func run_value(args []any) any {
+	var singleValue iterator.Value
+	args[0].(NodesResult).ForEachNode(func(v iterator.Value) bool {
+		if singleValue != nil {
+			singleValue = nil
+			return false
+		}
+		singleValue = v
+		return true
+	})
+	return singleValue
 }
