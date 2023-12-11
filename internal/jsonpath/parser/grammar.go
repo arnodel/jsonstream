@@ -433,7 +433,7 @@ type IndexSegment struct {
 }
 
 func (s *IndexSegment) CompileToSingularQuerySegment() ast.SingularQuerySegment {
-	return ast.IndexSegment{Index: int(parseInt(s.IndexSelector.TokValue))}
+	return ast.IndexSegment{Index: parseInt(s.IndexSelector.TokValue)}
 }
 
 type FunctionExpr struct {

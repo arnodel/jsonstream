@@ -95,10 +95,42 @@ func (r QueryRunner) getValueProcessor(p valueProcessor) valueProcessor {
 	return p
 }
 
+func (r QueryRunner) EvaluateNodesResult(ctx *RunContext, value iterator.Value) NodesResult {
+	return queryRunnerNodesResult{
+		QueryRunner: r,
+		ctx:         ctx,
+		value:       value,
+	}
+}
+
+type NodesResultEvaluator interface {
+	EvaluateNodesResult(ctx *RunContext, value iterator.Value) NodesResult
+}
+
+type NodesResult interface {
+	ForEachNode(func(iterator.Value) bool)
+}
+
+type queryRunnerNodesResult struct {
+	QueryRunner
+	ctx   *RunContext
+	value iterator.Value
+}
+
+func (r queryRunnerNodesResult) ForEachNode(p func(iterator.Value) bool) {
+	r.getValueProcessor(callbackProcessor(p)).ProcessValue(r.ctx, r.value)
+}
+
 type valueProcessor interface {
 	// ProcessValue processes the value and returns true if the caller should
 	// continue, false if the caller can stop.
 	ProcessValue(ctx *RunContext, value iterator.Value) bool
+}
+
+type callbackProcessor func(iterator.Value) bool
+
+func (p callbackProcessor) ProcessValue(ctx *RunContext, value iterator.Value) bool {
+	return p(value)
 }
 
 type streamWritingProcessor struct {

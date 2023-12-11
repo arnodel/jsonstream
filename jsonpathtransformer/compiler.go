@@ -1,6 +1,7 @@
 package jsonpathtransformer
 
 import (
+	"fmt"
 	"math"
 	"reflect"
 
@@ -11,7 +12,9 @@ import (
 
 // CompileQuery compiles a JSON query AST to a QueryRunner.
 func CompileQuery(query ast.Query) (MainQueryRunner, error) {
-	var c compiler
+	c := compiler{
+		functionRegistry: DefaultFunctionRegistry,
+	}
 	runner, err := c.compileQuery(query)
 	if err != nil {
 		return MainQueryRunner{}, err
@@ -38,6 +41,8 @@ type innerQueryEntry struct {
 type compiler struct {
 	innerSingularQueries []innerSingularQueryEntry
 	innerQueries         []innerQueryEntry
+
+	functionRegistry FunctionRegistry
 }
 
 func (c *compiler) getInnerQueries() ([]SingularQueryRunner, []QueryRunner) {
@@ -163,7 +168,7 @@ func (c *compiler) compileCondition(condition ast.LogicalExpr) (e LogicalEvaluat
 	case ast.Query:
 		e, err = c.compileInnerQueryCondition(x)
 	case ast.FunctionExpr:
-		panic("unimplemented")
+		e, err = c.compileFunctionExpr(x, LogicalType)
 	default:
 		panic("invalid condition")
 	}
@@ -265,7 +270,7 @@ func (c *compiler) compileComparable(comparable ast.Comparable) (ComparableEvalu
 	case ast.SingularQuery:
 		return c.compileSingularQuery(x), nil
 	case ast.FunctionExpr:
-		panic("unimplmemented")
+		return c.compileFunctionExpr(x, ValueType)
 	default:
 		panic("invalid comparable type")
 	}
@@ -307,10 +312,170 @@ func (c *compiler) compileSingularQuerySegment(segment ast.SingularQuerySegment)
 	}
 }
 
+func (c *compiler) compileFunctionExpr(f ast.FunctionExpr, returnType Type) (FunctionRunner, error) {
+	def := c.functionRegistry.GetFunctionDef(f.FunctionName)
+	if def == nil {
+		return FunctionRunner{}, fmt.Errorf("unknown function %q", f.FunctionName)
+	}
+	// Check the function expr is well-typed
+	if !def.OutputType.ConvertsTo(returnType) {
+		return FunctionRunner{}, fmt.Errorf("expected type %s, got %s", returnType, def.OutputType)
+	}
+	if len(f.Arguments) != len(def.InputTypes) {
+		return FunctionRunner{}, fmt.Errorf("expected %d arguments, got %d", len(def.InputTypes), len(f.Arguments))
+	}
+	args := make([]FunctionArgumentRunner, len(def.InputTypes))
+	for i, expectedType := range def.InputTypes {
+		arg, err := c.compileFunctionArg(f.Arguments[i], expectedType)
+		if err != nil {
+			return FunctionRunner{}, fmt.Errorf("argument %d: %w", i, err)
+		}
+		args[i] = arg
+	}
+	return FunctionRunner{
+		FunctionDef: def,
+		argRunners:  args,
+	}, nil
+}
+
+func (c *compiler) compileFunctionArg(arg ast.FunctionArgument, expectedType Type) (FunctionArgumentRunner, error) {
+	switch x := arg.(type) {
+	case ast.Literal:
+		if expectedType != ValueType {
+			return nil, fmt.Errorf("expected %s, got literal value", expectedType)
+		}
+		c.compileComparable(x)
+		// TODO: return something which is
+		panic("unimplemented")
+	case ast.Query:
+		switch expectedType {
+		case ValueType:
+			sq, ok := x.AsSingularQuery()
+			if !ok {
+				return nil, fmt.Errorf("expected %s, got a non-singular query", expectedType)
+			}
+			return ValueArgumentRunner{ComparableEvaluator: c.compileSingularQuery(sq)}, nil
+		case NodesType:
+			q, err := c.compileQuery(x)
+			if err != nil {
+				return nil, err
+			}
+			return NodesArgumentRunner{NodesResultEvaluator: q}, nil
+			panic("unimplemented")
+		default:
+			return nil, fmt.Errorf("expected %s, got a query", expectedType)
+		}
+	case ast.LogicalExprArgument:
+		switch expectedType {
+		case NodesType:
+			panic("unimplemented")
+		case LogicalType:
+			panic("unimplemented")
+		default:
+			return nil, fmt.Errorf("expected %s, got a logical expression", expectedType)
+		}
+	case ast.FunctionExpr:
+		return c.compileFunctionExpr(x, expectedType)
+	default:
+		panic("invalid function argument")
+	}
+}
+
 func mapSlice[T, U any](slice []T, transform func(T) U) []U {
 	result := make([]U, len(slice))
 	for i, x := range slice {
 		result[i] = transform(x)
 	}
 	return result
+}
+
+type FunctionRunner struct {
+	*FunctionDef
+	argRunners []FunctionArgumentRunner
+}
+
+func (r FunctionRunner) run(ctx *RunContext, val iterator.Value) any {
+	args := make([]any, len(r.argRunners))
+	for i, argRunner := range r.argRunners {
+		switch r.InputTypes[i] {
+		case ValueType:
+			args[i] = argRunner.Evaluate(ctx, val)
+		case LogicalType:
+			args[i] = argRunner.EvaluateTruth(ctx, val)
+		case NodesType:
+			args[i] = argRunner.EvaluateNodesResult(ctx, val)
+		default:
+			panic("invalid input type")
+		}
+	}
+	return r.Run(args)
+}
+
+func (r FunctionRunner) EvaluateTruth(ctx *RunContext, val iterator.Value) bool {
+	return r.run(ctx, val).(bool)
+}
+
+func (r FunctionRunner) Evaluate(ctx *RunContext, val iterator.Value) iterator.Value {
+	result := r.run(ctx, val)
+	if result == nil {
+		return nil
+	}
+	return result.(iterator.Value)
+}
+
+func (r FunctionRunner) EvaluateNodesResult(ctx *RunContext, val iterator.Value) NodesResult {
+	// I don't know how to do that yet, but also I don't know if this is allowed by the spec.
+	panic("unimplemented")
+}
+
+type FunctionArgumentRunner interface {
+	ComparableEvaluator
+	LogicalEvaluator
+	NodesResultEvaluator
+}
+
+// Calling the mehthods of this type is a bug in the function evaluation code
+type panickingFunctionArgumentRunner struct{}
+
+var _ FunctionArgumentRunner = panickingFunctionArgumentRunner{}
+
+func (r panickingFunctionArgumentRunner) Evaluate(ctx *RunContext, val iterator.Value) iterator.Value {
+	panic("invalid Evaluate call")
+}
+
+func (r panickingFunctionArgumentRunner) EvaluateTruth(ctx *RunContext, val iterator.Value) bool {
+	panic("invaid EvaluateTruth call")
+}
+
+func (r panickingFunctionArgumentRunner) EvaluateNodesResult(ctx *RunContext, val iterator.Value) NodesResult {
+	panic("invalid EvaluateNodesResult call")
+}
+
+type ValueArgumentRunner struct {
+	ComparableEvaluator
+}
+
+func (r ValueArgumentRunner) EvaluateTruth(ctx *RunContext, val iterator.Value) bool {
+	panic("invaid EvaluateTruth call")
+}
+
+func (r ValueArgumentRunner) EvaluateNodesResult(ctx *RunContext, val iterator.Value) NodesResult {
+	panic("invalid EvaluateNodesResult call")
+}
+
+type LogicalArgumentRunner struct {
+	LogicalEvaluator
+	panickingFunctionArgumentRunner
+}
+
+type NodesArgumentRunner struct {
+	NodesResultEvaluator
+}
+
+func (r NodesArgumentRunner) EvaluateTruth(ctx *RunContext, val iterator.Value) bool {
+	panic("invaid EvaluateTruth call")
+}
+
+func (r NodesArgumentRunner) Evaluate(ctx *RunContext, val iterator.Value) iterator.Value {
+	panic("invalid Evaluate call")
 }

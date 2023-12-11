@@ -16,6 +16,25 @@ type Query struct {
 	Segments []Segment
 }
 
+func (q Query) AsSingularQuery() (sq SingularQuery, ok bool) {
+	sq.RootNode = q.RootNode
+	for _, s := range q.Segments {
+		if s.Type != ChildSegmentType || len(s.Selectors) != 1 {
+			return SingularQuery{}, false
+		}
+		sel := s.Selectors[0]
+		switch x := sel.(type) {
+		case NameSelector:
+			sq.Segments = append(sq.Segments, NameSegment(x))
+		case IndexSelector:
+			sq.Segments = append(sq.Segments, IndexSegment(x))
+		default:
+			return SingularQuery{}, false
+		}
+	}
+	return sq, true
+}
+
 type SegmentType uint8
 
 const (
@@ -138,7 +157,7 @@ type NameSegment struct {
 }
 
 type IndexSegment struct {
-	Index int
+	Index int64
 }
 
 //
