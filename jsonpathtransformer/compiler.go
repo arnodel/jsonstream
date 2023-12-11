@@ -344,9 +344,11 @@ func (c *compiler) compileFunctionArg(arg ast.FunctionArgument, expectedType Typ
 		if expectedType != ValueType {
 			return nil, fmt.Errorf("expected %s, got literal value", expectedType)
 		}
-		c.compileComparable(x)
-		// TODO: return something which is
-		panic("unimplemented")
+		cmp, err := c.compileComparable(x)
+		if err != nil {
+			return nil, err
+		}
+		return ValueArgumentRunner{ComparableEvaluator: cmp}, nil
 	case ast.Query:
 		switch expectedType {
 		case ValueType:
@@ -361,7 +363,6 @@ func (c *compiler) compileFunctionArg(arg ast.FunctionArgument, expectedType Typ
 				return nil, err
 			}
 			return NodesArgumentRunner{NodesResultEvaluator: q}, nil
-			panic("unimplemented")
 		default:
 			return nil, fmt.Errorf("expected %s, got a query", expectedType)
 		}
@@ -399,7 +400,9 @@ func (r FunctionRunner) run(ctx *RunContext, val iterator.Value) any {
 	for i, argRunner := range r.argRunners {
 		switch r.InputTypes[i] {
 		case ValueType:
-			args[i] = argRunner.Evaluate(ctx, val)
+			clone, detach := val.Clone()
+			args[i] = argRunner.Evaluate(ctx, clone)
+			detach()
 		case LogicalType:
 			args[i] = argRunner.EvaluateTruth(ctx, val)
 		case NodesType:
@@ -434,23 +437,6 @@ type FunctionArgumentRunner interface {
 	NodesResultEvaluator
 }
 
-// Calling the mehthods of this type is a bug in the function evaluation code
-type panickingFunctionArgumentRunner struct{}
-
-var _ FunctionArgumentRunner = panickingFunctionArgumentRunner{}
-
-func (r panickingFunctionArgumentRunner) Evaluate(ctx *RunContext, val iterator.Value) iterator.Value {
-	panic("invalid Evaluate call")
-}
-
-func (r panickingFunctionArgumentRunner) EvaluateTruth(ctx *RunContext, val iterator.Value) bool {
-	panic("invaid EvaluateTruth call")
-}
-
-func (r panickingFunctionArgumentRunner) EvaluateNodesResult(ctx *RunContext, val iterator.Value) NodesResult {
-	panic("invalid EvaluateNodesResult call")
-}
-
 type ValueArgumentRunner struct {
 	ComparableEvaluator
 }
@@ -465,7 +451,14 @@ func (r ValueArgumentRunner) EvaluateNodesResult(ctx *RunContext, val iterator.V
 
 type LogicalArgumentRunner struct {
 	LogicalEvaluator
-	panickingFunctionArgumentRunner
+}
+
+func (r LogicalArgumentRunner) Evaluate(ctx *RunContext, val iterator.Value) iterator.Value {
+	panic("invalid Evaluate call")
+}
+
+func (r LogicalArgumentRunner) EvaluateNodesResult(ctx *RunContext, val iterator.Value) NodesResult {
+	panic("invalid EvaluateNodesResult call")
 }
 
 type NodesArgumentRunner struct {

@@ -1,6 +1,9 @@
 package jsonpathtransformer
 
 import (
+	"regexp"
+
+	"github.com/arnodel/jsonstream/internal/jsonpath/parser"
 	"github.com/arnodel/jsonstream/iterator"
 	"github.com/arnodel/jsonstream/token"
 )
@@ -72,6 +75,12 @@ func init() {
 		OutputType: ValueType,
 		Run:        run_count,
 	})
+	DefaultFunctionRegistry.AddFunctionDef(FunctionDef{
+		Name:       "match",
+		InputTypes: []Type{ValueType, ValueType},
+		OutputType: LogicalType,
+		Run:        run_match,
+	})
 }
 
 func run_length(args []any) any {
@@ -101,4 +110,30 @@ func run_count(args []any) any {
 		return true
 	})
 	return (*iterator.Scalar)(token.Int64Scalar(n))
+}
+
+func run_match(args []any) any {
+	arg1, ok := args[0].(*iterator.Scalar)
+	if !ok {
+		return false
+	}
+	arg2, ok := args[1].(*iterator.Scalar)
+	if !ok {
+		return false
+	}
+	if arg1.Scalar().Type() != token.String || arg2.Scalar().Type() != token.String {
+		return false
+	}
+	ptnString := parser.ParseJsonLiteralBytes(arg2.Bytes).(string)
+	ptn, err := regexp.Compile(ptnString)
+	if err != nil {
+		return false
+	}
+	if arg1.Scalar().IsUnescaped() {
+		loc := ptn.FindIndex(arg1.Bytes[1 : len(arg1.Bytes)-1])
+		return loc != nil && loc[0] == 0 && loc[1] == len(arg1.Bytes)-2
+	}
+	arg1String := parser.ParseJsonLiteralBytes(arg1.Bytes).(string)
+	loc := ptn.FindStringIndex(arg1String)
+	return loc != nil && loc[0] == 0 && loc[1] == len(arg1String)
 }
