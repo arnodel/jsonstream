@@ -60,6 +60,7 @@ func (m functionDefMap) GetFunctionDef(name string) *FunctionDef {
 	return m[name]
 }
 
+// This contains the functions defined in the jsonpath spec
 var DefaultFunctionRegistry = NewFunctionRegistry()
 
 func init() {

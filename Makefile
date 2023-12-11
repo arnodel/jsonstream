@@ -1,11 +1,11 @@
 install:
-	go install ./cmd/pj
+	go install ./cmd/jp
 
 run:
-	go run ./cmd/pj
+	go run ./cmd/jp
 
 debug:
-	go run -tags debug ./cmd/pj
+	go run -tags debug ./cmd/jp
 
 test:
 	go test ./...
