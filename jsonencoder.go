@@ -12,7 +12,8 @@ import (
 type JSONEncoder struct {
 	Printer
 	*Colorizer
-	CompactSizeLimit int
+	CompactWidthLimit     int
+	CompactObjectMaxItems int
 }
 
 var _ token.StreamSink = &JSONEncoder{}
@@ -39,9 +40,13 @@ func (sw *JSONEncoder) writeValue(value iterator.Value) {
 	case *iterator.Scalar:
 		sw.Colorizer.PrintScalar(sw.Printer, v.Scalar())
 	case *iterator.Object:
-		sw.writeObject(v)
+		if sw.CompactObjectMaxItems > 0 {
+			sw.writeObjectCompact(v)
+		} else {
+			sw.writeObject(v)
+		}
 	case *iterator.Array:
-		if sw.CompactSizeLimit > 0 {
+		if sw.CompactWidthLimit > 0 {
 			sw.writeArrayCompact(v)
 		} else {
 			sw.writeArray(v)
@@ -79,6 +84,70 @@ func (sw *JSONEncoder) writeObject(obj *iterator.Object) {
 	sw.PrintBytes(closeObjectBytes)
 }
 
+func (sw *JSONEncoder) writeObjectCompact(obj *iterator.Object) {
+	type keyValue struct {
+		key   *token.Scalar
+		value iterator.Value
+	}
+	pendingItems := make([]keyValue, 0, 10)
+	totalWidth := -2
+	compact := true
+	for compact && obj.Advance() {
+		key, value := obj.CurrentKeyVal()
+		pendingItems = append(pendingItems, keyValue{key, value})
+		scalar, isScalar := value.(*iterator.Scalar)
+		if isScalar {
+			totalWidth += len(key.Bytes) + len(scalar.Bytes) + 4 // 4 for ": " and ", "
+		}
+		compact = isScalar && len(pendingItems) <= sw.CompactObjectMaxItems && totalWidth <= sw.CompactWidthLimit
+	}
+
+	sw.PrintBytes(openObjectBytes)
+
+	if compact {
+		for i, item := range pendingItems {
+			if i > 0 {
+				sw.PrintBytes(compactItemSeparatorBytes)
+			}
+			sw.Colorizer.PrintScalar(sw.Printer, item.key)
+			sw.PrintBytes(keyValueSeparatorBytes)
+			sw.writeValue(item.value)
+		}
+		if obj.Elided() {
+			sw.PrintBytes(elisionBytes)
+		}
+	} else {
+		sw.Indent()
+		for i, item := range pendingItems {
+			if i > 0 {
+				sw.PrintBytes(itemSeparatorBytes)
+				sw.NewLine()
+			}
+			sw.Colorizer.PrintScalar(sw.Printer, item.key)
+			sw.PrintBytes(keyValueSeparatorBytes)
+			sw.writeValue(item.value)
+		}
+		for obj.Advance() {
+			key, value := obj.CurrentKeyVal()
+
+			// There was at least 1 pending item so we always want a separator
+			sw.PrintBytes(itemSeparatorBytes)
+			sw.NewLine()
+
+			sw.Colorizer.PrintScalar(sw.Printer, key)
+			sw.PrintBytes(keyValueSeparatorBytes)
+			sw.writeValue(value)
+		}
+		if obj.Elided() {
+			sw.NewLine()
+			sw.PrintBytes(elisionBytes)
+		}
+		sw.Dedent()
+	}
+
+	sw.PrintBytes(closeObjectBytes)
+}
+
 func (sw *JSONEncoder) writeArray(arr *iterator.Array) {
 	sw.PrintBytes(openArrayBytes)
 	firstItem := true
@@ -105,62 +174,85 @@ func (sw *JSONEncoder) writeArray(arr *iterator.Array) {
 	sw.PrintBytes(closeArrayBytes)
 }
 
+// Group together small scalar items up to a certain size
+// E.g. with CompactSizeLimit = 20
+//
+//		  [1, 2, 3, 4]
+//
+//		  [
+//		    "si", "par", "une",
+//			"nuit", "d'hiver",
+//			"un", "voyageur"
+//		  ]
+//
+//	      [
+//	         1, 2, 3, 4,
+//	         [5, 6, 7],
+//	         8, 9, 10, 11, 12
+//	      ]
 func (sw *JSONEncoder) writeArrayCompact(arr *iterator.Array) {
-	pendingItems := make([]iterator.Value, 0, 10)
-	totalSize := -2
-	compact := true
+	compactItems := make([]iterator.Value, 0, 10)
+	totalWidth := -2
 	sw.PrintBytes(openArrayBytes)
-	for compact && arr.Advance() {
+	firstItem := true
+	for arr.Advance() {
 		value := arr.CurrentValue()
-		pendingItems = append(pendingItems, value)
-		scalar, ok := value.(*iterator.Scalar)
-		if ok {
-			totalSize += len(scalar.Bytes) + 2 // 2 for ", "
+		scalar, isScalar := value.(*iterator.Scalar)
+		if isScalar {
+			totalWidth += len(scalar.Bytes) + 2
 		}
-		compact = ok && totalSize <= sw.CompactSizeLimit
+	AddValueToCompactItems:
+		if isScalar && totalWidth <= sw.CompactWidthLimit {
+			compactItems = append(compactItems, value)
+			continue
+		}
+		if !firstItem {
+			sw.PrintBytes(itemSeparatorBytes)
+			sw.NewLine()
+		} else {
+			sw.Indent()
+			firstItem = false
+		}
+		if len(compactItems) > 0 {
+			for i, item := range compactItems {
+				if i > 0 {
+					sw.PrintBytes(compactItemSeparatorBytes)
+				}
+				sw.writeValue(item)
+			}
+			compactItems = compactItems[:0]
+
+			if isScalar {
+				totalWidth = len(scalar.Bytes)
+				goto AddValueToCompactItems
+			} else {
+				totalWidth = -2
+				sw.PrintBytes(itemSeparatorBytes)
+				sw.NewLine()
+			}
+		}
+		sw.writeValue(value)
 	}
-	if compact {
-		for i, value := range pendingItems {
+	if len(compactItems) > 0 {
+		if !firstItem {
+			sw.PrintBytes(itemSeparatorBytes)
+			sw.NewLine()
+		}
+		for i, item := range compactItems {
 			if i > 0 {
 				sw.PrintBytes(compactItemSeparatorBytes)
 			}
-			sw.writeValue(value)
+			sw.writeValue(item)
 		}
-		if arr.Elided() {
-			sw.PrintBytes(elisionBytes)
-		}
-	} else {
-		firstItem := true
-		for _, value := range pendingItems {
-			if !firstItem {
-				sw.PrintBytes(itemSeparatorBytes)
-				sw.NewLine()
-			} else {
-				sw.Indent()
-				firstItem = false
-			}
-			sw.writeValue(value)
-		}
-		for arr.Advance() {
-			value := arr.CurrentValue()
-			if !firstItem {
-				sw.PrintBytes(itemSeparatorBytes)
-				sw.NewLine()
-			} else {
-				sw.Indent()
-				firstItem = false
-			}
-			sw.writeValue(value)
-		}
-		if arr.Elided() {
-			if !firstItem {
-				sw.NewLine()
-			}
-			sw.PrintBytes(elisionBytes)
-		}
+	}
+	if arr.Elided() {
 		if !firstItem {
-			sw.Dedent()
+			sw.NewLine()
 		}
+		sw.PrintBytes(elisionBytes)
+	}
+	if !firstItem {
+		sw.Dedent()
 	}
 	sw.PrintBytes(closeArrayBytes)
 }

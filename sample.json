@@ -5,7 +5,12 @@
         "labels": {
             "age": 67,
             "friendly": false
-        }
+        },
+        "v1": [1, 2],
+        "v2": [1, 2, 3, 4, [5, 6, 7], 8, 9, 10, 11, 12],
+        "o1": {"a": 2, "b": 3},
+        "o2": {"b": 3, "a": 2, "c": 7},
+        "o3": {"key": "quite a long value", "otherkey": "quite another long value"}
     },
     {
         "id": 7,
@@ -15,6 +20,8 @@
             "innocent": true
         },
         "friends": {"name": "Jon"},
-        "non alnum key": null
+        "non alnum key": null,
+        "v1": [1, 2],
+        "v2": ["si", "par", "une", "nuit", "d'hiver", "un", "voyageur"]
     }
 ]

@@ -42,6 +42,7 @@ func main() {
 	var inputFormat string
 	var colorizer *jsonstream.Colorizer
 	var quoteKeys bool
+	var compactMaxWidth int
 
 	if isatty.IsTerminal(os.Stdout.Fd()) {
 		colorizer = &defaultColorizer
@@ -61,6 +62,7 @@ func main() {
 	flag.StringVar(&outputFormat, "out", "json", "output format")
 	flag.StringVar(&inputFormat, "in", "auto", "input format")
 	flag.BoolVar(&quoteKeys, "quotekeys", false, "always use quoted keys in JSON Path output")
+	flag.IntVar(&compactMaxWidth, "compactwidth", 40, "max width for compact arrays or objects")
 	flag.Parse()
 
 	// Set up stdout for handling colors
@@ -152,9 +154,10 @@ func main() {
 	switch outputFormat {
 	case "json":
 		encoder = &jsonstream.JSONEncoder{
-			Printer:          printer,
-			Colorizer:        colorizer,
-			CompactSizeLimit: 40,
+			Printer:               printer,
+			Colorizer:             colorizer,
+			CompactWidthLimit:     compactMaxWidth,
+			CompactObjectMaxItems: 2,
 		}
 	case "jpv", "path":
 		{
