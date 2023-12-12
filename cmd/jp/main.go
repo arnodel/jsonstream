@@ -151,7 +151,11 @@ func main() {
 	var encoder token.StreamSink
 	switch outputFormat {
 	case "json":
-		encoder = &jsonstream.JSONEncoder{Printer: printer, Colorizer: colorizer}
+		encoder = &jsonstream.JSONEncoder{
+			Printer:          printer,
+			Colorizer:        colorizer,
+			CompactSizeLimit: 40,
+		}
 	case "jpv", "path":
 		{
 			jpvEncoder := &jsonstream.JPVEncoder{Printer: printer, Colorizer: colorizer}

@@ -12,6 +12,7 @@ import (
 type JSONEncoder struct {
 	Printer
 	*Colorizer
+	CompactSizeLimit int
 }
 
 var _ token.StreamSink = &JSONEncoder{}
@@ -40,7 +41,11 @@ func (sw *JSONEncoder) writeValue(value iterator.Value) {
 	case *iterator.Object:
 		sw.writeObject(v)
 	case *iterator.Array:
-		sw.writeArray(v)
+		if sw.CompactSizeLimit > 0 {
+			sw.writeArrayCompact(v)
+		} else {
+			sw.writeArray(v)
+		}
 	default:
 		panic(fmt.Sprintf("invalid stream item: %#v", value))
 	}
@@ -100,12 +105,73 @@ func (sw *JSONEncoder) writeArray(arr *iterator.Array) {
 	sw.PrintBytes(closeArrayBytes)
 }
 
+func (sw *JSONEncoder) writeArrayCompact(arr *iterator.Array) {
+	pendingItems := make([]iterator.Value, 0, 10)
+	totalSize := -2
+	compact := true
+	sw.PrintBytes(openArrayBytes)
+	for compact && arr.Advance() {
+		value := arr.CurrentValue()
+		pendingItems = append(pendingItems, value)
+		scalar, ok := value.(*iterator.Scalar)
+		if ok {
+			totalSize += len(scalar.Bytes) + 2 // 2 for ", "
+		}
+		compact = ok && totalSize <= sw.CompactSizeLimit
+	}
+	if compact {
+		for i, value := range pendingItems {
+			if i > 0 {
+				sw.PrintBytes(compactItemSeparatorBytes)
+			}
+			sw.writeValue(value)
+		}
+		if arr.Elided() {
+			sw.PrintBytes(elisionBytes)
+		}
+	} else {
+		firstItem := true
+		for _, value := range pendingItems {
+			if !firstItem {
+				sw.PrintBytes(itemSeparatorBytes)
+				sw.NewLine()
+			} else {
+				sw.Indent()
+				firstItem = false
+			}
+			sw.writeValue(value)
+		}
+		for arr.Advance() {
+			value := arr.CurrentValue()
+			if !firstItem {
+				sw.PrintBytes(itemSeparatorBytes)
+				sw.NewLine()
+			} else {
+				sw.Indent()
+				firstItem = false
+			}
+			sw.writeValue(value)
+		}
+		if arr.Elided() {
+			if !firstItem {
+				sw.NewLine()
+			}
+			sw.PrintBytes(elisionBytes)
+		}
+		if !firstItem {
+			sw.Dedent()
+		}
+	}
+	sw.PrintBytes(closeArrayBytes)
+}
+
 var (
-	elisionBytes           = []byte("...")
-	openObjectBytes        = []byte("{")
-	closeObjectBytes       = []byte("}")
-	openArrayBytes         = []byte("[")
-	closeArrayBytes        = []byte("]")
-	itemSeparatorBytes     = []byte(",")
-	keyValueSeparatorBytes = []byte(": ")
+	elisionBytes              = []byte("...")
+	openObjectBytes           = []byte("{")
+	closeObjectBytes          = []byte("}")
+	openArrayBytes            = []byte("[")
+	closeArrayBytes           = []byte("]")
+	itemSeparatorBytes        = []byte(",")
+	compactItemSeparatorBytes = []byte(", ")
+	keyValueSeparatorBytes    = []byte(": ")
 )
