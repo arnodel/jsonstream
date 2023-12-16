@@ -54,7 +54,7 @@ implement the "transformers" mentioned below.
 It stands for "Json Processor" or perhaps "Json Path". Install with
 
 ```
-github.com/arnodel/jsonstream/cmd/jp
+go install github.com/arnodel/jsonstream/cmd/jp
 ```
 
 Use it like this:
@@ -73,7 +73,7 @@ cat a_huge_file.json | jp | less
 You will get to see stuff straight away, regardless of the size of the file
 (same with e.g. `head`).
 
-The `jp` tool automatically handles JSON streams. You can change the indentation
+The `jp` tool automatically handles JSON Lines input. You can change the indentation
 level with the `-indent` flag. Set to a positive number, 0 for no indentation, a
 negative number will cause `jp` to output everything on one line, saving you
 precious vertical space.
