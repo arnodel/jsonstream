@@ -522,10 +522,9 @@ func (s *IndexSegment) CompileToSingularQuerySegment() (ast.SingularQuerySegment
 
 type FunctionExpr struct {
 	grammar.Seq
-	FunctionName Token `tok:"functionname"`
-	OpenBracket  Token `tok:"op,("`
-	Arguments    *FunctionExprArguments
-	CloseBracket Token `tok:"op,)"`
+	FunctionNameAndOpenBracket Token `tok:"functionname("`
+	Arguments                  *FunctionExprArguments
+	CloseBracket               Token `tok:"op,)"`
 }
 
 func (e *FunctionExpr) CompileToFunctionExpr() (ast.FunctionExpr, error) {
@@ -533,8 +532,9 @@ func (e *FunctionExpr) CompileToFunctionExpr() (ast.FunctionExpr, error) {
 	if err != nil {
 		return ast.FunctionExpr{}, nil
 	}
+	fname := e.FunctionNameAndOpenBracket.TokValue
 	return ast.FunctionExpr{
-		FunctionName: e.FunctionName.TokValue,
+		FunctionName: fname[:len(fname)-1],
 		Arguments:    args,
 	}, nil
 }

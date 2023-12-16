@@ -15,8 +15,8 @@ var TokeniseJsonPathString = grammar.SimpleTokeniser([]grammar.TokenDef{
 		Ptn:  `true\b|false\b`,
 	},
 	{
-		Name: "functionname",
-		Ptn:  `[a-z][a-z_0-9]*\b`,
+		Name: "functionname(",
+		Ptn:  `[a-z][a-z_0-9]*\(`,
 	},
 	{
 		Name: "comparisonop",
