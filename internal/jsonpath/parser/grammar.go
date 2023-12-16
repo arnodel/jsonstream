@@ -109,7 +109,7 @@ func (s *SliceSelector) CompileToSelector() (ast.Selector, error) {
 		}
 		end = &endInt
 	}
-	if s.SliceStep != nil {
+	if s.SliceStep != nil && s.Step != nil {
 		var err error
 		step, err = parseInt(s.Step.TokValue)
 		if err != nil {
@@ -121,8 +121,8 @@ func (s *SliceSelector) CompileToSelector() (ast.Selector, error) {
 
 type SliceStep struct {
 	grammar.Seq
-	StepColon Token `tok:"op,:"`
-	Step      Token `tok:"int"`
+	StepColon Token  `tok:"op,:"`
+	Step      *Token `tok:"int"`
 }
 
 type FilterSelector struct {
