@@ -116,7 +116,7 @@ func runCTSTestData(t *testing.T, testData ctsData) {
 		if testData.invalid_selector {
 			return
 		}
-		t.Fatalf("invalid query [[%s]]: %s", testData.selector, err)
+		t.Fatalf("invalid query {%s}: %s", testData.selector, err)
 	}
 	if testData.invalid_selector {
 		t.Fatalf("query expected to be invalid")
