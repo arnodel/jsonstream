@@ -29,7 +29,9 @@ import (
 // encoded of a JSON input into a stream of Token values, processing of
 // this stream and outputting the outcome can be done concurrently using
 // channels of Token values.
-type Token interface{}
+type Token interface {
+	fmt.Stringer
+}
 
 // StartObject represents the start of a JSON object (introduced by '{').
 // Values of type *StartObject implement the StreamItem interface.
@@ -110,7 +112,7 @@ func (s *Scalar) EqualsString(str string) bool {
 	if s.Type() != String {
 		return false
 	}
-	return string(s.Bytes[1:len(s.Bytes)-1]) == str
+	return s.ToString() == str
 }
 
 func NewScalar(tp ScalarType, bytes []byte) *Scalar {
@@ -161,6 +163,30 @@ func (s *Scalar) Equals(t *Scalar) bool {
 	default:
 		panic("invalid scalar type")
 	}
+}
+
+// panics if not a string
+func (s *Scalar) ToString() string {
+	if s.IsUnescaped() {
+		return string(s.Bytes[1 : len(s.Bytes)-1])
+	}
+	return parseJsonLiteralBytes(s.Bytes).(string)
+}
+
+func (s *Scalar) ToGo() any {
+	if s.IsUnescaped() {
+		return string(s.Bytes[1 : len(s.Bytes)-1])
+	}
+	return parseJsonLiteralBytes(s.Bytes)
+}
+
+func parseJsonLiteralBytes(b []byte) json.Token {
+	dec := json.NewDecoder(bytes.NewReader(b))
+	tok, err := dec.Token()
+	if err != nil {
+		panic(err)
+	}
+	return tok
 }
 
 // ScalarType encodes the four possible JSON scalar types.

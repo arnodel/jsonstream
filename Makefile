@@ -9,3 +9,6 @@ debug:
 
 test:
 	go test ./...
+
+update-jsonpath-cts:
+	curl https://raw.githubusercontent.com/jsonpath-standard/jsonpath-compliance-test-suite/main/cts.json -o jsonpathtransformer/cts.json

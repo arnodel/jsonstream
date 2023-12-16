@@ -14,7 +14,9 @@ func (r FunctionRunner) run(ctx *RunContext, val iterator.Value) any {
 		case ValueType:
 			clone, detach := val.Clone()
 			args[i] = argRunner.Evaluate(ctx, clone)
-			detach()
+			if detach != nil {
+				defer detach()
+			}
 		case LogicalType:
 			args[i] = argRunner.EvaluateTruth(ctx, val)
 		case NodesType:

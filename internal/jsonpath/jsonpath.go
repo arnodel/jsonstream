@@ -22,5 +22,5 @@ func ParseQueryString(s string) (ast.Query, error) {
 	if n := stream.Next(); n != grammar.EOF {
 		return ast.Query{}, errors.New("invalid query string")
 	}
-	return query.CompileToQuery(), nil
+	return query.CompileToQuery()
 }

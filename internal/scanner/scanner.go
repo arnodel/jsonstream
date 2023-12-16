@@ -56,25 +56,27 @@ func NewScannerSize(reader io.Reader, size int) *Scanner {
 }
 
 func (s *Scanner) fillBuf() {
-	var baseIndex int
-	// If we are recording a token then we try to shift the buffer so the token
-	// remains wholly in the buffer.
-	if s.tokenStartIndex > 0 {
-		baseIndex = s.tokenStartIndex
-		s.tokenStartIndex = 0
-	} else if s.currentIndex >= lookBackSize {
-		baseIndex = s.currentIndex - lookBackSize
-		if s.tokenStartIndex >= 0 {
-			// At this point s.startIndex is 0
-			newTokenBytes := make([]byte, baseIndex)
-			copy(newTokenBytes, s.buf)
-			s.tokenParts = append(s.tokenParts, newTokenBytes)
+	if s.fillIndex == len(s.buf) {
+		var baseIndex int
+		// If we are recording a token then we try to shift the buffer so the token
+		// remains wholly in the buffer.
+		if s.tokenStartIndex > 0 {
+			baseIndex = s.tokenStartIndex
+			s.tokenStartIndex = 0
+		} else if s.currentIndex >= lookBackSize {
+			baseIndex = s.currentIndex - lookBackSize
+			if s.tokenStartIndex >= 0 {
+				// At this point s.tokenStartIndex is 0
+				newTokenBytes := make([]byte, baseIndex)
+				copy(newTokenBytes, s.buf)
+				s.tokenParts = append(s.tokenParts, newTokenBytes)
+			}
 		}
-	}
-	if baseIndex > 0 {
-		copy(s.buf, s.buf[baseIndex:s.fillIndex])
-		s.fillIndex -= baseIndex
-		s.currentIndex -= baseIndex
+		if baseIndex > 0 {
+			copy(s.buf, s.buf[baseIndex:s.fillIndex])
+			s.fillIndex -= baseIndex
+			s.currentIndex -= baseIndex
+		}
 	}
 	for i := maxConsecutiveEmptyReads; i > 0; i-- {
 		n, err := s.reader.Read(s.buf[s.fillIndex:])
@@ -137,7 +139,7 @@ func (s *Scanner) EndToken() []byte {
 		return tokBytes
 	}
 	// Precalculate the size of the token so it doesn't have to be grown mid-concatenation
-	tokLen := s.tokenStartIndex - s.currentIndex
+	tokLen := s.currentIndex - s.tokenStartIndex
 	for _, p := range s.tokenParts {
 		tokLen += len(p)
 	}

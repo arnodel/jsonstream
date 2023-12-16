@@ -7,19 +7,19 @@ import (
 	"strings"
 )
 
-func parseInt(s string) int64 {
-	i, err := strconv.ParseInt(s, 10, 64)
+func parseInt(s string) (int64, error) {
+	return strconv.ParseInt(s, 10, 64)
+}
+
+func parseDoubleQuotedString(s string) (string, error) {
+	tok, err := ParseJsonLiteral(s)
 	if err != nil {
-		panic(err)
+		return "", err
 	}
-	return i
+	return tok.(string), err
 }
 
-func parseDoubleQuotedString(s string) string {
-	return ParseJsonLiteral(s).(string)
-}
-
-func parseSingleQuotedString(s string) string {
+func parseSingleQuotedString(s string) (string, error) {
 	// Turn it into a double quoted string by
 	// - Replacing the start and end quotes
 	// - unescaping all single quotes
@@ -30,17 +30,17 @@ func parseSingleQuotedString(s string) string {
 	return parseDoubleQuotedString(s)
 }
 
-func parseNumber(s string) float64 {
-	return ParseJsonLiteral(s).(float64)
+func parseNumber(s string) (float64, error) {
+	tok, err := ParseJsonLiteral(s)
+	if err != nil {
+		return 0, err
+	}
+	return tok.(float64), nil
 }
 
-func ParseJsonLiteral(s string) json.Token {
+func ParseJsonLiteral(s string) (json.Token, error) {
 	dec := json.NewDecoder(strings.NewReader(s))
-	tok, err := dec.Token()
-	if err != nil {
-		panic(err)
-	}
-	return tok
+	return dec.Token()
 }
 
 func ParseJsonLiteralBytes(b []byte) json.Token {

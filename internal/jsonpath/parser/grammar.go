@@ -4,6 +4,8 @@
 package parser
 
 import (
+	"fmt"
+
 	"github.com/arnodel/grammar"
 	"github.com/arnodel/jsonstream/internal/jsonpath/ast"
 )
@@ -16,15 +18,19 @@ type Query struct {
 	Segments       []Segment
 }
 
-func (q *Query) CompileToQuery() ast.Query {
+func (q *Query) CompileToQuery() (ast.Query, error) {
 	var compiledSegments = make([]ast.Segment, len(q.Segments))
 	for i, s := range q.Segments {
-		compiledSegments[i] = s.CompileToSegment()
+		segment, err := s.CompileToSegment()
+		if err != nil {
+			return ast.Query{}, err
+		}
+		compiledSegments[i] = segment
 	}
 	return ast.Query{
 		RootNode: ast.RootNodeIdentifier,
 		Segments: compiledSegments,
-	}
+	}, nil
 }
 
 type Selector struct {
@@ -36,16 +42,24 @@ type Selector struct {
 	*FilterSelector
 }
 
-func (s *Selector) CompileToSelector() ast.Selector {
+func (s *Selector) CompileToSelector() (ast.Selector, error) {
 	switch {
 	case s.NameSelector != nil:
-		return ast.NameSelector{Name: s.NameSelector.CompileToString()}
+		name, err := s.NameSelector.CompileToString()
+		if err != nil {
+			return nil, err
+		}
+		return ast.NameSelector{Name: name}, nil
 	case s.WildcardSelector != nil:
-		return ast.WildcardSelector{}
+		return ast.WildcardSelector{}, nil
 	case s.SliceSelector != nil:
 		return s.SliceSelector.CompileToSelector()
 	case s.IndexSelector != nil:
-		return ast.IndexSelector{Index: parseInt(s.IndexSelector.TokValue)}
+		index, err := parseInt(s.IndexSelector.TokValue)
+		if err != nil {
+			return nil, fmt.Errorf("invalid index; %w", err)
+		}
+		return ast.IndexSelector{Index: index}, nil
 	case s.FilterSelector != nil:
 		return s.FilterSelector.CompileToSelector()
 	default:
@@ -59,7 +73,7 @@ type StringLiteral struct {
 	SingleQuotedString *Token `tok:"singlequotedstring"`
 }
 
-func (s *StringLiteral) CompileToString() string {
+func (s *StringLiteral) CompileToString() (string, error) {
 	switch {
 	case s.DoubleQuotedString != nil:
 		return parseDoubleQuotedString(s.DoubleQuotedString.TokValue)
@@ -78,21 +92,31 @@ type SliceSelector struct {
 	*SliceStep
 }
 
-func (s *SliceSelector) CompileToSelector() ast.Selector {
+func (s *SliceSelector) CompileToSelector() (ast.Selector, error) {
 	var start, end *int64
 	var step int64 = 1
 	if s.Start != nil {
-		var startInt = parseInt(s.Start.TokValue)
+		startInt, err := parseInt(s.Start.TokValue)
+		if err != nil {
+			return nil, fmt.Errorf("invalid start index: %w", err)
+		}
 		start = &startInt
 	}
 	if s.End != nil {
-		var endInt = parseInt(s.End.TokValue)
+		endInt, err := parseInt(s.End.TokValue)
+		if err != nil {
+			return nil, fmt.Errorf("invalid end index: %w", err)
+		}
 		end = &endInt
 	}
 	if s.SliceStep != nil {
-		step = parseInt(s.Step.TokValue)
+		var err error
+		step, err = parseInt(s.Step.TokValue)
+		if err != nil {
+			return nil, fmt.Errorf("invalid step index: %w", err)
+		}
 	}
-	return ast.SliceSelector{Start: start, End: end, Step: step}
+	return ast.SliceSelector{Start: start, End: end, Step: step}, nil
 }
 
 type SliceStep struct {
@@ -107,8 +131,12 @@ type FilterSelector struct {
 	LogicalExpr
 }
 
-func (s *FilterSelector) CompileToSelector() ast.Selector {
-	return ast.FilterSelector{Condition: s.LogicalExpr.CompileToLogicalExpr()}
+func (s *FilterSelector) CompileToSelector() (ast.Selector, error) {
+	cond, err := s.LogicalExpr.CompileToLogicalExpr()
+	if err != nil {
+		return nil, err
+	}
+	return ast.FilterSelector{Condition: cond}, err
 }
 
 type LogicalExpr struct {
@@ -117,17 +145,24 @@ type LogicalExpr struct {
 	Rest  []LogicalOrRest
 }
 
-func (e *LogicalExpr) CompileToLogicalExpr() ast.LogicalExpr {
-	var first = e.First.CompileToLogicalExpr()
+func (e *LogicalExpr) CompileToLogicalExpr() (ast.LogicalExpr, error) {
+	first, err := e.First.CompileToLogicalExpr()
+	if err != nil {
+		return nil, err
+	}
 	if len(e.Rest) == 0 {
-		return first
+		return first, nil
 	}
 	var args = make([]ast.LogicalExpr, len(e.Rest)+1)
 	args[0] = first
 	for i, t := range e.Rest {
-		args[i+1] = t.Operand.CompileToLogicalExpr()
+		arg, err := t.Operand.CompileToLogicalExpr()
+		if err != nil {
+			return nil, err
+		}
+		args[i+1] = arg
 	}
-	return ast.OrExpr{Arguments: args}
+	return ast.OrExpr{Arguments: args}, nil
 }
 
 type LogicalOrRest struct {
@@ -142,17 +177,24 @@ type LogicalAndExpr struct {
 	Rest  []LogicalAndRest
 }
 
-func (e *LogicalAndExpr) CompileToLogicalExpr() ast.LogicalExpr {
-	var first = e.First.CompileToLogicalExpr()
+func (e *LogicalAndExpr) CompileToLogicalExpr() (ast.LogicalExpr, error) {
+	first, err := e.First.CompileToLogicalExpr()
+	if err != nil {
+		return nil, err
+	}
 	if len(e.Rest) == 0 {
-		return first
+		return first, nil
 	}
 	var args = make([]ast.LogicalExpr, len(e.Rest)+1)
 	args[0] = first
 	for i, t := range e.Rest {
-		args[i+1] = t.Operand.CompileToLogicalExpr()
+		arg, err := t.Operand.CompileToLogicalExpr()
+		if err != nil {
+			return nil, err
+		}
+		args[i+1] = arg
 	}
-	return ast.AndExpr{Arguments: args}
+	return ast.AndExpr{Arguments: args}, nil
 }
 
 type LogicalAndRest struct {
@@ -168,7 +210,7 @@ type BasicExpr struct {
 	*TestExpr
 }
 
-func (e *BasicExpr) CompileToLogicalExpr() ast.LogicalExpr {
+func (e *BasicExpr) CompileToLogicalExpr() (ast.LogicalExpr, error) {
 	switch {
 	case e.ParenExpr != nil:
 		return e.ParenExpr.CompileToLogicalExpr()
@@ -189,12 +231,15 @@ type ParenExpr struct {
 	CloseParen Token `tok:"op,)"`
 }
 
-func (e *ParenExpr) CompileToLogicalExpr() ast.LogicalExpr {
-	var innerExpr = e.LogicalExpr.CompileToLogicalExpr()
-	if e.Not != nil {
-		return ast.NotExpr{Argument: innerExpr}
+func (e *ParenExpr) CompileToLogicalExpr() (ast.LogicalExpr, error) {
+	innerExpr, err := e.LogicalExpr.CompileToLogicalExpr()
+	if err != nil {
+		return nil, err
 	}
-	return innerExpr
+	if e.Not != nil {
+		return ast.NotExpr{Argument: innerExpr}, nil
+	}
+	return innerExpr, nil
 }
 
 type TestExpr struct {
@@ -203,12 +248,15 @@ type TestExpr struct {
 	BasicTestExpr
 }
 
-func (e *TestExpr) CompileToLogicalExpr() ast.LogicalExpr {
-	var innerExpr = e.BasicTestExpr.CompileToLogicalExpr()
-	if e.Not != nil {
-		return ast.NotExpr{Argument: innerExpr}
+func (e *TestExpr) CompileToLogicalExpr() (ast.LogicalExpr, error) {
+	innerExpr, err := e.BasicTestExpr.CompileToLogicalExpr()
+	if err != nil {
+		return nil, err
 	}
-	return innerExpr
+	if e.Not != nil {
+		return ast.NotExpr{Argument: innerExpr}, nil
+	}
+	return innerExpr, nil
 }
 
 type BasicTestExpr struct {
@@ -217,7 +265,7 @@ type BasicTestExpr struct {
 	*FunctionExpr
 }
 
-func (e *BasicTestExpr) CompileToLogicalExpr() ast.LogicalExpr {
+func (e *BasicTestExpr) CompileToLogicalExpr() (ast.LogicalExpr, error) {
 	switch {
 	case e.FilterQuery != nil:
 		return e.FilterQuery.CompileToQuery()
@@ -234,7 +282,7 @@ type FilterQuery struct {
 	*Query
 }
 
-func (q *FilterQuery) CompileToQuery() ast.Query {
+func (q *FilterQuery) CompileToQuery() (ast.Query, error) {
 	switch {
 	case q.RelQuery != nil:
 		return q.RelQuery.CompileToQuery()
@@ -251,15 +299,19 @@ type RelQuery struct {
 	Segments              []Segment
 }
 
-func (q *RelQuery) CompileToQuery() ast.Query {
+func (q *RelQuery) CompileToQuery() (ast.Query, error) {
 	var compiledSegments = make([]ast.Segment, len(q.Segments))
 	for i, s := range q.Segments {
-		compiledSegments[i] = s.CompileToSegment()
+		segment, err := s.CompileToSegment()
+		if err != nil {
+			return ast.Query{}, err
+		}
+		compiledSegments[i] = segment
 	}
 	return ast.Query{
 		RootNode: ast.CurrentNodeIdentifier,
 		Segments: compiledSegments,
-	}
+	}, nil
 }
 
 type ComparisonExpr struct {
@@ -269,7 +321,7 @@ type ComparisonExpr struct {
 	Right Comparable
 }
 
-func (e *ComparisonExpr) CompileToLogicalExpr() ast.LogicalExpr {
+func (e *ComparisonExpr) CompileToLogicalExpr() (ast.LogicalExpr, error) {
 	var op ast.ComparisonOp
 	switch e.Op.TokValue {
 	case "==":
@@ -285,11 +337,19 @@ func (e *ComparisonExpr) CompileToLogicalExpr() ast.LogicalExpr {
 	case ">":
 		op = ast.GreaterThanOp
 	}
-	return ast.ComparisonExpr{
-		Left:  e.Left.CompileToComparable(),
-		Op:    op,
-		Right: e.Right.CompileToComparable(),
+	left, err := e.Left.CompileToComparable()
+	if err != nil {
+		return nil, err
 	}
+	right, err := e.Right.CompileToComparable()
+	if err != nil {
+		return nil, err
+	}
+	return ast.ComparisonExpr{
+		Left:  left,
+		Op:    op,
+		Right: right,
+	}, nil
 }
 
 type Comparable struct {
@@ -299,7 +359,7 @@ type Comparable struct {
 	*FunctionExpr
 }
 
-func (c *Comparable) CompileToComparable() ast.Comparable {
+func (c *Comparable) CompileToComparable() (ast.Comparable, error) {
 	switch {
 	case c.Literal != nil:
 		return c.Literal.CompileToLiteral()
@@ -320,23 +380,31 @@ type Literal struct {
 	Null    *Token `tok:"null"`
 }
 
-func (l *Literal) CompileToLiteral() ast.Literal {
+func (l *Literal) CompileToLiteral() (ast.Literal, error) {
 	switch {
 	case l.Number != nil:
-		return ast.Literal{Value: parseNumber(l.Number.TokValue)}
+		number, err := parseNumber(l.Number.TokValue)
+		if err != nil {
+			return ast.Literal{}, err
+		}
+		return ast.Literal{Value: number}, nil
 	case l.StringLiteral != nil:
-		return ast.Literal{Value: l.StringLiteral.CompileToString()}
+		value, err := l.StringLiteral.CompileToString()
+		if err != nil {
+			return ast.Literal{}, err
+		}
+		return ast.Literal{Value: value}, nil
 	case l.Boolean != nil:
 		switch l.Boolean.TokValue {
 		case "true":
-			return ast.Literal{Value: true}
+			return ast.Literal{Value: true}, nil
 		case "false":
-			return ast.Literal{Value: false}
+			return ast.Literal{Value: false}, nil
 		default:
 			panic("invalid Literal.Bool")
 		}
 	case l.Null != nil:
-		return ast.Literal{}
+		return ast.Literal{}, nil
 	default:
 		panic("invalid Literal")
 	}
@@ -348,7 +416,7 @@ type SingularQuery struct {
 	*AbsSingularQuery
 }
 
-func (q *SingularQuery) CompileToSingularQuery() ast.SingularQuery {
+func (q *SingularQuery) CompileToSingularQuery() (ast.SingularQuery, error) {
 	switch {
 	case q.RelSingularQuery != nil:
 		return q.RelSingularQuery.CompileToSingularQuery()
@@ -365,15 +433,19 @@ type RelSingularQuery struct {
 	Segments              []SingularQuerySegment
 }
 
-func (q *RelSingularQuery) CompileToSingularQuery() ast.SingularQuery {
+func (q *RelSingularQuery) CompileToSingularQuery() (ast.SingularQuery, error) {
 	var segments = make([]ast.SingularQuerySegment, len(q.Segments))
 	for i, s := range q.Segments {
-		segments[i] = s.CompileToSingularQuerySegment()
+		segment, err := s.CompileToSingularQuerySegment()
+		if err != nil {
+			return ast.SingularQuery{}, err
+		}
+		segments[i] = segment
 	}
 	return ast.SingularQuery{
 		RootNode: ast.CurrentNodeIdentifier,
 		Segments: segments,
-	}
+	}, nil
 }
 
 type AbsSingularQuery struct {
@@ -382,15 +454,19 @@ type AbsSingularQuery struct {
 	Segments       []SingularQuerySegment
 }
 
-func (q *AbsSingularQuery) CompileToSingularQuery() ast.SingularQuery {
+func (q *AbsSingularQuery) CompileToSingularQuery() (ast.SingularQuery, error) {
 	var segments = make([]ast.SingularQuerySegment, len(q.Segments))
 	for i, s := range q.Segments {
-		segments[i] = s.CompileToSingularQuerySegment()
+		segment, err := s.CompileToSingularQuerySegment()
+		if err != nil {
+			return ast.SingularQuery{}, fmt.Errorf("segment %d invalid: %w", i+1, err)
+		}
+		segments[i] = segment
 	}
 	return ast.SingularQuery{
 		RootNode: ast.RootNodeIdentifier,
 		Segments: segments,
-	}
+	}, nil
 }
 
 type SingularQuerySegment struct {
@@ -400,13 +476,13 @@ type SingularQuerySegment struct {
 	*IndexSegment
 }
 
-func (s *SingularQuerySegment) CompileToSingularQuerySegment() ast.SingularQuerySegment {
+func (s *SingularQuerySegment) CompileToSingularQuerySegment() (ast.SingularQuerySegment, error) {
 	switch {
 	case s.BracketNameSegment != nil:
 		return s.BracketNameSegment.CompileToSingularQuerySegment()
 	case s.DotNameSegment != nil:
 		// S.DotNameSegment is of the form '.name'
-		return ast.NameSegment{Name: s.DotNameSegment.TokValue[1:]}
+		return ast.NameSegment{Name: s.DotNameSegment.TokValue[1:]}, nil
 	case s.IndexSegment != nil:
 		return s.IndexSegment.CompileToSingularQuerySegment()
 	default:
@@ -421,8 +497,12 @@ type BracketNameSegment struct {
 	CloseSquareBracket Token `tok:"op,]"`
 }
 
-func (s *BracketNameSegment) CompileToSingularQuerySegment() ast.SingularQuerySegment {
-	return ast.NameSegment{Name: s.NameSelector.CompileToString()}
+func (s *BracketNameSegment) CompileToSingularQuerySegment() (ast.SingularQuerySegment, error) {
+	name, err := s.NameSelector.CompileToString()
+	if err != nil {
+		return nil, err
+	}
+	return ast.NameSegment{Name: name}, nil
 }
 
 type IndexSegment struct {
@@ -432,8 +512,12 @@ type IndexSegment struct {
 	CloseSquareBracket Token `tok:"op,]"`
 }
 
-func (s *IndexSegment) CompileToSingularQuerySegment() ast.SingularQuerySegment {
-	return ast.IndexSegment{Index: parseInt(s.IndexSelector.TokValue)}
+func (s *IndexSegment) CompileToSingularQuerySegment() (ast.SingularQuerySegment, error) {
+	index, err := parseInt(s.IndexSelector.TokValue)
+	if err != nil {
+		return nil, fmt.Errorf("invalid index: %w", err)
+	}
+	return ast.IndexSegment{Index: index}, nil
 }
 
 type FunctionExpr struct {
@@ -444,11 +528,15 @@ type FunctionExpr struct {
 	CloseBracket Token `tok:"op,)"`
 }
 
-func (e *FunctionExpr) CompileToFunctionExpr() ast.FunctionExpr {
+func (e *FunctionExpr) CompileToFunctionExpr() (ast.FunctionExpr, error) {
+	args, err := e.Arguments.CompileToFunctionArguments()
+	if err != nil {
+		return ast.FunctionExpr{}, nil
+	}
 	return ast.FunctionExpr{
 		FunctionName: e.FunctionName.TokValue,
-		Arguments:    e.Arguments.CompileToFunctionArguments(),
-	}
+		Arguments:    args,
+	}, nil
 }
 
 type FunctionExprArguments struct {
@@ -457,16 +545,24 @@ type FunctionExprArguments struct {
 	Rest  []FunctionExprArgumentsRest
 }
 
-func (a *FunctionExprArguments) CompileToFunctionArguments() []ast.FunctionArgument {
+func (a *FunctionExprArguments) CompileToFunctionArguments() ([]ast.FunctionArgument, error) {
 	if a == nil {
-		return nil
+		return nil, nil
 	}
 	var args = make([]ast.FunctionArgument, len(a.Rest)+1)
-	args[0] = a.First.CompileToFunctionArgument()
-	for i, t := range a.Rest {
-		args[i+1] = t.FunctionArgument.CompileToFunctionArgument()
+	firstArg, err := a.First.CompileToFunctionArgument()
+	if err != nil {
+		return nil, err
 	}
-	return args
+	args[0] = firstArg
+	for i, t := range a.Rest {
+		arg, err := t.FunctionArgument.CompileToFunctionArgument()
+		if err != nil {
+			return nil, err
+		}
+		args[i+1] = arg
+	}
+	return args, nil
 }
 
 type FunctionExprArgumentsRest struct {
@@ -483,14 +579,18 @@ type FunctionArgument struct {
 	*FunctionExpr
 }
 
-func (a *FunctionArgument) CompileToFunctionArgument() ast.FunctionArgument {
+func (a *FunctionArgument) CompileToFunctionArgument() (ast.FunctionArgument, error) {
 	switch {
 	case a.Literal != nil:
 		return a.Literal.CompileToLiteral()
 	case a.FilterQuery != nil:
 		return a.FilterQuery.CompileToQuery()
 	case a.LogicalExpr != nil:
-		return ast.LogicalExprArgument{LogicalExpr: a.LogicalExpr.CompileToLogicalExpr()}
+		logicalExpr, err := a.LogicalExpr.CompileToLogicalExpr()
+		if err != nil {
+			return nil, err
+		}
+		return ast.LogicalExprArgument{LogicalExpr: logicalExpr}, nil
 	case a.FunctionExpr != nil:
 		return a.FunctionExpr.CompileToFunctionExpr()
 	default:
@@ -504,7 +604,7 @@ type Segment struct {
 	*DescendantSegment
 }
 
-func (s *Segment) CompileToSegment() ast.Segment {
+func (s *Segment) CompileToSegment() (ast.Segment, error) {
 	switch {
 	case s.ChildSegment != nil:
 		return s.ChildSegment.CompileToSegment()
@@ -521,20 +621,24 @@ type ChildSegment struct {
 	*DotSelection
 }
 
-func (s *ChildSegment) CompileToSegment() ast.Segment {
+func (s *ChildSegment) CompileToSegment() (ast.Segment, error) {
 	var selectors []ast.Selector
+	var err error
 	switch {
 	case s.BracketedSelection != nil:
-		selectors = s.BracketedSelection.CompileToSelectors()
+		selectors, err = s.BracketedSelection.CompileToSelectors()
 	case s.DotSelection != nil:
 		selectors = s.DotSelection.CompileToSelectors()
 	default:
 		panic("invalid ChildSegment")
 	}
+	if err != nil {
+		return ast.Segment{}, err
+	}
 	return ast.Segment{
 		Type:      ast.ChildSegmentType,
 		Selectors: selectors,
-	}
+	}, nil
 }
 
 type DescendantSegment struct {
@@ -544,11 +648,12 @@ type DescendantSegment struct {
 	DescendantMemberNameShorthand *Token `tok:"descendantmembernameshorthand"`
 }
 
-func (s *DescendantSegment) CompileToSegment() ast.Segment {
+func (s *DescendantSegment) CompileToSegment() (ast.Segment, error) {
 	var selectors []ast.Selector
+	var err error
 	switch {
 	case s.DescendantBracketedSelection != nil:
-		selectors = s.DescendantBracketedSelection.CompileToSelectors()
+		selectors, err = s.DescendantBracketedSelection.CompileToSelectors()
 	case s.DescendantWildcardSelector != nil:
 		selectors = []ast.Selector{ast.WildcardSelector{}}
 	case s.DescendantMemberNameShorthand != nil:
@@ -557,10 +662,13 @@ func (s *DescendantSegment) CompileToSegment() ast.Segment {
 	default:
 		panic("invalid DescendantSegment")
 	}
+	if err != nil {
+		return ast.Segment{}, nil
+	}
 	return ast.Segment{
 		Type:      ast.DescendantSegmentType,
 		Selectors: selectors,
-	}
+	}, nil
 }
 
 type BracketedSelection struct {
@@ -571,13 +679,21 @@ type BracketedSelection struct {
 	CloseSquareBracket Token `tok:"op,]"`
 }
 
-func (s *BracketedSelection) CompileToSelectors() []ast.Selector {
+func (s *BracketedSelection) CompileToSelectors() ([]ast.Selector, error) {
 	var selectors = make([]ast.Selector, len(s.SelectorRest)+1)
-	selectors[0] = s.FirstSelector.CompileToSelector()
-	for i, sel := range s.SelectorRest {
-		selectors[i+1] = sel.CompileToSelector()
+	firstSelector, err := s.FirstSelector.CompileToSelector()
+	if err != nil {
+		return nil, fmt.Errorf("first selector invalid: %w", err)
 	}
-	return selectors
+	selectors[0] = firstSelector
+	for i, sel := range s.SelectorRest {
+		selector, err := sel.CompileToSelector()
+		if err != nil {
+			return nil, fmt.Errorf("selector %d invalid: %w", i+2, err)
+		}
+		selectors[i+1] = selector
+	}
+	return selectors, nil
 }
 
 type DescendantBracketedSelection struct {
@@ -588,13 +704,21 @@ type DescendantBracketedSelection struct {
 	CloseSquareBracket Token `tok:"op,]"`
 }
 
-func (s *DescendantBracketedSelection) CompileToSelectors() []ast.Selector {
+func (s *DescendantBracketedSelection) CompileToSelectors() ([]ast.Selector, error) {
 	var selectors = make([]ast.Selector, len(s.SelectorRest)+1)
-	selectors[0] = s.FirstSelector.CompileToSelector()
-	for i, sel := range s.SelectorRest {
-		selectors[i+1] = sel.CompileToSelector()
+	firstSelector, err := s.FirstSelector.CompileToSelector()
+	if err != nil {
+		return nil, fmt.Errorf("first selector invalid: %w", err)
 	}
-	return selectors
+	selectors[0] = firstSelector
+	for i, sel := range s.SelectorRest {
+		selector, err := sel.CompileToSelector()
+		if err != nil {
+			return nil, fmt.Errorf("selector %d invalid: %w", i+2, err)
+		}
+		selectors[i+1] = selector
+	}
+	return selectors, nil
 }
 
 type SelectorRest struct {

@@ -62,6 +62,14 @@ func (r MainQueryRunner) TransformValue(value iterator.Value, out token.WriteStr
 	r.mainRunner.TransformValue(r.computeRunContext(value), value, out)
 }
 
+func (r MainQueryRunner) EvaluateNodesResult(value iterator.Value) NodesResult {
+	return queryRunnerNodesResult{
+		QueryRunner: r.mainRunner,
+		ctx:         r.computeRunContext(value),
+		value:       value,
+	}
+}
+
 type RunContext struct {
 	innerSingularQueries []iterator.Value
 	innerQueries         []*iterator.Iterator

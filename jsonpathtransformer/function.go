@@ -97,23 +97,27 @@ func init() {
 }
 
 func run_length(args []any) any {
-	val := args[0].(iterator.Value)
-	switch x := val.(type) {
+	var n int64
+	switch x := args[0].(type) {
 	case *iterator.Array:
-		var n int64
 		for x.Advance() {
 			n++
 		}
-		return (*iterator.Scalar)(token.Int64Scalar(n))
 	case *iterator.Object:
 		var n int64
 		for x.Advance() {
 			n++
 		}
-		return (*iterator.Scalar)(token.Int64Scalar(n))
+	case *iterator.Scalar:
+		scalar := x.Scalar()
+		if scalar.Type() != token.String {
+			return nil
+		}
+		n = int64(len(scalar.ToString()))
 	default:
 		return nil
 	}
+	return (*iterator.Scalar)(token.Int64Scalar(n))
 }
 
 func run_count(args []any) any {

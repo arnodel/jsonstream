@@ -1,6 +1,7 @@
 package jsonpathtransformer
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"reflect"
@@ -9,6 +10,8 @@ import (
 	"github.com/arnodel/jsonstream/iterator"
 	"github.com/arnodel/jsonstream/token"
 )
+
+var ErrUnimplementedFeature = errors.New("unimplemented feature")
 
 // CompileQuery compiles a JSON query AST to a QueryRunner.
 func CompileQuery(query ast.Query) (MainQueryRunner, error) {
@@ -193,9 +196,13 @@ func (c *compiler) compileSliceSelector(slice ast.SliceSelector) (r SelectorRunn
 	// I don't know yet how to support negative steps as it reverses the order of
 	// the output.
 	if slice.Step < 0 {
-		panic("unimplemented")
+		return nil, fmt.Errorf("%w: negative slice step", ErrUnimplementedFeature)
 	}
 
+	// The spec says when the step is 0, no items are selected.
+	if slice.Step == 0 {
+		return DefaultSelectorRunner{}, nil
+	}
 	if slice.Start == nil {
 		start = 0
 	} else {
@@ -363,17 +370,23 @@ func (c *compiler) compileFunctionArg(arg ast.FunctionArgument, expectedType Typ
 				return nil, err
 			}
 			return NodesArgumentRunner{NodesResultEvaluator: q}, nil
+		case LogicalType:
+			return nil, fmt.Errorf("%w: converting query function argument to logical expr", ErrUnimplementedFeature)
 		default:
-			return nil, fmt.Errorf("expected %s, got a query", expectedType)
+			panic("invalid expected type")
 		}
 	case ast.LogicalExprArgument:
 		switch expectedType {
-		case NodesType:
-			panic("unimplemented")
-		case LogicalType:
-			panic("unimplemented")
-		default:
+		case NodesType, ValueType:
 			return nil, fmt.Errorf("expected %s, got a logical expression", expectedType)
+		case LogicalType:
+			cond, err := c.compileCondition(x.LogicalExpr)
+			if err != nil {
+				return nil, err
+			}
+			return LogicalArgumentRunner{LogicalEvaluator: cond}, nil
+		default:
+			panic("invalid expected type")
 		}
 	case ast.FunctionExpr:
 		return c.compileFunctionExpr(x, expectedType)

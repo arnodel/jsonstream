@@ -85,7 +85,7 @@ func (e ComparisonEvaluator) EvaluateTruth(ctx *RunContext, value iterator.Value
 	rightValue := e.right.Evaluate(ctx, value2)
 	result := false
 	if e.flags&CheckEquals != 0 {
-		result = checkEquals(leftValue, rightValue)
+		result = DoCheckEquals(leftValue, rightValue)
 	}
 	if !result && e.flags&CheckLessThan != 0 {
 		result = checkLessThan(leftValue, rightValue)
@@ -94,7 +94,7 @@ func (e ComparisonEvaluator) EvaluateTruth(ctx *RunContext, value iterator.Value
 }
 
 // This does advance the arguments
-func checkEquals(left iterator.Value, right iterator.Value) bool {
+func DoCheckEquals(left iterator.Value, right iterator.Value) bool {
 	if left == nil {
 		return right == nil
 	}
@@ -133,7 +133,7 @@ func safeCheckEquals(left iterator.Value, right iterator.Value) bool {
 	if detach2 != nil {
 		defer detach2()
 	}
-	return checkEquals(val1, val2)
+	return DoCheckEquals(val1, val2)
 }
 
 func checkScalarEquals(left *token.Scalar, right *token.Scalar) bool {
@@ -181,7 +181,9 @@ func checkObjectEquals(left *iterator.Object, right *iterator.Object) bool {
 
 	defer func() {
 		for _, p := range pending {
-			p.detach()
+			if p.detach != nil {
+				p.detach()
+			}
 		}
 	}()
 
@@ -232,7 +234,7 @@ func checkArrayEquals(left *iterator.Array, right *iterator.Array) bool {
 		if !right.Advance() {
 			return false
 		}
-		if !checkEquals(left.CurrentValue(), right.CurrentValue()) {
+		if !DoCheckEquals(left.CurrentValue(), right.CurrentValue()) {
 			return false
 		}
 	}

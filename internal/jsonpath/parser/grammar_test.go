@@ -508,7 +508,10 @@ func TestGrammar(t *testing.T) {
 				t.Fatalf("query error")
 			}
 			if test.ast != nil {
-				astQuery := query.CompileToQuery()
+				astQuery, err := query.CompileToQuery()
+				if err != nil {
+					t.Fatalf("error compiling query: %s", err)
+				}
 				if !reflect.DeepEqual(astQuery, test.ast) {
 					t.Fatalf("ast query error")
 				}

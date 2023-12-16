@@ -190,6 +190,25 @@ func TestLexer(t *testing.T) {
 				grammar.EOF,
 			},
 		},
+		{
+			name:  "decimals",
+			input: "1.2 -1e10 3.2e-4",
+			tokens: []Token{
+				tok("number", "1.2"),
+				tok("number", "-1e10"),
+				tok("number", "3.2e-4"),
+				grammar.EOF,
+			},
+		},
+		{
+			name:  "single quoted strings",
+			input: `'hello' '\''`,
+			tokens: []Token{
+				tok("singlequotedstring", "'hello'"),
+				tok("singlequotedstring", `'\''`),
+				grammar.EOF,
+			},
+		},
 	}
 
 	for _, test := range tests {

@@ -47,6 +47,9 @@ type Value interface {
 	Clone() (Value, func())
 	Discard()
 	Copy(token.WriteStream)
+	AsScalar() (*token.Scalar, bool)
+	AsArray() (*Array, bool)
+	AsObject() (*Object, bool)
 }
 
 type Scalar token.Scalar
@@ -65,6 +68,18 @@ func (s *Scalar) Copy(w token.WriteStream) {
 
 func (s *Scalar) Scalar() *token.Scalar {
 	return (*token.Scalar)(s)
+}
+
+func (s *Scalar) AsScalar() (*token.Scalar, bool) {
+	return s.Scalar(), true
+}
+
+func (s *Scalar) AsArray() (*Array, bool) {
+	return nil, false
+}
+
+func (s *Scalar) AsObject() (*Object, bool) {
+	return nil, false
 }
 
 type Collection interface {
@@ -159,6 +174,18 @@ func (c *collectionBase) CurrentValue() Value {
 	return c.currentValue
 }
 
+func (c *collectionBase) AsScalar() (*token.Scalar, bool) {
+	return nil, false
+}
+
+func (c *collectionBase) AsArray() (*Array, bool) {
+	return nil, false
+}
+
+func (c *collectionBase) AsObject() (*Object, bool) {
+	return nil, false
+}
+
 type Object struct {
 	collectionBase
 	currentKey *token.Scalar
@@ -210,6 +237,10 @@ func (o *Object) Advance() bool {
 	}
 }
 
+func (o *Object) AsObject() (*Object, bool) {
+	return o, true
+}
+
 type Array struct {
 	collectionBase
 }
@@ -247,6 +278,10 @@ func (a *Array) Advance() bool {
 		a.currentValue = nextStreamedValue(item, a.stream)
 		return true
 	}
+}
+
+func (a *Array) AsArray() (*Array, bool) {
+	return a, true
 }
 
 func nextStreamedValue(firstItem token.Token, stream token.ReadStream) Value {

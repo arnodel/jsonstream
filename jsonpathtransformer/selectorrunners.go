@@ -143,8 +143,11 @@ func (r IndexSelectorRunner) SelectsFromIndex(index, negIndex int64) Decision {
 // be negative in which case they are counted from the end of the array starting
 // from -1.
 //
-// Currently, negative steps are not implemented as it would require going through the
-// array in reverse order.  TODO: support negative step
+// Note that the compiler never creates an instance of SliceSelectorRunner where
+// step == 0, so the implementation assumes step != 0.
+//
+// Currently, negative steps are not implemented as it would require going
+// through the array in reverse order.  TODO: support negative step
 type SliceSelectorRunner struct {
 	DefaultSelectorRunner
 	start, end, step int64
