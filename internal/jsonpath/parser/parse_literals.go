@@ -24,7 +24,7 @@ func parseSingleQuotedString(s string) (string, error) {
 	// - Replacing the start and end quotes
 	// - unescaping all single quotes
 	// - escaping all double quotes
-	s = strings.ReplaceAll(s[1:len(s)-1], `\'`, `\`)
+	s = strings.ReplaceAll(s[1:len(s)-1], `\'`, `'`)
 	s = strings.ReplaceAll(s, `"`, `\"`)
 	s = `"` + s + `"`
 	return parseDoubleQuotedString(s)

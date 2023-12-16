@@ -489,6 +489,39 @@ func TestGrammar(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:  "foo",
+			input: `$['\'']`,
+			query: Query{
+				RootIdentifier: tok("op", "$"),
+				Segments: []Segment{
+					{
+						ChildSegment: &ChildSegment{
+							BracketedSelection: &BracketedSelection{
+								OpenSquareBracket: tok("op", "["),
+								FirstSelector: Selector{
+									NameSelector: &StringLiteral{
+										SingleQuotedString: tokp("singlequotedstring", `'\''`),
+									},
+								},
+								CloseSquareBracket: tok("op", "]"),
+							},
+						},
+					},
+				},
+			},
+			ast: ast.Query{
+				RootNode: ast.RootNodeIdentifier,
+				Segments: []ast.Segment{
+					{
+						Type: ast.ChildSegmentType,
+						Selectors: []ast.Selector{
+							ast.NameSelector{Name: "'"},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, test := range tests {
