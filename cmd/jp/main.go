@@ -62,7 +62,7 @@ func main() {
 	flag.StringVar(&outputFormat, "out", "json", "output format")
 	flag.StringVar(&inputFormat, "in", "auto", "input format")
 	flag.BoolVar(&quoteKeys, "quotekeys", false, "always use quoted keys in JSON Path output")
-	flag.IntVar(&compactMaxWidth, "compactwidth", 40, "max width for compact arrays or objects")
+	flag.IntVar(&compactMaxWidth, "compactwidth", 60, "max width for compact arrays or objects")
 	flag.Parse()
 
 	// Set up stdout for handling colors
