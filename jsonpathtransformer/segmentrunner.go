@@ -3,9 +3,7 @@ package jsonpathtransformer
 import (
 	"math"
 
-	"github.com/arnodel/jsonstream/internal/jsonpath/parser"
 	"github.com/arnodel/jsonstream/iterator"
-	"github.com/arnodel/jsonstream/token"
 )
 
 //
@@ -44,7 +42,7 @@ func (r SegmentRunner) transformValue(ctx *RunContext, value iterator.Value, dec
 	case *iterator.Object:
 		for x.Advance() {
 			keyScalar, value := x.CurrentKeyVal()
-			key := keyStringValue(keyScalar)
+			key := keyScalar.ToString()
 			decisions = decisions[:0]
 			for _, selector := range r.selectors {
 				decisions = append(decisions, selector.SelectsFromKey(key))
@@ -133,13 +131,4 @@ func (r *SegmentRunner) applySelectors(ctx *RunContext, value iterator.Value, de
 		}
 	}
 	return true
-}
-
-// This assumes the scalar is a string - it should always be the case for an
-// object key.
-func keyStringValue(scalar *token.Scalar) string {
-	if scalar.IsUnescaped() {
-		return string(scalar.Bytes[1 : len(scalar.Bytes)-1])
-	}
-	return parser.ParseJsonLiteralBytes(scalar.Bytes).(string)
 }

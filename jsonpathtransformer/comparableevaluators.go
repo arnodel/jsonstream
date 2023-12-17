@@ -73,7 +73,7 @@ type NameSingularSelectorRunner struct {
 func (r NameSingularSelectorRunner) SelectFromObject(obj *iterator.Object) iterator.Value {
 	for obj.Advance() {
 		key, value := obj.CurrentKeyVal()
-		if r.nameSelector.SelectsFromKey(keyStringValue(key)) == Yes {
+		if r.nameSelector.SelectsFromKey(key.ToString()) == Yes {
 			return value
 		}
 	}
