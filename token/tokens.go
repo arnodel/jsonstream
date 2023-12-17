@@ -148,7 +148,7 @@ func (s *Scalar) String() string {
 	return fmt.Sprintf("Scalar(%s)", s.Bytes)
 }
 
-func (s *Scalar) Equals(t *Scalar) bool {
+func (s *Scalar) Equal(t *Scalar) bool {
 	if s == nil || t == nil {
 		return false
 	}
@@ -156,13 +156,27 @@ func (s *Scalar) Equals(t *Scalar) bool {
 		return false
 	}
 	switch s.Type() {
-	case String, Number, Boolean:
-		return bytes.Equal(s.Bytes, t.Bytes)
 	case Null:
 		return true
+	case Boolean:
+		// The bytes are "true" or "false", so it's enough to compare the first one
+		return s.Bytes[0] == t.Bytes[0]
+	case String:
+		if bytes.Equal(s.Bytes, t.Bytes) {
+			return true
+		}
+		if s.IsUnescaped() && t.IsUnescaped() {
+			return false
+		}
+	case Number:
+		if bytes.Equal(s.Bytes, t.Bytes) {
+			return true
+		}
 	default:
 		panic("invalid scalar type")
 	}
+	// Fall back to slower conversion
+	return parseJsonLiteralBytes(s.Bytes) == parseJsonLiteralBytes(t.Bytes)
 }
 
 // panics if not a string

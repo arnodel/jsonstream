@@ -99,7 +99,7 @@ func (r *SegmentRunner) applySelectors(ctx *RunContext, value iterator.Value, de
 	// when not to clone it before copying it to the output.  This may appear
 	// like a small optimization but in practice almost all segments are made
 	// out of 1 selector, in which case cloning the value is not needed so it's
-	// woth catering for.
+	// worth catering for.
 	perhapsCount := 0
 	for _, d := range decisions {
 		if d != No {

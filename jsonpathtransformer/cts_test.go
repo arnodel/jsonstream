@@ -130,7 +130,7 @@ func runCTSTestData(t *testing.T, testData ctsData) {
 			t.Fatal("got more nodes than expected in query result")
 		}
 		expectedVal := expectedArr.CurrentValue()
-		if !jsonpathtransformer.DoCheckEquals(val, expectedVal) {
+		if !iterator.ValuesEqual(val, expectedVal) {
 			t.Fatal("non-matching results")
 		}
 		return true

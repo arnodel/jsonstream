@@ -96,7 +96,7 @@ func (d *JPVDecoder) updatePath(newPath []*token.Scalar, out chan<- token.Token)
 		if i >= len(newPath) {
 			return errors.New("inconsistent path: cannot be a prefix of the previous path")
 		}
-		if !key.Equals(newKey) {
+		if !key.Equal(newKey) {
 			if key.Type() != newKey.Type() {
 				return errors.New("inconsistent path: key types differ")
 			}

@@ -2,6 +2,7 @@ package iterator
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/arnodel/jsonstream/token"
 )
@@ -50,6 +51,7 @@ type Value interface {
 	AsScalar() (*token.Scalar, bool)
 	AsArray() (*Array, bool)
 	AsObject() (*Object, bool)
+	Equal(Value) bool
 }
 
 type Scalar token.Scalar
@@ -80,6 +82,14 @@ func (s *Scalar) AsArray() (*Array, bool) {
 
 func (s *Scalar) AsObject() (*Object, bool) {
 	return nil, false
+}
+
+func (s *Scalar) Equal(v Value) bool {
+	vs, ok := v.(*Scalar)
+	if !ok {
+		return false
+	}
+	return s.Scalar().Equal(vs.Scalar())
 }
 
 type Collection interface {
@@ -241,6 +251,76 @@ func (o *Object) AsObject() (*Object, bool) {
 	return o, true
 }
 
+func (o *Object) Equal(v Value) bool {
+	// Currently optimised for the case when the number of keys is small or the
+	// keys are in a very similar order and the keys are unescaped because it
+	// makes the implementation simple.  It's also probably good enough for many
+	// cases, but can be very slow if both objects have many keys and they are
+	// in very different orders.
+
+	vo, ok := v.(*Object)
+	if !ok {
+		return false
+	}
+
+	type kvPair struct {
+		key    *token.Scalar
+		val    Value
+		detach func()
+	}
+
+	var pending []kvPair // Stores key-values in right which haven't been matched yet
+
+	defer func() {
+		for _, p := range pending {
+			if p.detach != nil {
+				p.detach()
+			}
+		}
+	}()
+
+iterateLeft:
+	for o.Advance() {
+		key, val := o.CurrentKeyVal()
+		for i, p := range pending {
+			if !key.Equal(p.key) {
+				continue
+			}
+			if !SafeValuesEqual(val, p.val) {
+				return false
+			}
+			// We have matched the pending item with the current item from left.
+			if p.detach != nil {
+				p.detach()
+			}
+			pending = slices.Delete(pending, i, i+1)
+			continue iterateLeft
+		}
+		// Not found in pending, so consume right until we find it
+		for vo.Advance() {
+			keyRight, valRight := vo.CurrentKeyVal()
+
+			// If the key is not the one we want, store the key-value in pending
+			// items
+			if !key.Equal(keyRight) {
+				valRightClone, detach := valRight.Clone()
+				pending = append(pending, kvPair{keyRight, valRightClone, detach})
+				continue
+			}
+			if !SafeValuesEqual(val, valRight) {
+				return false
+			}
+			// We have matched!
+			continue iterateLeft
+		}
+		// At this point, we have consumed the whole of right and not found a
+		// matching key.
+		return false
+	}
+	// The objects are equal if right has no more items
+	return len(pending) == 0 && !vo.Advance()
+}
+
 type Array struct {
 	collectionBase
 }
@@ -284,6 +364,23 @@ func (a *Array) AsArray() (*Array, bool) {
 	return a, true
 }
 
+func (a *Array) Equal(v Value) bool {
+	va, ok := v.(*Array)
+	if !ok {
+		return false
+	}
+	for a.Advance() {
+		if !va.Advance() {
+			return false
+		}
+		if !a.CurrentValue().Equal(va.CurrentValue()) {
+			return false
+		}
+	}
+	// The arrays are equal if right has no more items.
+	return !va.Advance()
+}
+
 func nextStreamedValue(firstItem token.Token, stream token.ReadStream) Value {
 	switch v := firstItem.(type) {
 	case *token.StartArray:
@@ -299,4 +396,30 @@ func nextStreamedValue(firstItem token.Token, stream token.ReadStream) Value {
 	default:
 		panic(fmt.Sprintf("invalid stream %#v", firstItem))
 	}
+}
+
+// ValuesEqual returns true if v1 and v2 are equal.  It may advance v1 and / or v2.
+func ValuesEqual(v1, v2 Value) bool {
+	if v1 == nil || v2 == nil {
+		return v1 == nil && v2 == nil
+	}
+	return v1.Equal(v2)
+}
+
+// SafeValuesEqual returns true if v1 and v2 are equal, without advancing either of
+// them.
+func SafeValuesEqual(v1, v2 Value) bool {
+	if v1 == nil || v2 == nil {
+		return v1 == nil && v2 == nil
+	}
+	// We could have a quick path for when left and right are scalars
+	val1, detach1 := v1.Clone()
+	val2, detach2 := v2.Clone()
+	if detach1 != nil {
+		defer detach1()
+	}
+	if detach2 != nil {
+		defer detach2()
+	}
+	return val1.Equal(val2)
 }
