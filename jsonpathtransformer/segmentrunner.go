@@ -100,20 +100,17 @@ func (r *SegmentRunner) applySelectors(ctx *RunContext, value iterator.Value, de
 	// worth catering for.
 	perhapsCount := 0
 	for _, d := range decisions {
-		if d != No {
+		if !d.IsNo() {
 			perhapsCount++
 		}
 	}
 	for i, selector := range r.selectors {
-		switch decisions[i] {
-		case DontKnow:
-			perhapsCount--
-			if !selector.SelectsFromValue(ctx, value) {
-				continue
-			}
-		case Yes:
-			perhapsCount--
-		default:
+		d := decisions[i]
+		if d.IsNo() {
+			continue
+		}
+		perhapsCount--
+		if !d.IsYes() && !selector.SelectsFromValue(ctx, value) {
 			continue
 		}
 		if perhapsCount > 0 {

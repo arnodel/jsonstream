@@ -73,12 +73,12 @@ func (r DefaultSelectorRunner) Lookahead() int64 {
 
 // SelectsFromIndex returns No.
 func (r DefaultSelectorRunner) SelectsFromIndex(index, negIndex int64) Decision {
-	return No
+	return No | NoMoreAfter
 }
 
 // SelectsFromKey returns No.
 func (r DefaultSelectorRunner) SelectsFromKey(key string) Decision {
-	return No
+	return No | NoMoreAfter
 }
 
 // SelectsFromValue returns false.
@@ -95,7 +95,10 @@ type NameSelectorRunner struct {
 
 // SelectsFromKey returns Yes if key is the name that can be selected, else No.
 func (r NameSelectorRunner) SelectsFromKey(key string) Decision {
-	return madeDecision(key == r.name)
+	if key == r.name {
+		return Yes | NoMoreAfter
+	}
+	return No
 }
 
 // WildcardSelectorRunner implements the wildcard selector, which selects all
@@ -131,10 +134,19 @@ func (r IndexSelectorRunner) Lookahead() int64 {
 }
 
 func (r IndexSelectorRunner) SelectsFromIndex(index, negIndex int64) Decision {
-	if r.index >= 0 {
-		return madeDecision(index == r.index)
+	var offset int64
+	if r.index < 0 {
+		offset = negIndex - r.index
 	} else {
-		return madeDecision(negIndex == r.index)
+		offset = index - r.index
+	}
+	switch {
+	case offset > 0:
+		return No | NoMoreAfter
+	case offset == 0:
+		return Yes | NoMoreAfter
+	default:
+		return No
 	}
 }
 
@@ -182,7 +194,14 @@ func (r SliceSelectorRunner) SelectsFromIndex(index, negIndex int64) Decision {
 	} else {
 		endOffset = index - r.end
 	}
-	return madeDecision(startOffset >= 0 && endOffset < 0 && startOffset%r.step == 0)
+
+	if endOffset >= 0 {
+		return No | NoMoreAfter
+	}
+	if startOffset >= 0 && startOffset%r.step == 0 {
+		return Yes
+	}
+	return No
 }
 
 type FilterSelectorRunner struct {
@@ -211,17 +230,18 @@ func (d Decision) IsMade() bool {
 	return d != DontKnow
 }
 
-func madeDecision(yes bool) Decision {
-	if yes {
-		return Yes
-	} else {
-		return No
-	}
+func (d Decision) IsYes() bool {
+	return d&Yes != 0
 }
 
-// Possible values ofr Decision
+func (d Decision) IsNo() bool {
+	return d&No != 0
+}
+
+// Possible values of Decision
 const (
-	DontKnow Decision = 0
-	Yes      Decision = 1
-	No       Decision = 2
+	DontKnow    Decision = 0
+	Yes         Decision = 1
+	No          Decision = 2
+	NoMoreAfter Decision = 4
 )

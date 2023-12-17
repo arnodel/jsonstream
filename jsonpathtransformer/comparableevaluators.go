@@ -73,7 +73,7 @@ type NameSingularSelectorRunner struct {
 func (r NameSingularSelectorRunner) SelectFromObject(obj *iterator.Object) iterator.Value {
 	for obj.Advance() {
 		key, value := obj.CurrentKeyVal()
-		if r.nameSelector.SelectsFromKey(key.ToString()) == Yes {
+		if r.nameSelector.SelectsFromKey(key.ToString()).IsYes() {
 			return value
 		}
 	}
@@ -103,7 +103,7 @@ func (r IndexSingularSelectorRunner) SelectFromArray(arr *iterator.Array) iterat
 
 	for arr.Advance() {
 		value := arr.CurrentValue()
-		if r.indexSelector.SelectsFromIndex(index, negIndex) == Yes {
+		if r.indexSelector.SelectsFromIndex(index, negIndex).IsYes() {
 			return value
 		}
 		index++
