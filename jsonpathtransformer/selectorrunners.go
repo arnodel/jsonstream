@@ -1,6 +1,8 @@
 package jsonpathtransformer
 
-import "github.com/arnodel/jsonstream/iterator"
+import (
+	"github.com/arnodel/jsonstream/iterator"
+)
 
 //
 // Selector runners
@@ -236,6 +238,10 @@ func (d Decision) IsYes() bool {
 
 func (d Decision) IsNo() bool {
 	return d&No != 0
+}
+
+func (d Decision) IsNoMoreAfter() bool {
+	return d&NoMoreAfter != 0
 }
 
 // Possible values of Decision

@@ -108,7 +108,7 @@ func runCTSTest(t *testing.T, test iterator.Value) {
 }
 
 func runCTSTestData(t *testing.T, testData ctsData) {
-	runner, err := compileQueryString(testData.selector)
+	runner, err := compileQueryStringStrict(testData.selector)
 	if err != nil {
 		if errors.Is(err, jsonpathtransformer.ErrUnimplementedFeature) {
 			t.Skipf("unimplemented feature: %s", err)

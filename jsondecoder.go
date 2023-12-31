@@ -43,6 +43,9 @@ func (d *JSONDecoder) parseValue(out chan<- token.Token) error {
 	if err != nil {
 		return err
 	}
+	if b == scanner.EOF {
+		return io.EOF
+	}
 	switch b {
 	case '"':
 		s, err := parseString(d.scanr)

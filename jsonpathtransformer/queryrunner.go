@@ -12,11 +12,11 @@ type MainQueryRunner struct {
 }
 
 func (r MainQueryRunner) Transform(in <-chan token.Token, out token.WriteStream) {
-	p := r.mainRunner.getValueProcessor(streamWritingProcessor{out: out})
+	next := streamWritingProcessor{out: out}
 	iter := iterator.New(token.ChannelReadStream(in))
 	for iter.Advance() {
 		value := iter.CurrentValue()
-		p.ProcessValue(r.computeRunContext(value), value)
+		r.mainRunner.transformValue(r.computeRunContext(value), value, next)
 	}
 }
 
@@ -81,7 +81,14 @@ type QueryRunner struct {
 }
 
 func (r QueryRunner) TransformValue(ctx *RunContext, value iterator.Value, out token.WriteStream) {
-	r.getValueProcessor(streamWritingProcessor{out: out}).ProcessValue(ctx, value)
+	r.transformValue(ctx, value, streamWritingProcessor{out: out})
+}
+
+func (r QueryRunner) transformValue(ctx *RunContext, value iterator.Value, next valueProcessor) bool {
+	if len(r.segments) == 0 {
+		return next.ProcessValue(ctx, value)
+	}
+	return r.segments[0].transformValue2(ctx, value, next, r.segments[1:])
 }
 
 func (r QueryRunner) EvaluateTruth(ctx *RunContext, value iterator.Value) bool {
@@ -90,17 +97,7 @@ func (r QueryRunner) EvaluateTruth(ctx *RunContext, value iterator.Value) bool {
 	if detach != nil {
 		defer detach()
 	}
-	return !r.getValueProcessor(haltingProcessor{}).ProcessValue(ctx, value)
-}
-
-func (r QueryRunner) getValueProcessor(p valueProcessor) valueProcessor {
-	for i := len(r.segments) - 1; i >= 0; i-- {
-		p = segmentProcessor{
-			SegmentRunner: r.segments[i],
-			next:          p,
-		}
-	}
-	return p
+	return !r.transformValue(ctx, value, haltingProcessor{})
 }
 
 func (r QueryRunner) EvaluateNodesResult(ctx *RunContext, value iterator.Value) NodesResult {
@@ -126,7 +123,7 @@ type queryRunnerNodesResult struct {
 }
 
 func (r queryRunnerNodesResult) ForEachNode(p func(iterator.Value) bool) {
-	r.getValueProcessor(callbackProcessor(p)).ProcessValue(r.ctx, r.value)
+	r.transformValue(r.ctx, r.value, callbackProcessor(p))
 }
 
 type valueProcessor interface {
@@ -148,15 +145,6 @@ type streamWritingProcessor struct {
 func (a streamWritingProcessor) ProcessValue(ctx *RunContext, value iterator.Value) bool {
 	value.Copy(a.out)
 	return true
-}
-
-type segmentProcessor struct {
-	SegmentRunner
-	next valueProcessor
-}
-
-func (p segmentProcessor) ProcessValue(ctx *RunContext, value iterator.Value) bool {
-	return p.TransformValue(ctx, value, p.next)
 }
 
 type haltingProcessor struct{}

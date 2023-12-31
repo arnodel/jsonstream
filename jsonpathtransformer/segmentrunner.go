@@ -25,107 +25,243 @@ type SegmentRunner struct {
 	isDescendantSegment bool
 }
 
-// TransformValue transforms the incoming value according to the definition of
-// the query segment.  Returns true if the processing was cancelled
-func (r SegmentRunner) TransformValue(ctx *RunContext, value iterator.Value, next valueProcessor) bool {
-	// We allocate decisions here because otherwise we would allocate a new
-	// slice fore each item in the collection.
-	//
-	// Hopefully escape analysis will prove that the slice can't escape, and
-	// since its capacity is known, it should be allocated on the stack.
-	decisions := make([]Decision, 0, 10)
-	return r.transformValue(ctx, value, decisions, next)
+type detachableValue struct {
+	value      iterator.Value
+	detachFunc func()
 }
 
-func (r SegmentRunner) transformValue(ctx *RunContext, value iterator.Value, decisions []Decision, next valueProcessor) bool {
-	switch x := value.(type) {
-	case *iterator.Object:
-		for x.Advance() {
-			keyScalar, value := x.CurrentKeyVal()
-			key := keyScalar.ToString()
-			decisions = decisions[:0]
-			for _, selector := range r.selectors {
-				decisions = append(decisions, selector.SelectsFromKey(key))
-			}
-			if !r.applySelectors(ctx, value, decisions, next) {
-				return false
-			}
-			if r.isDescendantSegment && !r.transformValue(ctx, value, decisions, next) {
-				return false
-			}
-		}
-	case *iterator.Array:
-		var index, negIndex int64
-		var ahead *iterator.Array
+func (dv detachableValue) detach() {
+	if dv.detachFunc != nil {
+		dv.detachFunc()
+	}
+}
 
-		if r.lookahead > 0 {
-			var detach func()
-			ahead, detach = x.CloneArray()
-			defer detach()
-			for negIndex+r.lookahead >= 0 && ahead.Advance() {
-				negIndex--
+type selectorState struct {
+	selector SelectorRunner
+	selected bool
+	pending  []detachableValue
+	done     bool
+}
+
+type valueDispatcher struct {
+	shouldClone    bool
+	selectorStates []selectorState
+	next           valueProcessor
+}
+
+func newValueDispatcher(selectors []SelectorRunner, next valueProcessor) *valueDispatcher {
+	selectorStates := make([]selectorState, len(selectors))
+	for i, selector := range selectors {
+		selectorStates[i].selector = selector
+	}
+	return &valueDispatcher{
+		selectorStates: selectorStates,
+		next:           next,
+	}
+}
+
+func (d *valueDispatcher) flush(ctx *RunContext, result bool) bool {
+	// We have reached the end of the object, flush remaining states
+	for _, state := range d.selectorStates {
+		for _, dv := range state.pending {
+			if result {
+				result = d.next.ProcessValue(ctx, dv.value)
+			}
+			dv.detach()
+		}
+	}
+	return result
+}
+
+func (d *valueDispatcher) transformItem(ctx *RunContext, value iterator.Value, decide func(SelectorRunner) Decision, followingSegments []SegmentRunner) (result bool) {
+	result = true
+
+	if len(d.selectorStates) == 0 {
+		return
+	}
+
+	// First find which selectors may apply, which will be done after
+	// this round.
+	selectedCount := 0
+	firstLiveIndex := 0
+	for i := range d.selectorStates {
+		state := &d.selectorStates[i]
+		if state.done {
+			state.selected = false
+			if firstLiveIndex == i {
+				firstLiveIndex++
 			}
 		} else {
-			negIndex = math.MinInt64
+			selector := state.selector
+			decision := decide(selector)
+			state.selected = decision.IsYes() || !decision.IsNo() && selector.SelectsFromValue(ctx, value)
+			if state.selected {
+				selectedCount++
+			}
+			if decision.IsNoMoreAfter() {
+				state.done = true
+				if !state.selected && firstLiveIndex == i {
+					firstLiveIndex++
+				}
+			}
 		}
+	}
 
-		for x.Advance() {
-			value := x.CurrentValue()
-			decisions = decisions[:0]
-			for _, selector := range r.selectors {
-				decisions = append(decisions, selector.SelectsFromIndex(index, negIndex))
-			}
-			if !r.applySelectors(ctx, value, decisions, next) {
-				return false
-			}
-			index++
-			if ahead != nil && !ahead.Advance() {
-				negIndex++
-			}
-			if r.isDescendantSegment && !r.transformValue(ctx, value, decisions, next) {
-				return false
+	// Flush finished states
+	if firstLiveIndex > 0 {
+		for _, state := range d.selectorStates[:firstLiveIndex] {
+			for _, dv := range state.pending {
+				if result {
+					result = d.next.ProcessValue(ctx, dv.value)
+				}
+				dv.detach()
 			}
 		}
-	default:
-		x.Discard()
+		d.selectorStates = d.selectorStates[firstLiveIndex:]
+		if !result || len(d.selectorStates) == 0 {
+			return
+		}
+	}
+
+	// Flush the first state
+	if len(d.selectorStates[0].pending) > 0 {
+		for _, dv := range d.selectorStates[0].pending {
+			if result {
+				result = d.next.ProcessValue(ctx, dv.value)
+			}
+			dv.detach()
+		}
+		d.selectorStates[0].pending = nil
+		if !result {
+			return
+		}
+	}
+
+	// Process the value if selected
+	if selectedCount > 0 {
+		d.shouldClone = selectedCount > 1 || !d.selectorStates[0].selected
+		if len(followingSegments) == 0 {
+			result = d.ProcessValue(ctx, value)
+		} else {
+			result = followingSegments[0].transformValue2(ctx, value, d, followingSegments[1:])
+		}
+	}
+	return
+}
+
+func (d *valueDispatcher) ProcessValue(ctx *RunContext, value iterator.Value) bool {
+	// Then apply the eligible selectors, but only the first one is
+	// passed to next straight away
+	for i := range d.selectorStates {
+		state := &d.selectorStates[i]
+		if state.selected {
+			// TODO: We shouldn't clone but copy, but first need to make it work
+			clone, detach := cloneIf(value, d.shouldClone)
+			if i == 0 {
+				result := d.next.ProcessValue(ctx, clone)
+				if detach != nil {
+					detach()
+				}
+				if !result {
+					return false
+				}
+			} else {
+				state.pending = append(state.pending, detachableValue{clone, detach})
+			}
+		}
 	}
 	return true
 }
 
-func (r *SegmentRunner) applySelectors(ctx *RunContext, value iterator.Value, decisions []Decision, next valueProcessor) bool {
-	// We need to count decisions which may select the value so that we know
-	// when not to clone it before copying it to the output.  This may appear
-	// like a small optimization but in practice almost all segments are made
-	// out of 1 selector, in which case cloning the value is not needed so it's
-	// worth catering for.
-	perhapsCount := 0
-	for _, d := range decisions {
-		if !d.IsNo() {
-			perhapsCount++
+func cloneIf(value iterator.Value, cond bool) (iterator.Value, func()) {
+	if cond {
+		return value.Clone()
+	} else {
+		return value, nil
+	}
+}
+
+func (r SegmentRunner) transformValue2(ctx *RunContext, value iterator.Value, next valueProcessor, followingSegments []SegmentRunner) bool {
+	switch x := value.(type) {
+	case *iterator.Object:
+		return r.transformObject(ctx, x, next, followingSegments)
+	case *iterator.Array:
+		return r.transformArray(ctx, x, next, followingSegments)
+	default:
+		value.Discard()
+		return true
+	}
+}
+
+func (r SegmentRunner) transformObject(ctx *RunContext, obj *iterator.Object, next valueProcessor, followingSegments []SegmentRunner) (result bool) {
+	dispatcher := newValueDispatcher(r.selectors, next)
+
+	defer func() { dispatcher.flush(ctx, result) }()
+
+	for obj.Advance() {
+		keyScalar, value := obj.CurrentKeyVal()
+		key := keyScalar.ToString()
+		result = dispatcher.transformItem(ctx, value, func(s SelectorRunner) Decision { return s.SelectsFromKey(key) }, followingSegments)
+		if !result {
+			return
+		}
+
+		// Lastly if this is a descendant segment, we need to dive into value
+		if r.isDescendantSegment {
+			result = r.transformValue2(ctx, value, next, followingSegments)
+			if !result {
+				return
+			}
+		} else if len(dispatcher.selectorStates) == 0 {
+			return
 		}
 	}
-	for i, selector := range r.selectors {
-		d := decisions[i]
-		if d.IsNo() {
-			continue
+	return true
+}
+
+func (r SegmentRunner) transformArray(ctx *RunContext, arr *iterator.Array, next valueProcessor, followingSegments []SegmentRunner) (result bool) {
+	dispatcher := newValueDispatcher(r.selectors, next)
+
+	defer func() { dispatcher.flush(ctx, result) }()
+
+	var index, negIndex int64
+	var ahead *iterator.Array
+
+	if r.lookahead > 0 {
+		var detach func()
+		ahead, detach = arr.CloneArray()
+		defer detach()
+		for negIndex+r.lookahead >= 0 && ahead.Advance() {
+			negIndex--
 		}
-		perhapsCount--
-		if !d.IsYes() && !selector.SelectsFromValue(ctx, value) {
-			continue
+	} else {
+		negIndex = math.MinInt64
+	}
+
+	for arr.Advance() {
+		value := arr.CurrentValue()
+
+		result = dispatcher.transformItem(ctx, value, func(s SelectorRunner) Decision { return s.SelectsFromIndex(index, negIndex) }, followingSegments)
+		if !result {
+			return
 		}
-		if perhapsCount > 0 {
-			clone, detach := value.Clone()
-			if detach != nil {
-				defer detach()
+
+		// Update the index
+		index++
+		if ahead != nil && !ahead.Advance() {
+			negIndex++
+		}
+
+		// Lastly if this is a descendant segment, we need to dive into value
+		if r.isDescendantSegment {
+			result = r.transformValue2(ctx, value, next, followingSegments)
+			if !result {
+				return
 			}
-			if !next.ProcessValue(ctx, clone) {
-				return false
-			}
-		} else {
-			if !next.ProcessValue(ctx, value) {
-				return false
-			}
+		} else if len(dispatcher.selectorStates) == 0 {
+			return
 		}
 	}
+
 	return true
 }

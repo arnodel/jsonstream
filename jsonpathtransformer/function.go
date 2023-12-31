@@ -2,6 +2,7 @@ package jsonpathtransformer
 
 import (
 	"regexp"
+	"unicode/utf8"
 
 	"github.com/arnodel/jsonstream/internal/jsonpath/parser"
 	"github.com/arnodel/jsonstream/iterator"
@@ -113,7 +114,7 @@ func run_length(args []any) any {
 		if scalar.Type() != token.String {
 			return nil
 		}
-		n = int64(len(scalar.ToString()))
+		n = int64(utf8.RuneCountInString(scalar.ToString()))
 	default:
 		return nil
 	}

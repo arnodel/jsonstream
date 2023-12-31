@@ -2,6 +2,7 @@ package jsonpath
 
 import (
 	"errors"
+	"regexp"
 
 	"github.com/arnodel/grammar"
 	"github.com/arnodel/jsonstream/internal/jsonpath/ast"
@@ -24,3 +25,19 @@ func ParseQueryString(s string) (ast.Query, error) {
 	}
 	return query.CompileToQuery()
 }
+
+func ParseQueryStringStrict(s string) (ast.Query, error) {
+	if leadingWhitespacePattern.MatchString(s) {
+		return ast.Query{}, ErrLeadingWhitespace
+	}
+	if trailingWhitespacePattern.MatchString(s) {
+		return ast.Query{}, ErrTrailingWhitespace
+	}
+	return ParseQueryString(s)
+}
+
+var leadingWhitespacePattern = regexp.MustCompile(`^\s`)
+var trailingWhitespacePattern = regexp.MustCompile(`\s$`)
+
+var ErrLeadingWhitespace = errors.New("leading whitespace")
+var ErrTrailingWhitespace = errors.New("trailing whitespace")

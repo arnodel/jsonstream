@@ -40,6 +40,14 @@ func compileQueryString(s string) (jsonpathtransformer.MainQueryRunner, error) {
 	return jsonpathtransformer.CompileQuery(query)
 }
 
+func compileQueryStringStrict(s string) (jsonpathtransformer.MainQueryRunner, error) {
+	query, err := jsonpath.ParseQueryStringStrict(s)
+	if err != nil {
+		return jsonpathtransformer.MainQueryRunner{}, err
+	}
+	return jsonpathtransformer.CompileQuery(query)
+}
+
 func streamJsonString(s string) <-chan token.Token {
 	decoder := jsonstream.NewJSONDecoder(strings.NewReader(s))
 	return token.StartStream(decoder, nil)
