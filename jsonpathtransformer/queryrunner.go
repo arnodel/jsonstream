@@ -6,9 +6,9 @@ import (
 )
 
 type MainQueryRunner struct {
-	mainRunner           QueryRunner
+	mainRunner           QueryEvaluator
 	innerSingularQueries []SingularQueryRunner
-	innerQueries         []QueryRunner
+	innerQueries         []QueryEvaluator
 }
 
 func (r MainQueryRunner) Transform(in <-chan token.Token, out token.WriteStream) {
@@ -16,7 +16,7 @@ func (r MainQueryRunner) Transform(in <-chan token.Token, out token.WriteStream)
 	iter := iterator.New(token.ChannelReadStream(in))
 	for iter.Advance() {
 		value := iter.CurrentValue()
-		r.mainRunner.transformValue(r.computeRunContext(value), value, next)
+		r.mainRunner.MapValue(r.computeRunContext(value), value, next)
 	}
 }
 
@@ -63,8 +63,8 @@ func (r MainQueryRunner) TransformValue(value iterator.Value, out token.WriteStr
 }
 
 func (r MainQueryRunner) EvaluateNodesResult(value iterator.Value) NodesResult {
-	return queryRunnerNodesResult{
-		QueryRunner: r.mainRunner,
+	return valueMapperNodesResult{
+		ValueMapper: r.mainRunner,
 		ctx:         r.computeRunContext(value),
 		value:       value,
 	}
@@ -75,37 +75,45 @@ type RunContext struct {
 	innerQueries         []*iterator.Iterator
 }
 
-type QueryRunner struct {
-	isRootNodeQuery bool
-	segments        []SegmentRunner
+type ValueMapper interface {
+	MapValue(ctx *RunContext, value iterator.Value, next valueProcessor) bool
 }
 
-func (r QueryRunner) TransformValue(ctx *RunContext, value iterator.Value, out token.WriteStream) {
-	r.transformValue(ctx, value, streamWritingProcessor{out: out})
+type QueryEvaluator struct {
+	ValueMapper
 }
 
-func (r QueryRunner) transformValue(ctx *RunContext, value iterator.Value, next valueProcessor) bool {
-	if len(r.segments) == 0 {
-		return next.ProcessValue(ctx, value)
-	}
-	return r.segments[0].transformValue2(ctx, value, next, r.segments[1:])
+func (e QueryEvaluator) TransformValue(ctx *RunContext, value iterator.Value, out token.WriteStream) {
+	e.MapValue(ctx, value, streamWritingProcessor{out: out})
 }
 
-func (r QueryRunner) EvaluateTruth(ctx *RunContext, value iterator.Value) bool {
+func (e QueryEvaluator) EvaluateTruth(ctx *RunContext, value iterator.Value) bool {
 	var detach func()
 	value, detach = value.Clone()
 	if detach != nil {
 		defer detach()
 	}
-	return !r.transformValue(ctx, value, haltingProcessor{})
+	return !e.MapValue(ctx, value, haltingProcessor{})
 }
 
-func (r QueryRunner) EvaluateNodesResult(ctx *RunContext, value iterator.Value) NodesResult {
-	return queryRunnerNodesResult{
-		QueryRunner: r,
+func (e QueryEvaluator) EvaluateNodesResult(ctx *RunContext, value iterator.Value) NodesResult {
+	return valueMapperNodesResult{
+		ValueMapper: e,
 		ctx:         ctx,
 		value:       value,
 	}
+}
+
+type QueryRunner struct {
+	isRootNodeQuery bool
+	segments        []SegmentRunner
+}
+
+func (r QueryRunner) MapValue(ctx *RunContext, value iterator.Value, next valueProcessor) bool {
+	if len(r.segments) == 0 {
+		return next.ProcessValue(ctx, value)
+	}
+	return r.segments[0].transformValue2(ctx, value, next, r.segments[1:])
 }
 
 type NodesResultEvaluator interface {
@@ -116,14 +124,14 @@ type NodesResult interface {
 	ForEachNode(func(iterator.Value) bool)
 }
 
-type queryRunnerNodesResult struct {
-	QueryRunner
+type valueMapperNodesResult struct {
+	ValueMapper
 	ctx   *RunContext
 	value iterator.Value
 }
 
-func (r queryRunnerNodesResult) ForEachNode(p func(iterator.Value) bool) {
-	r.transformValue(r.ctx, r.value, callbackProcessor(p))
+func (r valueMapperNodesResult) ForEachNode(p func(iterator.Value) bool) {
+	r.MapValue(r.ctx, r.value, callbackProcessor(p))
 }
 
 type valueProcessor interface {
@@ -157,10 +165,15 @@ type InnerQueryRunner struct {
 	index int
 }
 
-func (r InnerQueryRunner) EvaluateTruth(ctx *RunContext, value iterator.Value) bool {
+func (r InnerQueryRunner) MapValue(ctx *RunContext, value iterator.Value, next valueProcessor) bool {
 	iter, detach := ctx.innerQueries[r.index].Clone()
 	defer detach()
-	return iter.Advance()
+	for iter.Advance() {
+		if !next.ProcessValue(ctx, iter.CurrentValue()) {
+			return false
+		}
+	}
+	return true
 }
 
 type InnerSingularQueryRunner struct {

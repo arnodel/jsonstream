@@ -37,7 +37,7 @@ type innerSingularQueryEntry struct {
 
 type innerQueryEntry struct {
 	query  ast.Query
-	runner QueryRunner
+	runner QueryEvaluator
 }
 
 // This type may have some state or configuration parameters in the future.
@@ -48,19 +48,19 @@ type compiler struct {
 	functionRegistry FunctionRegistry
 }
 
-func (c *compiler) getInnerQueries() ([]SingularQueryRunner, []QueryRunner) {
+func (c *compiler) getInnerQueries() ([]SingularQueryRunner, []QueryEvaluator) {
 	singularQueries := make([]SingularQueryRunner, len(c.innerSingularQueries))
 	for i, e := range c.innerSingularQueries {
 		singularQueries[i] = e.runner
 	}
-	queries := make([]QueryRunner, len(c.innerQueries))
+	queries := make([]QueryEvaluator, len(c.innerQueries))
 	for i, e := range c.innerQueries {
 		queries[i] = e.runner
 	}
 	return singularQueries, queries
 }
 
-func (c *compiler) compileQuery(query ast.Query) (r QueryRunner, err error) {
+func (c *compiler) compileQuery(query ast.Query) (r QueryEvaluator, err error) {
 	segments := make([]SegmentRunner, len(query.Segments))
 	for i, s := range query.Segments {
 		segments[i], err = c.compileSegment(s)
@@ -68,32 +68,36 @@ func (c *compiler) compileQuery(query ast.Query) (r QueryRunner, err error) {
 			return
 		}
 	}
-	r = QueryRunner{
+	r = QueryEvaluator{ValueMapper: QueryRunner{
 		isRootNodeQuery: query.RootNode == ast.RootNodeIdentifier,
 		segments:        segments,
-	}
+	}}
 	return
 }
 
-func (c *compiler) compileInnerQueryCondition(query ast.Query) (LogicalEvaluator, error) {
+func (c *compiler) compileInnerQuery(query ast.Query) (QueryEvaluator, error) {
 	switch query.RootNode {
 	case ast.CurrentNodeIdentifier:
-		return c.compileQuery(query)
+		q, err := c.compileQuery(query)
+		if err != nil {
+			return QueryEvaluator{}, err
+		}
+		return QueryEvaluator{ValueMapper: q}, nil
 	case ast.RootNodeIdentifier:
 		for i, entry := range c.innerQueries {
 			if reflect.DeepEqual(entry.query, query) {
-				return InnerQueryRunner{index: i}, nil
+				return QueryEvaluator{InnerQueryRunner{index: i}}, nil
 			}
 		}
 		q, err := c.compileQuery(query)
 		if err != nil {
-			return nil, err
+			return QueryEvaluator{}, err
 		}
 		c.innerQueries = append(c.innerQueries, innerQueryEntry{
 			query:  query,
 			runner: q,
 		})
-		return InnerQueryRunner{index: len(c.innerQueries) - 1}, nil
+		return QueryEvaluator{InnerQueryRunner{index: len(c.innerQueries) - 1}}, nil
 	default:
 		panic("invalid query root node")
 	}
@@ -169,7 +173,7 @@ func (c *compiler) compileCondition(condition ast.LogicalExpr) (e LogicalEvaluat
 	case ast.ComparisonExpr:
 		e, err = c.compileComparison(x)
 	case ast.Query:
-		e, err = c.compileInnerQueryCondition(x)
+		e, err = c.compileInnerQuery(x)
 	case ast.FunctionExpr:
 		e, err = c.compileFunctionExpr(x, LogicalType)
 	default:
@@ -193,37 +197,55 @@ func (c *compiler) compileConditions(conditions []ast.LogicalExpr) ([]LogicalEva
 func (c *compiler) compileSliceSelector(slice ast.SliceSelector) (r SelectorRunner, err error) {
 	var start, end int64
 
-	// I don't know yet how to support negative steps as it reverses the order of
-	// the output.
-	if slice.Step < 0 {
-		return nil, fmt.Errorf("%w: negative slice step", ErrUnimplementedFeature)
-	}
-
-	// The spec says when the step is 0, no items are selected.
-	if slice.Step == 0 {
-		return DefaultSelectorRunner{}, nil
-	}
-	if slice.Start == nil {
-		start = 0
-	} else {
-		start = *slice.Start
-	}
-
-	if slice.End == nil {
-		// We'll never get such a big array, right?
-		end = math.MaxInt64
-	} else {
-		end = *slice.End
-	}
-
-	if end >= 0 && end <= start || start < 0 && start >= end {
-		// In this case, the slice selects nothing.
+	switch {
+	case slice.Step == 0:
+		// The spec says when the step is 0, no items are selected.
 		r = DefaultSelectorRunner{}
-	} else {
-		r = SliceSelectorRunner{
-			start: start,
-			end:   end,
-			step:  slice.Step,
+	case slice.Step < 0:
+		if slice.Start == nil {
+			start = -1
+		} else {
+			start = *slice.Start
+		}
+
+		if slice.End == nil {
+			end = math.MinInt64
+		} else {
+			end = *slice.End
+		}
+		if start >= 0 && end >= start || end < 0 && start <= end {
+			// In this case, the slice selects nothing
+			r = DefaultSelectorRunner{}
+		} else {
+			r = ReverseSliceSelectorRunner{
+				start: start,
+				end:   end,
+				step:  slice.Step,
+			}
+		}
+	default: // case slice.Step > 0
+		if slice.Start == nil {
+			start = 0
+		} else {
+			start = *slice.Start
+		}
+
+		if slice.End == nil {
+			// We'll never get such a big array, right?
+			end = math.MaxInt64
+		} else {
+			end = *slice.End
+		}
+
+		if end >= 0 && end <= start || start < 0 && start >= end {
+			// In this case, the slice selects nothing.
+			r = DefaultSelectorRunner{}
+		} else {
+			r = SliceSelectorRunner{
+				start: start,
+				end:   end,
+				step:  slice.Step,
+			}
 		}
 	}
 	return
@@ -364,14 +386,12 @@ func (c *compiler) compileFunctionArg(arg ast.FunctionArgument, expectedType Typ
 				return nil, fmt.Errorf("expected %s, got a non-singular query", expectedType)
 			}
 			return ValueArgumentRunner{ComparableEvaluator: c.compileSingularQuery(sq)}, nil
-		case NodesType:
-			q, err := c.compileQuery(x)
+		case NodesType, LogicalType:
+			q, err := c.compileInnerQuery(x)
 			if err != nil {
 				return nil, err
 			}
-			return NodesArgumentRunner{NodesResultEvaluator: q}, nil
-		case LogicalType:
-			return nil, fmt.Errorf("%w: converting query function argument to logical expr", ErrUnimplementedFeature)
+			return NodesArgumentRunner{QueryEvaluator: q}, nil
 		default:
 			panic("invalid expected type")
 		}

@@ -575,8 +575,8 @@ type FunctionArgument struct {
 	grammar.OneOf
 	*Literal
 	*FilterQuery
-	*LogicalExpr
 	*FunctionExpr
+	*LogicalExpr
 }
 
 func (a *FunctionArgument) CompileToFunctionArgument() (ast.FunctionArgument, error) {

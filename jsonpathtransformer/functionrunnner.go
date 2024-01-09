@@ -76,11 +76,7 @@ func (r LogicalArgumentRunner) EvaluateNodesResult(ctx *RunContext, val iterator
 }
 
 type NodesArgumentRunner struct {
-	NodesResultEvaluator
-}
-
-func (r NodesArgumentRunner) EvaluateTruth(ctx *RunContext, val iterator.Value) bool {
-	panic("invaid EvaluateTruth call")
+	QueryEvaluator
 }
 
 func (r NodesArgumentRunner) Evaluate(ctx *RunContext, val iterator.Value) iterator.Value {
