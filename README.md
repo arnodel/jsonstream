@@ -1,11 +1,14 @@
 ## JSONStream
 
-My latest weekend project.  Implements a `jp` CLI utility that parses
-[JSON](https://www.json.org/) or [JSON Lines](https://jsonlines.org/) input and
-processes it in a streaming manner, notably using [JSONPath
-queries](https://datatracker.ietf.org/doc/draft-ietf-jsonpath-base/). It has
-some of the properties of `cat`, `head`, `tail`, `grep` but for structured JSON
-input rather than lines of text.
+This projects mplements a `jp` CLI utility that
+- parses [JSON](https://www.json.org/), [JSON Lines](https://jsonlines.org/)
+input and some other formats (e.g. CSV);
+- processes it in a streaming manner, notably using [JSONPath
+queries](https://datatracker.ietf.org/doc/draft-ietf-jsonpath-base/);
+- outputs the result as prettified JSON or JSON Lines
+
+It has some of the properties of `cat`, `head`, `tail`, `grep` but for
+structured JSON input rather than lines of text.
 
 - Like `cat` and `grep` it can handle infinite inputs and starts outputting very
   quickly, so it works well as part of a pipeline;
@@ -18,7 +21,7 @@ On top of that:
 - it can ingest and output CSV documents (so you can convert JSON <-> CSV for
   instance)
 - it can prettify JSON in a streaming way (useful for piping to `less`)
-- input can be filtered with JSONPath expressions - and the full (*) [JSONPath
+- input can be filtered with JSONPath queries - and the full [JSONPath
   spec](https://datatracker.ietf.org/doc/html/draft-ietf-jsonpath-base-21) is
   implemented in a way that tries to preserve the streaming properties of the
   utility whenever possilbe
@@ -31,8 +34,14 @@ Having said that, it's still in early stages and progress is haphazard as I only
 work on it in my spare time.  The rest of the README below is not very well
 organised yet, but you can still read on for more details.
 
-(*) not quite true: slices with negative step are not yet implemented (e.g.
-`$[::-1]`).
+### A note on JSON Path standard compliance
+
+There is a github repository that hosts a JSONPath compliance test
+suite (https://github.com/jsonpath-standard/jsonpath-compliance-test-suite).
+This is where the [cts.json](./jsonpathtransformer/cts.json) file is taken from.
+It is use to test the JSONPath implementation in this repository.  Currently it
+passes all the tests (the test suite was downloaded from the repository on
+2024/01/09).
 
 ## The `jsonstream` package
 
@@ -41,13 +50,12 @@ encode a stream back into JSON. It aims to be able to scale to arbitrarily
 large input without increasing memory usage or latency.
 
 It contains a full implementation of the latest (at the time of writing)
-JSONPath draft spec
-(https://datatracker.ietf.org/doc/html/draft-ietf-jsonpath-base-21). This is
-used to implement JSONPath-based transformers.
+JSONPath draft spec (which can be consulted at
+https://datatracker.ietf.org/doc/html/draft-ietf-jsonpath-base-21). This is used
+to implement JSONPath-based transformers.
 
-It's been
-made for the CLI utility below. So it tries to provide tools to make it easy to
-implement the "transformers" mentioned below.
+It's been made for the CLI utility below. So it tries to provide tools to make
+it easy to implement the "transformers" mentioned below.
 
 ## The `jp` CLI utility
 
@@ -78,10 +86,11 @@ level with the `-indent` flag. Set to a positive number, 0 for no indentation, a
 negative number will cause `jp` to output everything on one line, saving you
 precious vertical space.
 
-But that's not it. There are a number of _transforms_ that are available, and
-they can be chained!
+But that's not it. You can select the _input format_ the _output format_ and
+there are a number of chainable _transforms_ that are available.  Read on for
+more details.
 
-Here is a list of transforms:
+### List of transforms
 
 - a JSONPath expression starting with `$`, e.g `$[-10:].foo` or
   `$..parent.children[10:]`, etc.  The whole draft IETF spec for JSONPath is
@@ -104,12 +113,14 @@ See the file [builtintransformers.go](builtintransformers.go) for some more
 details. There are not many so far but it's easy to add some more, and I'm
 planning to do that.
 
+### Input format selection
+
 You can choose an input format with the `-in` option:
 
 - `json` selects JSON format
 - `jpv` or `path` selects the `JPV` format. It's related (but not quite the same
   :-|) as the format described in https://github.com/tomnomnom/gron. This allows
-  a workflow of the type `jp` -out jpv | grep | jp -in jpv` (`-in jpv` is not
+  a workflow of the type `jp -out jpv | grep | jp -in jpv` (`-in jpv` is not
   required because the input format should be guessed correctly)
 - `csv` selects the `CSV` format.  Each CSV record is streamed as an array of values
   E.g. the following input
@@ -139,6 +150,8 @@ You can choose an input format with the `-in` option:
   ```
 - `auto` (the default value) tries to guess the format, falling back to JSON if
   it can't
+
+### Output format selection
 
 You can choose the output format with the `-out` option.  The available formats
 are:
