@@ -96,7 +96,7 @@ func TestSimplQueries(t *testing.T) {
 			name:   "index list",
 			input:  `[1, 2, 3, 4 , 5, 6 ,7, 8, 9, 10]`,
 			query:  `$[1, -2, 8, -5]`,
-			output: `2 6 9 9`,
+			output: `2 9 9 6`,
 		},
 		// Slice queries
 		{
