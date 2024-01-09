@@ -37,10 +37,32 @@ func (dv detachableValue) detach() {
 }
 
 type selectorState struct {
-	selector SelectorRunner
-	selected bool
-	pending  []detachableValue
-	done     bool
+	selector          SelectorRunner
+	selected          bool
+	pending           []detachableValue
+	done              bool
+	reversesSelection bool
+}
+
+func (s *selectorState) flush(ctx *RunContext, result bool, next valueProcessor) bool {
+	if s.reversesSelection {
+		for i := len(s.pending) - 1; i >= 0; i-- {
+			dv := s.pending[i]
+			if result {
+				result = next.ProcessValue(ctx, dv.value)
+			}
+			dv.detach()
+		}
+	} else {
+		for _, dv := range s.pending {
+			if result {
+				result = next.ProcessValue(ctx, dv.value)
+			}
+			dv.detach()
+		}
+	}
+	s.pending = nil
+	return result
 }
 
 type valueDispatcher struct {
@@ -53,6 +75,7 @@ func newValueDispatcher(selectors []SelectorRunner, next valueProcessor) *valueD
 	selectorStates := make([]selectorState, len(selectors))
 	for i, selector := range selectors {
 		selectorStates[i].selector = selector
+		selectorStates[i].reversesSelection = selector.ReversesSelection()
 	}
 	return &valueDispatcher{
 		selectorStates: selectorStates,
@@ -61,14 +84,8 @@ func newValueDispatcher(selectors []SelectorRunner, next valueProcessor) *valueD
 }
 
 func (d *valueDispatcher) flush(ctx *RunContext, result bool) bool {
-	// We have reached the end of the object, flush remaining states
 	for _, state := range d.selectorStates {
-		for _, dv := range state.pending {
-			if result {
-				result = d.next.ProcessValue(ctx, dv.value)
-			}
-			dv.detach()
-		}
+		result = state.flush(ctx, result, d.next)
 	}
 	return result
 }
@@ -110,12 +127,7 @@ func (d *valueDispatcher) transformItem(ctx *RunContext, value iterator.Value, d
 	// Flush finished states
 	if firstLiveIndex > 0 {
 		for _, state := range d.selectorStates[:firstLiveIndex] {
-			for _, dv := range state.pending {
-				if result {
-					result = d.next.ProcessValue(ctx, dv.value)
-				}
-				dv.detach()
-			}
+			result = state.flush(ctx, result, d.next)
 		}
 		d.selectorStates = d.selectorStates[firstLiveIndex:]
 		if !result || len(d.selectorStates) == 0 {
@@ -123,15 +135,10 @@ func (d *valueDispatcher) transformItem(ctx *RunContext, value iterator.Value, d
 		}
 	}
 
+	firstState := &d.selectorStates[0]
 	// Flush the first state
-	if len(d.selectorStates[0].pending) > 0 {
-		for _, dv := range d.selectorStates[0].pending {
-			if result {
-				result = d.next.ProcessValue(ctx, dv.value)
-			}
-			dv.detach()
-		}
-		d.selectorStates[0].pending = nil
+	if !firstState.reversesSelection && len(firstState.pending) > 0 {
+		result = firstState.flush(ctx, result, d.next)
 		if !result {
 			return
 		}
@@ -157,7 +164,7 @@ func (d *valueDispatcher) ProcessValue(ctx *RunContext, value iterator.Value) bo
 		if state.selected {
 			// TODO: We shouldn't clone but copy, but first need to make it work
 			clone, detach := cloneIf(value, d.shouldClone)
-			if i == 0 {
+			if i == 0 && !state.reversesSelection {
 				result := d.next.ProcessValue(ctx, clone)
 				if detach != nil {
 					detach()

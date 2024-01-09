@@ -51,6 +51,8 @@ type SelectorRunner interface {
 	// Selects should promise not to advance Value, so it must clone it first if
 	// it wants to look inside.
 	SelectsFromValue(ctx *RunContext, value iterator.Value) bool
+
+	ReversesSelection() bool
 }
 
 // Here are the different kinds of SectorRunner.
@@ -60,6 +62,7 @@ var _ SelectorRunner = NameSelectorRunner{}     // $.foo or $["foo"]
 var _ SelectorRunner = WildcardSelectorRunner{} // $.* or $[*]
 var _ SelectorRunner = IndexSelectorRunner{}    // $[42]
 var _ SelectorRunner = SliceSelectorRunner{}    // $[:10] or $[-10:] or $[1::2]
+var _ SelectorRunner = ReverseSliceSelectorRunner{}
 var _ SelectorRunner = FilterSelectorRunner{}
 
 // And here are their implmentations.
@@ -85,6 +88,10 @@ func (r DefaultSelectorRunner) SelectsFromKey(key string) Decision {
 
 // SelectsFromValue returns false.
 func (r DefaultSelectorRunner) SelectsFromValue(ctx *RunContext, value iterator.Value) bool {
+	return false
+}
+
+func (r DefaultSelectorRunner) ReversesSelection() bool {
 	return false
 }
 
@@ -170,8 +177,6 @@ type SliceSelectorRunner struct {
 // Lookahead returns a value that allows deciding whether we have reached the
 // start or end index of the slice.
 func (r SliceSelectorRunner) Lookahead() int64 {
-	// For now negative step is unsupported, so lookahead is only for negative
-	// start and end
 	// max(-r.start, -r.end, 0)
 	lookahead := -r.start
 	if -r.end > lookahead {
@@ -204,6 +209,53 @@ func (r SliceSelectorRunner) SelectsFromIndex(index, negIndex int64) Decision {
 		return Yes
 	}
 	return No
+}
+
+type ReverseSliceSelectorRunner struct {
+	DefaultSelectorRunner
+	start, end, step int64
+}
+
+// Lookahead returns a value that allows deciding whether we have reached the
+// start or end index of the slice.
+func (r ReverseSliceSelectorRunner) Lookahead() int64 {
+	// max(-r.start, -r.end, 0)
+	lookahead := -r.start
+	if -r.end > lookahead {
+		lookahead = -r.end
+	}
+	if lookahead > 0 {
+		return lookahead
+	}
+	return 0
+}
+
+// SelectsFromIndex returns Yes or No, depending on whether the index is part of
+// the reverse slice.
+func (r ReverseSliceSelectorRunner) SelectsFromIndex(index, negIndex int64) Decision {
+	var startOffset, endOffset int64
+	if r.start < 0 {
+		startOffset = negIndex - r.start
+	} else {
+		startOffset = index - r.start
+	}
+	if r.end < 0 {
+		endOffset = negIndex - r.end
+	} else {
+		endOffset = index - r.end
+	}
+
+	if startOffset > 0 {
+		return No | NoMoreAfter
+	}
+	if endOffset > 0 && startOffset%r.step == 0 {
+		return Yes
+	}
+	return No
+}
+
+func (r ReverseSliceSelectorRunner) ReversesSelection() bool {
+	return true
 }
 
 type FilterSelectorRunner struct {
