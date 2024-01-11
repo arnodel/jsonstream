@@ -25,72 +25,138 @@ type SegmentRunner struct {
 	isDescendantSegment bool
 }
 
-type detachableValue struct {
-	value      iterator.Value
-	detachFunc func()
-}
-
-func (dv detachableValue) detach() {
-	if dv.detachFunc != nil {
-		dv.detachFunc()
+func (r SegmentRunner) transformValue(ctx *RunContext, value iterator.Value, next valueProcessor, followingSegments []SegmentRunner) bool {
+	switch x := value.(type) {
+	case *iterator.Object:
+		return r.transformObject(ctx, x, next, followingSegments)
+	case *iterator.Array:
+		return r.transformArray(ctx, x, next, followingSegments)
+	default:
+		value.Discard()
+		return true
 	}
 }
 
-type selectorState struct {
-	selector          SelectorRunner
-	selected          bool
-	pending           []detachableValue
-	done              bool
-	reversesSelection bool
+func (r SegmentRunner) transformObject(ctx *RunContext, obj *iterator.Object, next valueProcessor, followingSegments []SegmentRunner) (result bool) {
+	dispatcher := newItemDispatcher(r.selectors, next)
+
+	defer func() { dispatcher.flush(ctx, result) }()
+
+	for obj.Advance() {
+		keyScalar, value := obj.CurrentKeyVal()
+		key := keyScalar.ToString()
+		result = dispatcher.dispatchItem(ctx, value, func(s SelectorRunner) Decision { return s.SelectsFromKey(key) }, followingSegments)
+		if !result {
+			return
+		}
+
+		// Lastly if this is a descendant segment, we need to dive into value
+		if r.isDescendantSegment {
+			result = r.transformValue(ctx, value, next, followingSegments)
+			if !result {
+				return
+			}
+		} else if len(dispatcher.selectorStates) == 0 {
+			return
+		}
+	}
+	return true
 }
 
-func (s *selectorState) flush(ctx *RunContext, result bool, next valueProcessor) bool {
-	if s.reversesSelection {
-		for i := len(s.pending) - 1; i >= 0; i-- {
-			dv := s.pending[i]
-			if result {
-				result = next.ProcessValue(ctx, dv.value)
-			}
-			dv.detach()
+func (r SegmentRunner) transformArray(ctx *RunContext, arr *iterator.Array, next valueProcessor, followingSegments []SegmentRunner) (result bool) {
+	dispatcher := newItemDispatcher(r.selectors, next)
+
+	defer func() { dispatcher.flush(ctx, result) }()
+
+	var index, negIndex int64
+	var ahead *iterator.Array
+
+	if r.lookahead > 0 {
+		var detach func()
+		ahead, detach = arr.CloneArray()
+		defer detach()
+		for negIndex+r.lookahead >= 0 && ahead.Advance() {
+			negIndex--
 		}
 	} else {
-		for _, dv := range s.pending {
-			if result {
-				result = next.ProcessValue(ctx, dv.value)
+		negIndex = math.MinInt64
+	}
+
+	for arr.Advance() {
+		value := arr.CurrentValue()
+
+		result = dispatcher.dispatchItem(ctx, value, func(s SelectorRunner) Decision { return s.SelectsFromIndex(index, negIndex) }, followingSegments)
+		if !result {
+			return
+		}
+
+		// Update the index
+		index++
+		if ahead != nil && !ahead.Advance() {
+			negIndex++
+		}
+
+		// Lastly if this is a descendant segment, we need to dive into value
+		if r.isDescendantSegment {
+			result = r.transformValue(ctx, value, next, followingSegments)
+			if !result {
+				return
 			}
-			dv.detach()
+		} else if len(dispatcher.selectorStates) == 0 {
+			return
 		}
 	}
-	s.pending = nil
-	return result
+
+	return true
 }
 
-type valueDispatcher struct {
+// itemDispatcher is a helper class for implementing the transformArray and
+// transformObject methods of SegmentRunner.  It is able to process individual
+// items in either type of collection.  A single itemDispatcher instance should
+// be used to process a single collection.
+//
+// For a collection (object or array), given a specific item in the collection,
+// it can decide what selectors in the segment select this item and either pass
+// it on directly to the next processor in the pipeline if it's from the first
+// active selector, or record it for later processing.
+//
+// Some mechanism like this is needed because we want to process the collection
+// in a streaming way (item per item), but the jsonpath standard specifies that
+// in the query $[S1, S2] all the items selected by S1 are emitted before the
+// items selected by S2. So for example if the query is $[1,0] and the input is
+// [1, 2] then the emitted items are 2, 1 in that order.
+//
+// It is also a valueProcessor because it is used in the next segment of the
+// query as
+type itemDispatcher struct {
 	shouldClone    bool
 	selectorStates []selectorState
 	next           valueProcessor
 }
 
-func newValueDispatcher(selectors []SelectorRunner, next valueProcessor) *valueDispatcher {
+var _ valueProcessor = &itemDispatcher{}
+
+func newItemDispatcher(selectors []SelectorRunner, next valueProcessor) *itemDispatcher {
 	selectorStates := make([]selectorState, len(selectors))
 	for i, selector := range selectors {
 		selectorStates[i].selector = selector
 		selectorStates[i].reversesSelection = selector.ReversesSelection()
 	}
-	return &valueDispatcher{
+	return &itemDispatcher{
 		selectorStates: selectorStates,
 		next:           next,
 	}
 }
 
-func (d *valueDispatcher) flush(ctx *RunContext, result bool) bool {
+// Flush the dispatcher and dispatch to d.next the pending items as long as result is true.
+func (d *itemDispatcher) flush(ctx *RunContext, result bool) bool {
 	for _, state := range d.selectorStates {
 		result = state.flush(ctx, result, d.next)
 	}
 	return result
 }
 
-func (d *valueDispatcher) transformItem(ctx *RunContext, value iterator.Value, decide func(SelectorRunner) Decision, followingSegments []SegmentRunner) (result bool) {
+func (d *itemDispatcher) dispatchItem(ctx *RunContext, value iterator.Value, decide func(SelectorRunner) Decision, followingSegments []SegmentRunner) (result bool) {
 	result = true
 
 	if len(d.selectorStates) == 0 {
@@ -150,13 +216,13 @@ func (d *valueDispatcher) transformItem(ctx *RunContext, value iterator.Value, d
 		if len(followingSegments) == 0 {
 			result = d.ProcessValue(ctx, value)
 		} else {
-			result = followingSegments[0].transformValue2(ctx, value, d, followingSegments[1:])
+			result = followingSegments[0].transformValue(ctx, value, d, followingSegments[1:])
 		}
 	}
 	return
 }
 
-func (d *valueDispatcher) ProcessValue(ctx *RunContext, value iterator.Value) bool {
+func (d *itemDispatcher) ProcessValue(ctx *RunContext, value iterator.Value) bool {
 	// Then apply the eligible selectors, but only the first one is
 	// passed to next straight away
 	for i := range d.selectorStates {
@@ -188,87 +254,42 @@ func cloneIf(value iterator.Value, cond bool) (iterator.Value, func()) {
 	}
 }
 
-func (r SegmentRunner) transformValue2(ctx *RunContext, value iterator.Value, next valueProcessor, followingSegments []SegmentRunner) bool {
-	switch x := value.(type) {
-	case *iterator.Object:
-		return r.transformObject(ctx, x, next, followingSegments)
-	case *iterator.Array:
-		return r.transformArray(ctx, x, next, followingSegments)
-	default:
-		value.Discard()
-		return true
-	}
+type selectorState struct {
+	selector          SelectorRunner
+	selected          bool
+	pending           []detachableValue
+	done              bool
+	reversesSelection bool
 }
 
-func (r SegmentRunner) transformObject(ctx *RunContext, obj *iterator.Object, next valueProcessor, followingSegments []SegmentRunner) (result bool) {
-	dispatcher := newValueDispatcher(r.selectors, next)
-
-	defer func() { dispatcher.flush(ctx, result) }()
-
-	for obj.Advance() {
-		keyScalar, value := obj.CurrentKeyVal()
-		key := keyScalar.ToString()
-		result = dispatcher.transformItem(ctx, value, func(s SelectorRunner) Decision { return s.SelectsFromKey(key) }, followingSegments)
-		if !result {
-			return
-		}
-
-		// Lastly if this is a descendant segment, we need to dive into value
-		if r.isDescendantSegment {
-			result = r.transformValue2(ctx, value, next, followingSegments)
-			if !result {
-				return
+func (s *selectorState) flush(ctx *RunContext, result bool, next valueProcessor) bool {
+	if s.reversesSelection {
+		for i := len(s.pending) - 1; i >= 0; i-- {
+			dv := s.pending[i]
+			if result {
+				result = next.ProcessValue(ctx, dv.value)
 			}
-		} else if len(dispatcher.selectorStates) == 0 {
-			return
-		}
-	}
-	return true
-}
-
-func (r SegmentRunner) transformArray(ctx *RunContext, arr *iterator.Array, next valueProcessor, followingSegments []SegmentRunner) (result bool) {
-	dispatcher := newValueDispatcher(r.selectors, next)
-
-	defer func() { dispatcher.flush(ctx, result) }()
-
-	var index, negIndex int64
-	var ahead *iterator.Array
-
-	if r.lookahead > 0 {
-		var detach func()
-		ahead, detach = arr.CloneArray()
-		defer detach()
-		for negIndex+r.lookahead >= 0 && ahead.Advance() {
-			negIndex--
+			dv.detach()
 		}
 	} else {
-		negIndex = math.MinInt64
-	}
-
-	for arr.Advance() {
-		value := arr.CurrentValue()
-
-		result = dispatcher.transformItem(ctx, value, func(s SelectorRunner) Decision { return s.SelectsFromIndex(index, negIndex) }, followingSegments)
-		if !result {
-			return
-		}
-
-		// Update the index
-		index++
-		if ahead != nil && !ahead.Advance() {
-			negIndex++
-		}
-
-		// Lastly if this is a descendant segment, we need to dive into value
-		if r.isDescendantSegment {
-			result = r.transformValue2(ctx, value, next, followingSegments)
-			if !result {
-				return
+		for _, dv := range s.pending {
+			if result {
+				result = next.ProcessValue(ctx, dv.value)
 			}
-		} else if len(dispatcher.selectorStates) == 0 {
-			return
+			dv.detach()
 		}
 	}
+	s.pending = nil
+	return result
+}
 
-	return true
+type detachableValue struct {
+	value      iterator.Value
+	detachFunc func()
+}
+
+func (dv detachableValue) detach() {
+	if dv.detachFunc != nil {
+		dv.detachFunc()
+	}
 }

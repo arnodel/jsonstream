@@ -113,7 +113,7 @@ func (r QueryRunner) MapValue(ctx *RunContext, value iterator.Value, next valueP
 	if len(r.segments) == 0 {
 		return next.ProcessValue(ctx, value)
 	}
-	return r.segments[0].transformValue2(ctx, value, next, r.segments[1:])
+	return r.segments[0].transformValue(ctx, value, next, r.segments[1:])
 }
 
 type NodesResultEvaluator interface {
