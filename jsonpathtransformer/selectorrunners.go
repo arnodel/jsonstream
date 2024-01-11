@@ -52,18 +52,21 @@ type SelectorRunner interface {
 	// it wants to look inside.
 	SelectsFromValue(ctx *RunContext, value iterator.Value) bool
 
+	// ReversesSelection returns true if the selector should output the values
+	// it selects in reverse order. This is taylor-made for slice selectors with
+	// a negative step.
 	ReversesSelection() bool
 }
 
 // Here are the different kinds of SectorRunner.
 
 var _ SelectorRunner = DefaultSelectorRunner{}
-var _ SelectorRunner = NameSelectorRunner{}     // $.foo or $["foo"]
-var _ SelectorRunner = WildcardSelectorRunner{} // $.* or $[*]
-var _ SelectorRunner = IndexSelectorRunner{}    // $[42]
-var _ SelectorRunner = SliceSelectorRunner{}    // $[:10] or $[-10:] or $[1::2]
-var _ SelectorRunner = ReverseSliceSelectorRunner{}
-var _ SelectorRunner = FilterSelectorRunner{}
+var _ SelectorRunner = NameSelectorRunner{}         // $.foo or $["foo"]
+var _ SelectorRunner = WildcardSelectorRunner{}     // $.* or $[*]
+var _ SelectorRunner = IndexSelectorRunner{}        // $[42]
+var _ SelectorRunner = SliceSelectorRunner{}        // $[:10] or $[-10:] or $[1::2]
+var _ SelectorRunner = ReverseSliceSelectorRunner{} // $[::-1] or $[100::-10] or $[-10:10:-1]
+var _ SelectorRunner = FilterSelectorRunner{}       // $[?@.id < 10]
 
 // And here are their implmentations.
 
@@ -165,10 +168,8 @@ func (r IndexSelectorRunner) SelectsFromIndex(index, negIndex int64) Decision {
 // from -1.
 //
 // Note that the compiler never creates an instance of SliceSelectorRunner where
-// step == 0, so the implementation assumes step != 0.
-//
-// Currently, negative steps are not implemented as it would require going
-// through the array in reverse order.  TODO: support negative step
+// step <= 0, so the implementation assumes step > 0.  For negative steps, there
+// is a separate implementation called ReverseSliceSelectorRunner.
 type SliceSelectorRunner struct {
 	DefaultSelectorRunner
 	start, end, step int64
@@ -211,6 +212,14 @@ func (r SliceSelectorRunner) SelectsFromIndex(index, negIndex int64) Decision {
 	return No
 }
 
+// SliceSelectorRunner implements the selector that selects a slice of an array.
+// A slice is defined by 3 integer values start, end, step.  Start and end may
+// be negative in which case they are counted from the end of the array starting
+// from -1.
+//
+// Note that the compiler never creates an instance of ReverseSliceSelectorRunner where
+// step >= 0, so the implementation assumes step < 0.  For positive steps, there
+// is a separate implementation called SliceSelectorRunner.
 type ReverseSliceSelectorRunner struct {
 	DefaultSelectorRunner
 	start, end, step int64
@@ -254,10 +263,13 @@ func (r ReverseSliceSelectorRunner) SelectsFromIndex(index, negIndex int64) Deci
 	return No
 }
 
+// ReversesSelection returns true
 func (r ReverseSliceSelectorRunner) ReversesSelection() bool {
 	return true
 }
 
+// FilterSelectorRunner implements filters, i.e. selector that select a node
+// depdending on a condition
 type FilterSelectorRunner struct {
 	DefaultSelectorRunner
 	condition LogicalEvaluator
