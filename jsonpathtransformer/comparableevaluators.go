@@ -38,6 +38,8 @@ func (r SingularQueryRunner) Evaluate(ctx *RunContext, value iterator.Value) ite
 			value = selector.SelectFromObject(x)
 		case *iterator.Array:
 			value = selector.SelectFromArray(x)
+		default:
+			value = nil
 		}
 		if value == nil {
 			break
