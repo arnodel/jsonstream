@@ -1,6 +1,8 @@
 package jsonpathtransformer
 
 import (
+	"math"
+
 	"github.com/arnodel/jsonstream/iterator"
 )
 
@@ -232,6 +234,16 @@ func (r ReverseSliceSelectorRunner) Lookahead() int64 {
 	lookahead := -r.start
 	if -r.end > lookahead {
 		lookahead = -r.end
+	}
+	// When the step is not -1, we need to know exactly the offset from the
+	// start index, which is only possible when r.start < 0 if we know the
+	// offset from the end of the array.
+	//
+	// There is a trick here, -r.end <= 0 is not equivalent to r.end >= 0
+	// because when the end of the slice is not specified, r.end is set to
+	// math.MinInt64 and in that case -r.end == 0.
+	if r.start < 0 && -r.end <= 0 && r.step < -1 {
+		lookahead = math.MaxInt64
 	}
 	if lookahead > 0 {
 		return lookahead

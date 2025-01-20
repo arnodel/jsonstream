@@ -96,7 +96,10 @@ func (r SegmentRunner) transformArray(ctx *RunContext, arr *iterator.Array, next
 			negIndex--
 		}
 	} else {
-		negIndex = math.MinInt64
+		// negIndex has to be greater than math.MinInt64 because a reverse slice
+		// with default end has an end set to math.MinInt64 and than has to be
+		// beyound any possible value of negIndex.
+		negIndex = math.MinInt64 + 1
 	}
 
 	var arr2 *iterator.Array
