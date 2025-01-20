@@ -3,12 +3,25 @@ package parser
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"strconv"
 	"strings"
 )
 
+const (
+	maxSafeInt = 9007199254740991
+	minSafeInt = -9007199254740991
+)
+
 func parseInt(s string) (int64, error) {
-	return strconv.ParseInt(s, 10, 64)
+	n, err := strconv.ParseInt(s, 10, 64)
+	if err != nil {
+		return n, err
+	}
+	if n > maxSafeInt || n < minSafeInt {
+		return n, fmt.Errorf("out of safe bounds integer value: %d", n)
+	}
+	return n, nil
 }
 
 func parseDoubleQuotedString(s string) (string, error) {
