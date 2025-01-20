@@ -8,6 +8,9 @@ import (
 
 type ComparableEvaluator interface {
 	// The returned value must be cloned first if it is consumed
+	//
+	// TODO: see if it wouldn't be better to clone it by default as the value is
+	// perhaps always consumed.
 	Evaluate(ctx *RunContext, value iterator.Value) iterator.Value
 }
 
