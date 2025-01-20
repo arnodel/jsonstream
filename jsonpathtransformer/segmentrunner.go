@@ -42,6 +42,14 @@ func (r SegmentRunner) transformObject(ctx *RunContext, obj *iterator.Object, ne
 
 	defer func() { dispatcher.flush(ctx, result) }()
 
+	var obj2 *iterator.Object
+	var detach2 func()
+
+	if r.isDescendantSegment {
+		obj2, detach2 = obj.CloneObject()
+		defer detach2()
+	}
+
 	for obj.Advance() {
 		keyScalar, value := obj.CurrentKeyVal()
 		key := keyScalar.ToString()
@@ -50,14 +58,23 @@ func (r SegmentRunner) transformObject(ctx *RunContext, obj *iterator.Object, ne
 			return
 		}
 
-		// Lastly if this is a descendant segment, we need to dive into value
-		if r.isDescendantSegment {
-			result = r.transformValue(ctx, value, next, followingSegments)
+		if len(dispatcher.selectorStates) == 0 {
+			break
+		}
+	}
+
+	// Lastly if this is a descendant segment, we need to dive into values
+	//
+	// We do this here to comply with the order defined in the RFC but in a
+	// streaming context it would be better to dive in inside the loop above.
+	// Perhaps there could be a switch to decide whether we do this efficiently
+	// or in a standard-compliant way.
+	if r.isDescendantSegment {
+		for obj2.Advance() {
+			result = r.transformValue(ctx, obj2.CurrentValue(), next, followingSegments)
 			if !result {
 				return
 			}
-		} else if len(dispatcher.selectorStates) == 0 {
-			return
 		}
 	}
 	return true
@@ -82,10 +99,21 @@ func (r SegmentRunner) transformArray(ctx *RunContext, arr *iterator.Array, next
 		negIndex = math.MinInt64
 	}
 
+	var arr2 *iterator.Array
+	var detach2 func()
+
+	if r.isDescendantSegment {
+		arr2, detach2 = arr.CloneArray()
+		defer detach2()
+	}
 	for arr.Advance() {
 		value := arr.CurrentValue()
-
-		result = dispatcher.dispatchItem(ctx, value, func(s SelectorRunner) Decision { return s.SelectsFromIndex(index, negIndex) }, followingSegments)
+		result = dispatcher.dispatchItem(
+			ctx,
+			value,
+			func(s SelectorRunner) Decision { return s.SelectsFromIndex(index, negIndex) },
+			followingSegments,
+		)
 		if !result {
 			return
 		}
@@ -96,14 +124,23 @@ func (r SegmentRunner) transformArray(ctx *RunContext, arr *iterator.Array, next
 			negIndex++
 		}
 
-		// Lastly if this is a descendant segment, we need to dive into value
-		if r.isDescendantSegment {
-			result = r.transformValue(ctx, value, next, followingSegments)
+		if len(dispatcher.selectorStates) == 0 {
+			break
+		}
+	}
+
+	// Lastly if this is a descendant segment, we need to dive into items
+	//
+	// We do this here to comply with the order defined in the RFC but in a
+	// streaming context it would be better to dive in inside the loop above.
+	// Perhaps there could be a switch to decide whether we do this efficiently
+	// or in a standard-compliant way.
+	if r.isDescendantSegment {
+		for arr2.Advance() {
+			result = r.transformValue(ctx, arr2.CurrentValue(), next, followingSegments)
 			if !result {
 				return
 			}
-		} else if len(dispatcher.selectorStates) == 0 {
-			return
 		}
 	}
 

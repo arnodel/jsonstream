@@ -147,5 +147,35 @@ func runCTSTestData(t *testing.T, testData ctsData) {
 			}
 			return true
 		})
+		if expectedArr.Advance() {
+			t.Fatal("expected more nodes in query result")
+		}
+	}
+	if testData.results != nil {
+		for testData.results.Advance() {
+			expectedArr, ok := testData.results.CurrentValue().AsArray()
+			if !ok {
+				t.Fatal("Expected results item to be an array")
+			}
+			document, detach := testData.document.Clone()
+			match := true
+			runner.EvaluateNodesResult(document).ForEachNode(func(val iterator.Value) bool {
+				if !expectedArr.Advance() {
+					match = false
+					return false
+				}
+				expectedVal := expectedArr.CurrentValue()
+				if !iterator.ValuesEqual(val, expectedVal) {
+					match = false
+					return false
+				}
+				return true
+			})
+			detach()
+			if match && !expectedArr.Advance() {
+				return
+			}
+		}
+		t.Fatal("Result does not match any of the expected results")
 	}
 }

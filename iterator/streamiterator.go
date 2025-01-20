@@ -201,12 +201,17 @@ type Object struct {
 	currentKey *token.Scalar
 }
 
-func (o *Object) Clone() (Value, func()) {
+func (o *Object) CloneObject() (*Object, func()) {
 	clone, detach := o.clone()
 	return &Object{
 		collectionBase: clone,
 	}, detach
 }
+
+func (o *Object) Clone() (Value, func()) {
+	return o.CloneObject()
+}
+
 func (o *Object) CurrentKeyVal() (*token.Scalar, Value) {
 	if o.done {
 		panic("iterator done")

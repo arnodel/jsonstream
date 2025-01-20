@@ -165,7 +165,7 @@ func TestSimplQueries(t *testing.T) {
 			name:   "descendant query bracket syntax",
 			input:  `{"a": {"b": 1}, "b": {"a": 2}}`,
 			query:  `$..["b"]`,
-			output: `1 {"a": 2}`,
+			output: `{"a": 2} 1`,
 		},
 	}
 	for _, c := range testCases {
