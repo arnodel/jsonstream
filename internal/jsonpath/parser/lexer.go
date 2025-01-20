@@ -36,7 +36,7 @@ var TokeniseJsonPathString = grammar.SimpleTokeniser([]grammar.TokenDef{
 	},
 	{
 		Name: "int",
-		Ptn:  `(?:0|-?[1-9][0-9]*)(?:[^.e0-9]|$)`,
+		Ptn:  `(?:0|-?[1-9][0-9]*)(?:[^.eE0-9]|$)`,
 		Special: func(input string) string {
 			i := 0
 			if input[i] == '-' {
@@ -52,7 +52,7 @@ var TokeniseJsonPathString = grammar.SimpleTokeniser([]grammar.TokenDef{
 	},
 	{
 		Name: "number",
-		Ptn:  `(?:-?0|-?[1-9][0-9]*)(?:\.[0-9]+)?(?:e[+-]?[0-9]+)?\b`,
+		Ptn:  `(?:-?0|-?[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?\b`,
 	},
 	{
 		Name: "doublequotedstring",
