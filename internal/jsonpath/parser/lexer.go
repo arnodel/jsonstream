@@ -56,10 +56,10 @@ var TokeniseJsonPathString = grammar.SimpleTokeniser([]grammar.TokenDef{
 	},
 	{
 		Name: "doublequotedstring",
-		Ptn:  `"(?:\\[bfnrt/\\"]|\\u[0-9ABCEFabcef][0-9A-Fa-f]{3}|\\uD[89ABab][0-9A-Fa-f]{2}\\u[Dd][C-Fc-f][0-9A-Fa-f]{2}|[\x20-\x21\x23-\x5B\x5D-\x{D7FF}\x{E000}-\x{10FFFF}])*"`,
+		Ptn:  `"(?:\\[bfnrt/\\"]|\\u[0-9ABCEFabcef][0-9A-Fa-f]{3}|\\u[Dd][0-7][0-9A-Fa-f]{2}|\\u[Dd][89ABab][0-9A-Fa-f]{2}\\u[Dd][C-Fc-f][0-9A-Fa-f]{2}|[\x20-\x21\x23-\x5B\x5D-\x{D7FF}\x{E000}-\x{10FFFF}])*"`,
 	},
 	{
 		Name: "singlequotedstring",
-		Ptn:  `'(?:\\[bfnrt/\\']|\\u[0-9ABCEFabcef][0-9A-Fa-f]{3}|\\uD[89ABab][0-9A-Fa-f]{2}\\u[Dd][C-Fc-f][0-9A-Fa-f]{2}|[\x20-\x26\x28-\x5B\x5D-\x{D7FF}\x{E000}-\x{10FFFF}])*'`,
+		Ptn:  `'(?:\\[bfnrt/\\']|\\u[0-9ABCEFabcef][0-9A-Fa-f]{3}|\\u[Dd][0-7][0-9A-Fa-f]{2}|\\u[Dd][89ABab][0-9A-Fa-f]{2}\\u[Dd][C-Fc-f][0-9A-Fa-f]{2}|[\x20-\x26\x28-\x5B\x5D-\x{D7FF}\x{E000}-\x{10FFFF}])*'`,
 	},
 })
