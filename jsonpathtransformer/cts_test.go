@@ -39,6 +39,7 @@ type ctsData struct {
 	selector         string
 	document         iterator.Value
 	result           iterator.Value
+	results          *iterator.Array
 	invalid_selector bool
 }
 
@@ -86,6 +87,16 @@ func runCTSTest(t *testing.T, test iterator.Value) {
 				defer detach()
 			}
 			testData.result = res
+		case "results":
+			res, detach := value.Clone()
+			if detach != nil {
+				defer detach()
+			}
+			resArray, ok := res.AsArray()
+			if !ok {
+				t.Fatalf("Expected results to be an array")
+			}
+			testData.results = resArray
 		case "invalid_selector":
 			valueScalar, ok := value.AsScalar()
 			if !ok {
@@ -99,8 +110,8 @@ func runCTSTest(t *testing.T, test iterator.Value) {
 			}
 		}
 	}
-	if !testData.invalid_selector && testData.result == nil {
-		t.Fatalf("invalid test: missing result")
+	if !testData.invalid_selector && testData.result == nil && testData.results == nil {
+		t.Fatalf("invalid test: missing result or results (%s)", testData.name)
 	}
 	t.Run(testData.name, func(t *testing.T) {
 		runCTSTestData(t, testData)
@@ -121,18 +132,20 @@ func runCTSTestData(t *testing.T, testData ctsData) {
 	if testData.invalid_selector {
 		t.Fatalf("query expected to be invalid")
 	}
-	expectedArr, ok := testData.result.AsArray()
-	if !ok {
-		t.Fatal("Expected result to be an array")
+	if testData.result != nil {
+		expectedArr, ok := testData.result.AsArray()
+		if !ok {
+			t.Fatal("Expected result to be an array")
+		}
+		runner.EvaluateNodesResult(testData.document).ForEachNode(func(val iterator.Value) bool {
+			if !expectedArr.Advance() {
+				t.Fatal("got more nodes than expected in query result")
+			}
+			expectedVal := expectedArr.CurrentValue()
+			if !iterator.ValuesEqual(val, expectedVal) {
+				t.Fatal("non-matching results")
+			}
+			return true
+		})
 	}
-	runner.EvaluateNodesResult(testData.document).ForEachNode(func(val iterator.Value) bool {
-		if !expectedArr.Advance() {
-			t.Fatal("got more nodes than expected in query result")
-		}
-		expectedVal := expectedArr.CurrentValue()
-		if !iterator.ValuesEqual(val, expectedVal) {
-			t.Fatal("non-matching results")
-		}
-		return true
-	})
 }
