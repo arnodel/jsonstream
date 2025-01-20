@@ -1,9 +1,9 @@
 package jsonpathtransformer
 
 import (
-	"regexp"
 	"unicode/utf8"
 
+	"github.com/arnodel/jsonstream/internal/jsonpath/iregexp"
 	"github.com/arnodel/jsonstream/internal/jsonpath/parser"
 	"github.com/arnodel/jsonstream/iterator"
 	"github.com/arnodel/jsonstream/token"
@@ -153,7 +153,7 @@ func matchIndex(args []any) (loc []int) {
 		return nil
 	}
 	ptnString := parser.ParseJsonLiteralBytes(arg2.Bytes).(string)
-	ptn, err := regexp.Compile(ptnString)
+	ptn, err := iregexp.Compile(ptnString)
 	if err != nil {
 		return nil
 	}
