@@ -77,8 +77,22 @@ func (e ComparisonEvaluator) EvaluateTruth(ctx *RunContext, value iterator.Value
 		defer detach2()
 	}
 	leftValue := e.left.Evaluate(ctx, value1)
-
+	if leftValue != nil {
+		var detach func()
+		leftValue, detach = leftValue.Clone()
+		if detach != nil {
+			defer detach()
+		}
+	}
 	rightValue := e.right.Evaluate(ctx, value2)
+	if rightValue != nil {
+		var detach func()
+		rightValue, detach = rightValue.Clone()
+		if detach != nil {
+			defer detach()
+		}
+	}
+
 	result := false
 	if e.flags&CheckEquals != 0 {
 		result = checkEqual(leftValue, rightValue)
