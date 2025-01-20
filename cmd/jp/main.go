@@ -87,18 +87,19 @@ func main() {
 	// Choose the input decoder
 	if inputFormat == "auto" {
 		var start = make([]byte, 40)
-		_, err := input.Read(start)
+		n, err := input.Read(start)
 		if err == io.EOF {
 			fatalError("unable to guess format of empty file")
 		}
 		if err != nil {
 			fatalError("unable to read input: %s", err)
 		}
+		start = start[:n]
 		inputFormat = guessFormat(start)
 		if inputFormat == "" {
 			fatalError("unable to guess input format, please specify -in FORMAT")
 		}
-		input = io.MultiReader(bytes.NewReader(start), input)
+		input = io.MultiReader(bytes.NewReader(start[:n]), input)
 	}
 
 	var decoder token.StreamSource
