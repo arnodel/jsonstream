@@ -13,10 +13,21 @@ import (
 
 var ErrUnimplementedFeature = errors.New("unimplemented feature")
 
+type CompileQueryOption func(*compiler)
+
+func WithStrictMode(strictMode bool) CompileQueryOption {
+	return func(c *compiler) {
+		c.strictMode = strictMode
+	}
+}
+
 // CompileQuery compiles a JSON query AST to a QueryRunner.
-func CompileQuery(query ast.Query) (MainQueryRunner, error) {
+func CompileQuery(query ast.Query, options ...CompileQueryOption) (MainQueryRunner, error) {
 	c := compiler{
 		functionRegistry: DefaultFunctionRegistry,
+	}
+	for _, opt := range options {
+		opt(&c)
 	}
 	runner, err := c.compileQuery(query)
 	if err != nil {
@@ -46,6 +57,8 @@ type compiler struct {
 	innerQueries         []innerQueryEntry
 
 	functionRegistry FunctionRegistry
+
+	strictMode bool
 }
 
 func (c *compiler) getInnerQueries() ([]SingularQueryRunner, []QueryEvaluator) {
@@ -122,6 +135,7 @@ func (c *compiler) compileSegment(segment ast.Segment) (r SegmentRunner, err err
 		selectors:           selectors,
 		lookahead:           lookahead,
 		isDescendantSegment: segment.Type == ast.DescendantSegmentType,
+		strictMode:          c.strictMode,
 	}
 	return
 }

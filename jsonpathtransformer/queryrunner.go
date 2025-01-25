@@ -9,6 +9,7 @@ type MainQueryRunner struct {
 	mainRunner           QueryEvaluator
 	innerSingularQueries []SingularQueryRunner
 	innerQueries         []QueryEvaluator
+	strictMode           bool
 }
 
 func (r MainQueryRunner) Transform(in <-chan token.Token, out token.WriteStream) {
@@ -73,6 +74,7 @@ func (r MainQueryRunner) EvaluateNodesResult(value iterator.Value) NodesResult {
 type RunContext struct {
 	innerSingularQueries []iterator.Value
 	innerQueries         []*iterator.Iterator
+	strictMode           bool
 }
 
 type ValueMapper interface {

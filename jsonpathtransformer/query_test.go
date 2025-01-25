@@ -45,7 +45,7 @@ func compileQueryStringStrict(s string) (jsonpathtransformer.MainQueryRunner, er
 	if err != nil {
 		return jsonpathtransformer.MainQueryRunner{}, err
 	}
-	return jsonpathtransformer.CompileQuery(query)
+	return jsonpathtransformer.CompileQuery(query, jsonpathtransformer.WithStrictMode(true))
 }
 
 func streamJsonString(s string) <-chan token.Token {
@@ -165,7 +165,7 @@ func TestSimplQueries(t *testing.T) {
 			name:   "descendant query bracket syntax",
 			input:  `{"a": {"b": 1}, "b": {"a": 2}}`,
 			query:  `$..["b"]`,
-			output: `{"a": 2} 1`,
+			output: `1 {"a": 2}`,
 		},
 	}
 	for _, c := range testCases {
