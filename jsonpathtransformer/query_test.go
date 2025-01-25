@@ -53,7 +53,7 @@ func streamJsonString(s string) <-chan token.Token {
 	return token.StartStream(decoder, nil)
 }
 
-func TestSimplQueries(t *testing.T) {
+func TestSimpleQueries(t *testing.T) {
 	type testCase struct {
 		name   string
 		input  string
