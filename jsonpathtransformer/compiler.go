@@ -74,16 +74,16 @@ func (c *compiler) getInnerQueries() ([]SingularQueryRunner, []QueryEvaluator) {
 }
 
 func (c *compiler) compileQuery(query ast.Query) (r QueryEvaluator, err error) {
-	segments := make([]SegmentRunner, len(query.Segments))
-	for i, s := range query.Segments {
-		segments[i], err = c.compileSegment(s)
+	var segment *SegmentRunner
+	for i := len(query.Segments) - 1; i >= 0; i-- {
+		segment, err = c.compileSegment(query.Segments[i], segment)
 		if err != nil {
 			return
 		}
 	}
 	r = QueryEvaluator{ValueMapper: QueryRunner{
 		isRootNodeQuery: query.RootNode == ast.RootNodeIdentifier,
-		segments:        segments,
+		firstSegment:    segment,
 	}}
 	return
 }
@@ -116,7 +116,7 @@ func (c *compiler) compileInnerQuery(query ast.Query) (QueryEvaluator, error) {
 	}
 }
 
-func (c *compiler) compileSegment(segment ast.Segment) (r SegmentRunner, err error) {
+func (c *compiler) compileSegment(segment ast.Segment, followingSegment *SegmentRunner) (r *SegmentRunner, err error) {
 	selectors := make([]SelectorRunner, len(segment.Selectors))
 	var lookahead int64
 	var cs SelectorRunner
@@ -131,11 +131,12 @@ func (c *compiler) compileSegment(segment ast.Segment) (r SegmentRunner, err err
 			lookahead = l
 		}
 	}
-	r = SegmentRunner{
+	r = &SegmentRunner{
 		selectors:           selectors,
 		lookahead:           lookahead,
 		isDescendantSegment: segment.Type == ast.DescendantSegmentType,
 		strictMode:          c.strictMode,
+		followingSegment:    followingSegment,
 	}
 	return
 }

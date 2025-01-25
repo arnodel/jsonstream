@@ -25,21 +25,23 @@ type SegmentRunner struct {
 	isDescendantSegment bool
 
 	strictMode bool
+
+	followingSegment *SegmentRunner
 }
 
-func (r SegmentRunner) transformValue(ctx *RunContext, value iterator.Value, next valueProcessor, followingSegments []SegmentRunner) bool {
+func (r SegmentRunner) transformValue(ctx *RunContext, value iterator.Value, next valueProcessor) bool {
 	switch x := value.(type) {
 	case *iterator.Object:
 		if r.strictMode {
-			return r.transformObjectStrict(ctx, x, next, followingSegments)
+			return r.transformObjectStrict(ctx, x, next)
 		} else {
-			return r.transformObjectRelaxed(ctx, x, next, followingSegments)
+			return r.transformObjectRelaxed(ctx, x, next)
 		}
 	case *iterator.Array:
 		if r.strictMode {
-			return r.transformArrayStrict(ctx, x, next, followingSegments)
+			return r.transformArrayStrict(ctx, x, next)
 		} else {
-			return r.transformArrayRelaxed(ctx, x, next, followingSegments)
+			return r.transformArrayRelaxed(ctx, x, next)
 		}
 	default:
 		value.Discard()
@@ -47,7 +49,7 @@ func (r SegmentRunner) transformValue(ctx *RunContext, value iterator.Value, nex
 	}
 }
 
-func (r SegmentRunner) transformObjectRelaxed(ctx *RunContext, obj *iterator.Object, next valueProcessor, followingSegments []SegmentRunner) (result bool) {
+func (r SegmentRunner) transformObjectRelaxed(ctx *RunContext, obj *iterator.Object, next valueProcessor) (result bool) {
 	dispatcher := newItemDispatcher(r.selectors, next)
 
 	defer func() { dispatcher.flush(ctx, result) }()
@@ -63,7 +65,7 @@ func (r SegmentRunner) transformObjectRelaxed(ctx *RunContext, obj *iterator.Obj
 		}
 
 		key := keyScalar.ToString()
-		result = dispatcher.dispatchItem(ctx, value, func(s SelectorRunner) Decision { return s.SelectsFromKey(key) }, followingSegments)
+		result = dispatcher.dispatchItem(ctx, value, func(s SelectorRunner) Decision { return s.SelectsFromKey(key) }, r.followingSegment)
 		if !result {
 			if detach != nil {
 				detach()
@@ -73,7 +75,7 @@ func (r SegmentRunner) transformObjectRelaxed(ctx *RunContext, obj *iterator.Obj
 
 		// Lastly if this is a descendant segment, we need to dive into value
 		if r.isDescendantSegment {
-			result = r.transformValue(ctx, value2, next, followingSegments)
+			result = r.transformValue(ctx, value2, next)
 			if detach != nil {
 				detach()
 			}
@@ -88,7 +90,7 @@ func (r SegmentRunner) transformObjectRelaxed(ctx *RunContext, obj *iterator.Obj
 	return true
 }
 
-func (r SegmentRunner) transformArrayRelaxed(ctx *RunContext, arr *iterator.Array, next valueProcessor, followingSegments []SegmentRunner) (result bool) {
+func (r SegmentRunner) transformArrayRelaxed(ctx *RunContext, arr *iterator.Array, next valueProcessor) (result bool) {
 	dispatcher := newItemDispatcher(r.selectors, next)
 
 	defer func() { dispatcher.flush(ctx, result) }()
@@ -120,7 +122,7 @@ func (r SegmentRunner) transformArrayRelaxed(ctx *RunContext, arr *iterator.Arra
 			value2, detach = value.Clone()
 		}
 
-		result = dispatcher.dispatchItem(ctx, value, func(s SelectorRunner) Decision { return s.SelectsFromIndex(index, negIndex) }, followingSegments)
+		result = dispatcher.dispatchItem(ctx, value, func(s SelectorRunner) Decision { return s.SelectsFromIndex(index, negIndex) }, r.followingSegment)
 		if !result {
 			if detach != nil {
 				detach()
@@ -136,7 +138,7 @@ func (r SegmentRunner) transformArrayRelaxed(ctx *RunContext, arr *iterator.Arra
 
 		// Lastly if this is a descendant segment, we need to dive into value
 		if r.isDescendantSegment {
-			result = r.transformValue(ctx, value2, next, followingSegments)
+			result = r.transformValue(ctx, value2, next)
 			if detach != nil {
 				detach()
 			}
@@ -151,7 +153,7 @@ func (r SegmentRunner) transformArrayRelaxed(ctx *RunContext, arr *iterator.Arra
 	return true
 }
 
-func (r SegmentRunner) transformObjectStrict(ctx *RunContext, obj *iterator.Object, next valueProcessor, followingSegments []SegmentRunner) (result bool) {
+func (r SegmentRunner) transformObjectStrict(ctx *RunContext, obj *iterator.Object, next valueProcessor) (result bool) {
 	dispatcher := newItemDispatcher(r.selectors, next)
 
 	defer func() { dispatcher.flush(ctx, result) }()
@@ -167,7 +169,7 @@ func (r SegmentRunner) transformObjectStrict(ctx *RunContext, obj *iterator.Obje
 	for obj.Advance() {
 		keyScalar, value := obj.CurrentKeyVal()
 		key := keyScalar.ToString()
-		result = dispatcher.dispatchItem(ctx, value, func(s SelectorRunner) Decision { return s.SelectsFromKey(key) }, followingSegments)
+		result = dispatcher.dispatchItem(ctx, value, func(s SelectorRunner) Decision { return s.SelectsFromKey(key) }, r.followingSegment)
 		if !result {
 			return
 		}
@@ -185,7 +187,7 @@ func (r SegmentRunner) transformObjectStrict(ctx *RunContext, obj *iterator.Obje
 	// or in a standard-compliant way.
 	if r.isDescendantSegment {
 		for obj2.Advance() {
-			result = r.transformValue(ctx, obj2.CurrentValue(), next, followingSegments)
+			result = r.transformValue(ctx, obj2.CurrentValue(), next)
 			if !result {
 				return
 			}
@@ -194,7 +196,7 @@ func (r SegmentRunner) transformObjectStrict(ctx *RunContext, obj *iterator.Obje
 	return true
 }
 
-func (r SegmentRunner) transformArrayStrict(ctx *RunContext, arr *iterator.Array, next valueProcessor, followingSegments []SegmentRunner) (result bool) {
+func (r SegmentRunner) transformArrayStrict(ctx *RunContext, arr *iterator.Array, next valueProcessor) (result bool) {
 	dispatcher := newItemDispatcher(r.selectors, next)
 
 	defer func() { dispatcher.flush(ctx, result) }()
@@ -229,7 +231,7 @@ func (r SegmentRunner) transformArrayStrict(ctx *RunContext, arr *iterator.Array
 			ctx,
 			value,
 			func(s SelectorRunner) Decision { return s.SelectsFromIndex(index, negIndex) },
-			followingSegments,
+			r.followingSegment,
 		)
 		if !result {
 			return
@@ -254,7 +256,7 @@ func (r SegmentRunner) transformArrayStrict(ctx *RunContext, arr *iterator.Array
 	// or in a standard-compliant way.
 	if r.isDescendantSegment {
 		for arr2.Advance() {
-			result = r.transformValue(ctx, arr2.CurrentValue(), next, followingSegments)
+			result = r.transformValue(ctx, arr2.CurrentValue(), next)
 			if !result {
 				return
 			}
@@ -310,7 +312,7 @@ func (d *itemDispatcher) flush(ctx *RunContext, result bool) bool {
 	return result
 }
 
-func (d *itemDispatcher) dispatchItem(ctx *RunContext, value iterator.Value, decide func(SelectorRunner) Decision, followingSegments []SegmentRunner) (result bool) {
+func (d *itemDispatcher) dispatchItem(ctx *RunContext, value iterator.Value, decide func(SelectorRunner) Decision, followingSegment *SegmentRunner) (result bool) {
 	result = true
 
 	if len(d.selectorStates) == 0 {
@@ -367,10 +369,10 @@ func (d *itemDispatcher) dispatchItem(ctx *RunContext, value iterator.Value, dec
 	// Process the value if selected
 	if selectedCount > 0 {
 		d.shouldClone = selectedCount > 1 || !d.selectorStates[0].selected
-		if len(followingSegments) == 0 {
+		if followingSegment == nil {
 			result = d.ProcessValue(ctx, value)
 		} else {
-			result = followingSegments[0].transformValue(ctx, value, d, followingSegments[1:])
+			result = followingSegment.transformValue(ctx, value, d)
 		}
 	}
 	return

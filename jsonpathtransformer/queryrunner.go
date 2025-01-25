@@ -106,14 +106,14 @@ func (e QueryEvaluator) EvaluateNodesResult(ctx *RunContext, value iterator.Valu
 
 type QueryRunner struct {
 	isRootNodeQuery bool
-	segments        []SegmentRunner
+	firstSegment    *SegmentRunner
 }
 
 func (r QueryRunner) MapValue(ctx *RunContext, value iterator.Value, next valueProcessor) bool {
-	if len(r.segments) == 0 {
+	if r.firstSegment == nil {
 		return next.ProcessValue(ctx, value)
 	}
-	return r.segments[0].transformValue(ctx, value, next, r.segments[1:])
+	return r.firstSegment.transformValue(ctx, value, next)
 }
 
 type NodesResultEvaluator interface {
