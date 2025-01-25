@@ -24,6 +24,8 @@ import (
 	"github.com/mattn/go-isatty"
 )
 
+var strictMode bool
+
 func main() {
 	// Do not handle SIGPIPE, we'll do it ourselves (see error handling at the bottom of main).
 	signal.Ignore(syscall.SIGPIPE)
@@ -62,6 +64,7 @@ func main() {
 	flag.StringVar(&outputFormat, "out", "json", "output format")
 	flag.StringVar(&inputFormat, "in", "auto", "input format")
 	flag.BoolVar(&quoteKeys, "quotekeys", false, "always use quoted keys in JSON Path output")
+	flag.BoolVar(&strictMode, "strict", false, "execute JSONPath query in strict mode")
 	flag.IntVar(&compactMaxWidth, "compactwidth", 60, "max width for compact arrays or objects")
 	flag.Parse()
 
@@ -209,7 +212,7 @@ func parseTransformer(arg string) (token.StreamTransformer, error) {
 		if err != nil {
 			return nil, err
 		}
-		return jsonpathtransformer.CompileQuery(query)
+		return jsonpathtransformer.CompileQuery(query, jsonpathtransformer.WithStrictMode(strictMode))
 	}
 	return nil, errors.New("invalid filter")
 }
