@@ -4,7 +4,7 @@ This projects mplements a `jp` CLI utility that
 - parses [JSON](https://www.json.org/), [JSON Lines](https://jsonlines.org/)
 input and some other formats (e.g. CSV);
 - processes it in a streaming manner, notably using [JSONPath
-queries](https://datatracker.ietf.org/doc/draft-ietf-jsonpath-base/);
+queries](https://datatracker.ietf.org/doc/rfc9535/);
 - outputs the result as prettified JSON or JSON Lines
 
 It has some of the properties of `cat`, `head`, `tail`, `grep` but for
@@ -22,7 +22,7 @@ On top of that:
   instance)
 - it can prettify JSON in a streaming way (useful for piping to `less`)
 - input can be filtered with JSONPath queries - and the full [JSONPath
-  spec](https://datatracker.ietf.org/doc/html/draft-ietf-jsonpath-base-21) is
+  spec](https://datatracker.ietf.org/doc/html/rfc9535) is
   implemented in a way that tries to preserve the streaming properties of the
   utility whenever possilbe
 
@@ -38,10 +38,10 @@ organised yet, but you can still read on for more details.
 
 There is a github repository that hosts a JSONPath compliance test
 suite (https://github.com/jsonpath-standard/jsonpath-compliance-test-suite).
-This is where the [cts.json](./jsonpathtransformer/cts.json) file is taken from.
+This is where the [cts.json](./transform/jsonpath/cts.json) file is taken from.
 It is use to test the JSONPath implementation in this repository.  Currently it
 passes all the tests (the test suite was downloaded from the repository on
-2024/01/09).
+2025/11/23).
 
 ## The `jsonstream` package
 
@@ -82,7 +82,7 @@ You will get to see stuff straight away, regardless of the size of the file
 (same with e.g. `head`).
 
 The `jp` tool automatically handles JSON Lines input. You can change the indentation
-level with the `-indent` flag. Set to a positive number, 0 for no indentation, a
+level with the `-json-indent` flag. Set to a positive number, 0 for no indentation, a
 negative number will cause `jp` to output everything on one line, saving you
 precious vertical space.
 
@@ -92,24 +92,17 @@ more details.
 
 ### List of transforms
 
-- a JSONPath expression starting with `$`, e.g `$[-10:].foo` or
-  `$..parent.children[10:]`, etc.  The whole draft IETF spec for JSONPath is
-  implemented, but the implementation is not settled yet.  More documentation
-  needs writing for this as it's becoming the main feature of the command.
+- a JSONPath expression starting with `$`, e.g `'$[-10:].foo'` or
+  `'$..parent.children[10:]'`, etc.  The whole draft IETF spec for JSONPath is
+  implemented. **Note:** Use single quotes around JSONPath expressions to prevent
+  shell interpretation of special characters.
 - `depth=<n>`: truncate output below a certain depth. E.g. `depth=1` will not
   expand nested arrays or object.
-- `.<key>`: just output the value associated with a key, e.g. `.id`.  This is
-  becoming obsolete as it can be replaced with the JSONPath expressions `$.key`
-  or `$["key"]`.
-- `...<key>`: just output the values associated with a key, but it can be at any
-  depth in the input. So the result may be a stream of values (as the key may be
-  repeated).  This is also becoming obsolete as it can be replaced with the
-  JSONPath expressions `$..key` or `$..["key"]`
 - `split`: splits an array into a stream of values
 - `join`: the reverse, joins a stream of values into an array
 - `trace`: (for debugging) eat up the stream and log it to stderr
 
-See the file [builtintransformers.go](builtintransformers.go) for some more
+See the file [transform/builtin.go](transform/builtin.go) for some more
 details. There are not many so far but it's easy to add some more, and I'm
 planning to do that.
 
@@ -122,20 +115,20 @@ You can choose an input format with the `-in` option:
   :-|) as the format described in https://github.com/tomnomnom/gron. This allows
   a workflow of the type `jp -out jpv | grep | jp -in jpv` (`-in jpv` is not
   required because the input format should be guessed correctly)
-- `csv` selects the `CSV` format.  Each CSV record is streamed as an array of values
+- `csv` selects the `CSV` format.  Each CSV record is streamed as an array of values.
+  You can use the `-csv-header` flag to provide explicit field names, which will cause
+  records to be streamed as objects instead.
   E.g. the following input
   ```
-  first_name,last_name,age
   John,Doe,33
   Arnaud,Delobelle,7
   ```
-  is streamed as
+  with `jp -in csv -csv-header first_name,last_name,age` is streamed as
   ```
-  ["first_name", "last_name", "age"]
-  ["John", "Doe", 33]
-  ["Arnaud", "Delobelle", 7]
+  {"first_name": "John", "last_name": "Doe", "age": 33}
+  {"first_name": "Arnaud", "last_name": "Delobelle", "age": 7}
   ```
-- `csv-header` or `csvh` selects the `CSV` format too, but the first record is considered
+- `csv-with-header` or `csvh` selects the `CSV` format where the first record is considered
   to be a header, so that each subsequent record is streamed as an object.
   E.g. the following input
   ```
@@ -145,8 +138,8 @@ You can choose an input format with the `-in` option:
   ```
   is streamed as
   ```
-  {"first_name": "John", "last_name": "Doe", "age": 33} 
-  {"first_name": "Arnaud", "last_name": "Delobelle", "age": 7} 
+  {"first_name": "John", "last_name": "Doe", "age": 33}
+  {"first_name": "Arnaud", "last_name": "Delobelle", "age": 7}
   ```
 - `auto` (the default value) tries to guess the format, falling back to JSON if
   it can't
@@ -158,6 +151,21 @@ are:
 
 - `json` (the default)
 - `jpv` or `path`
+
+### Additional options
+
+**JSON output formatting:**
+- `-json-indent <n>`: Set indentation level (default 2). Use 0 for no indentation, or -1 for compact single-line output.
+- `-json-compact <n>`: Maximum width for compact arrays/objects (default 60). Small arrays and objects that fit within this width are displayed on a single line.
+
+**JPV output formatting:**
+- `-jpv-quote-keys`: Always quote keys in JPV output, even when they are alphanumeric.
+
+**Color output:**
+- `--color <mode>`: Control color output. Modes: `auto` (default, colored if outputting to terminal), `always` (always use colors), `never` (never use colors).
+
+**JSONPath queries:**
+- `-strict`: Execute JSONPath queries in strict mode (more restrictive evaluation).
 
 ### The `JPV` format
 
@@ -229,13 +237,13 @@ $ cat sample.json | jp split depth=1
 ```
 
 ```
-$ cat sample.json | jp split .name
+$ cat sample.json | jp split '$.name'
 "Tom"
 "Kim"
 ```
 
 ```
-$ cat sample.json | jp ...name join
+$ cat sample.json | jp '$..name' join
 [
   "Tom",
   "Kim",
@@ -252,7 +260,7 @@ This last example
 And yet it works!
 
 ```
-$ time yes "$(jp -file sample.json -indent -1)" | jp split depth=1 join | head -20
+$ time yes "$(jp -json-indent -1 < sample.json)" | jp split depth=1 join | head -20
 [
   {
     "id": 3,
@@ -273,7 +281,7 @@ $ time yes "$(jp -file sample.json -indent -1)" | jp split depth=1 join | head -
   {
     "id": 7,
     "name": "Kim",
-yes "$(jp -file sample.json -indent -1)"  0.00s user 0.00s system 21% cpu 0.014 total
+yes "$(jp -json-indent -1 < sample.json)"  0.00s user 0.00s system 21% cpu 0.014 total
 jp split depth=1 join  0.01s user 0.01s system 96% cpu 0.012 total
 head -20  0.00s user 0.00s system 26% cpu 0.010 total
 ```

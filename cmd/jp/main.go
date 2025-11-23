@@ -20,7 +20,6 @@ import (
 	"github.com/arnodel/jsonstream/encoding/jpv"
 	"github.com/arnodel/jsonstream/internal/format"
 	"github.com/arnodel/jsonstream/internal/jsonpath"
-	"github.com/arnodel/jsonstream/internal/legacy"
 	"github.com/arnodel/jsonstream/iterator"
 	"github.com/arnodel/jsonstream/token"
 	"github.com/arnodel/jsonstream/transform"
@@ -43,54 +42,71 @@ func main() {
 	}()
 
 	// Parse the command line arguments
-	var filename string
-	var indent int
+	var jsonIndent int
+	var jsonCompact int
 	var outputFormat string
 	var inputFormat string
 	var colorizer *format.Colorizer
-	var quoteKeys bool
-	var compactMaxWidth int
+	var jpvQuoteKeys bool
+	var csvHeader string
+	var colorMode string
 
 	if isatty.IsTerminal(os.Stdout.Fd()) {
 		colorizer = &defaultColorizer
 	}
 
-	flag.BoolFunc("colors", "force using colors", func(s string) error {
-		colorizer = &defaultColorizer
-		return nil
-	})
-	flag.BoolFunc("nocolors", "disable colors", func(s string) error {
-		colorizer = nil
-		return nil
-	})
-
-	flag.StringVar(&filename, "file", "", "json input filename (stdin if omitted)")
-	flag.IntVar(&indent, "indent", 2, "indent step for json output (negative means no new lines)")
-	flag.StringVar(&outputFormat, "out", "json", "output format")
-	flag.StringVar(&inputFormat, "in", "auto", "input format")
-	flag.BoolVar(&quoteKeys, "quotekeys", false, "always use quoted keys in JSON Path output")
+	// New flags
+	flag.IntVar(&jsonIndent, "json-indent", 2, "JSON indentation (use -1 for compact)")
+	flag.IntVar(&jsonCompact, "json-compact", 60, "max width for compact JSON arrays/objects")
+	flag.BoolVar(&jpvQuoteKeys, "jpv-quote-keys", false, "always quote keys in JPV output")
+	flag.StringVar(&colorMode, "color", "auto", "colorize output: auto, always, never")
+	flag.StringVar(&outputFormat, "out", "json", "output format: json, jpv")
+	flag.StringVar(&inputFormat, "in", "auto", "input format: auto, json, csv, csv-with-header, csvh, jpv")
+	flag.StringVar(&csvHeader, "csv-header", "", "comma-separated field names for CSV (only with -in csv)")
 	flag.BoolVar(&strictMode, "strict", false, "execute JSONPath query in strict mode")
-	flag.IntVar(&compactMaxWidth, "compactwidth", 60, "max width for compact arrays or objects")
+
+	// Deprecated flags (kept for backward compatibility)
+	flag.IntVar(&jsonIndent, "indent", 2, "DEPRECATED: use -json-indent")
+	flag.IntVar(&jsonCompact, "compactwidth", 60, "DEPRECATED: use -json-compact")
+	flag.BoolVar(&jpvQuoteKeys, "quotekeys", false, "DEPRECATED: use -jpv-quote-keys")
+	flag.BoolFunc("colors", "DEPRECATED: use --color=always", func(s string) error {
+		colorMode = "always"
+		return nil
+	})
+	flag.BoolFunc("nocolors", "DEPRECATED: use --color=never", func(s string) error {
+		colorMode = "never"
+		return nil
+	})
+	var deprecatedFile string
+	flag.StringVar(&deprecatedFile, "file", "", "DEPRECATED: use shell redirection (< file)")
+
 	flag.Parse()
 
-	// Set up stdout for handling colors
+	// Handle color mode
+	switch colorMode {
+	case "always":
+		colorizer = &defaultColorizer
+	case "never":
+		colorizer = nil
+	case "auto":
+		// Already set based on isatty check above
+	default:
+		fatalError("invalid --color value: %q (use auto, always, or never)", colorMode)
+	}
 
+	// Warn about deprecated -file flag
+	if deprecatedFile != "" {
+		fatalError("-file flag removed. Use shell redirection instead: jp [options] [transforms] < %s", deprecatedFile)
+	}
+
+	// Set up stdout for handling colors
 	var stdout io.Writer = os.Stdout
 	if colorizer != nil {
 		stdout = colorable.NewColorableStdout()
 	}
 
-	// Open input file
-	var input io.Reader
-	if filename != "" {
-		var err error
-		input, err = os.Open(filename)
-		if err != nil {
-			fatalError("error opening %q: %s", filename, err)
-		}
-	} else {
-		input = os.Stdin
-	}
+	// Read from stdin
+	var input io.Reader = os.Stdin
 
 	// Choose the input decoder
 	if inputFormat == "auto" {
@@ -110,6 +126,11 @@ func main() {
 		input = io.MultiReader(bytes.NewReader(start[:n]), input)
 	}
 
+	// Validate CSV options
+	if csvHeader != "" && (inputFormat == "csv-with-header" || inputFormat == "csvh") {
+		fatalError("-csv-header cannot be used with -in csv-with-header (header row already in file)")
+	}
+
 	var decoder token.StreamSource
 
 	switch inputFormat {
@@ -118,14 +139,19 @@ func main() {
 	case "jpv", "path":
 		decoder = jpv.NewDecoder(input)
 	case "csv":
-		decoder = csv.NewDecoder(input)
-	case "csv-header", "csvh":
+		csvDecoder := csv.NewDecoder(input)
+		if csvHeader != "" {
+			csvDecoder.SetFieldNames(strings.Split(csvHeader, ","))
+			csvDecoder.RecordsProduceObjects = true
+		}
+		decoder = csvDecoder
+	case "csv-with-header", "csvh", "csv-header":
 		csvDecoder := csv.NewDecoder(input)
 		csvDecoder.HasHeader = true
 		csvDecoder.RecordsProduceObjects = true
 		decoder = csvDecoder
 	default:
-		fatalError("invalid input format: %q", outputFormat)
+		fatalError("invalid input format: %q", inputFormat)
 	}
 
 	// Start parsing the input file
@@ -151,7 +177,7 @@ func main() {
 
 	printer := &format.DefaultPrinter{
 		Writer:     out,
-		IndentSize: indent,
+		IndentSize: jsonIndent,
 	}
 
 	// If we are writing to a terminal, flush after each line so user gets feedback early.
@@ -165,13 +191,13 @@ func main() {
 		encoder = &json.Encoder{
 			Printer:               printer,
 			Colorizer:             colorizer,
-			CompactWidthLimit:     compactMaxWidth,
+			CompactWidthLimit:     jsonCompact,
 			CompactObjectMaxItems: 2,
 		}
 	case "jpv", "path":
 		{
 			jpvEncoder := &jpv.Encoder{Printer: printer, Colorizer: colorizer}
-			jpvEncoder.AlwaysQuoteKeys = quoteKeys
+			jpvEncoder.AlwaysQuoteKeys = jpvQuoteKeys
 			encoder = jpvEncoder
 		}
 	default:
@@ -200,10 +226,12 @@ func parseTransformer(arg string) (token.StreamTransformer, error) {
 		return transform.TraceStream{}, nil
 	}
 	if strings.HasPrefix(arg, "...") {
-		return iterator.AsStreamTransformer(&legacy.DeepKeyExtractor{Key: strings.TrimPrefix(arg, "...")}), nil
+		key := strings.TrimPrefix(arg, "...")
+		return nil, fmt.Errorf("'%s' syntax removed. Use JSONPath instead: '$..%s'", arg, key)
 	}
 	if strings.HasPrefix(arg, ".") {
-		return iterator.AsStreamTransformer(&legacy.KeyExtractor{Key: strings.TrimPrefix(arg, ".")}), nil
+		key := strings.TrimPrefix(arg, ".")
+		return nil, fmt.Errorf("'%s' syntax removed. Use JSONPath instead: '$.%s'", arg, key)
 	}
 	if strings.HasPrefix(arg, "depth=") {
 		depth, err := strconv.ParseInt(strings.TrimPrefix(arg, "depth="), 10, 64)
@@ -219,7 +247,7 @@ func parseTransformer(arg string) (token.StreamTransformer, error) {
 		}
 		return jsonpathtransformer.CompileQuery(query, jsonpathtransformer.WithStrictMode(strictMode))
 	}
-	return nil, errors.New("invalid filter")
+	return nil, errors.New("invalid transform")
 }
 
 type FormatGuesser struct {
@@ -237,7 +265,7 @@ func formatGuesser(format string, pattern string) FormatGuesser {
 var formatGuessers = []FormatGuesser{
 	formatGuesser("jpv", `^$`),
 	formatGuesser("json", `^[{[]`),
-	formatGuesser("csv-header", `^[a-zA-Z][a-zA-Z_0-9-]*(,[a-zA-Z][a-zA-Z_0-9-]*)+(\n|,?$)`),
+	formatGuesser("csv-with-header", `^[a-zA-Z][a-zA-Z_0-9-]*(,[a-zA-Z][a-zA-Z_0-9-]*)+(\n|,?$)`),
 	formatGuesser("csv", `^([^,"\n]*|("[^"]*"))(,[^,"\n]*|,("[^"]*"))+(\n|,?$)`),
 }
 
