@@ -1,11 +1,11 @@
 package jsonpathtransformer_test
 
 import (
+	"github.com/arnodel/jsonstream/encoding/json"
 	"errors"
 	"os"
 	"testing"
 
-	"github.com/arnodel/jsonstream"
 	"github.com/arnodel/jsonstream/iterator"
 	"github.com/arnodel/jsonstream/jsonpathtransformer"
 	"github.com/arnodel/jsonstream/token"
@@ -16,7 +16,7 @@ func TestRunCTS(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Problem with CTS file: %s", err)
 	}
-	decoder := jsonstream.NewJSONDecoder(ctsFile)
+	decoder := json.NewDecoder(ctsFile)
 	stream := token.ChannelReadStream(token.StartStream(decoder, nil))
 	iter := iterator.New(stream)
 	if !iter.Advance() {

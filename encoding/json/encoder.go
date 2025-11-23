@@ -1,4 +1,4 @@
-package jsonstream
+package json
 
 import (
 	"fmt"
@@ -8,16 +8,16 @@ import (
 	"github.com/arnodel/jsonstream/token"
 )
 
-// A JSONEncoder can output a stream encoding a (stream of) JSON values
+// An Encoder can output a stream encoding a (stream of) JSON values
 // using the given Printer instance for formatting.
-type JSONEncoder struct {
+type Encoder struct {
 	format.Printer
 	*format.Colorizer
 	CompactWidthLimit     int
 	CompactObjectMaxItems int
 }
 
-var _ token.StreamSink = &JSONEncoder{}
+var _ token.StreamSink = &Encoder{}
 
 // Consume formats the JSON stream encoded in the given channel using the
 // instance's Printer.  It assumes that the stream is well-formed, i.e.
@@ -26,7 +26,7 @@ var _ token.StreamSink = &JSONEncoder{}
 //
 // And error can be returned if the Printer could not perform some writing
 // operation.  A typical example is if it attempt to write to a closed pipe.
-func (sw *JSONEncoder) Consume(stream <-chan token.Token) (err error) {
+func (sw *Encoder) Consume(stream <-chan token.Token) (err error) {
 	defer format.CatchPrinterError(&err)
 	iterator := iterator.New(token.ChannelReadStream(stream))
 	for iterator.Advance() {
@@ -36,7 +36,7 @@ func (sw *JSONEncoder) Consume(stream <-chan token.Token) (err error) {
 	return nil
 }
 
-func (sw *JSONEncoder) writeValue(value iterator.Value) {
+func (sw *Encoder) writeValue(value iterator.Value) {
 	switch v := value.(type) {
 	case *iterator.Scalar:
 		sw.Colorizer.PrintScalar(sw.Printer, v.Scalar())
@@ -57,7 +57,7 @@ func (sw *JSONEncoder) writeValue(value iterator.Value) {
 	}
 }
 
-func (sw *JSONEncoder) writeObject(obj *iterator.Object) {
+func (sw *Encoder) writeObject(obj *iterator.Object) {
 	sw.PrintBytes(openObjectBytes)
 	firstItem := true
 	for obj.Advance() {
@@ -85,7 +85,7 @@ func (sw *JSONEncoder) writeObject(obj *iterator.Object) {
 	sw.PrintBytes(closeObjectBytes)
 }
 
-func (sw *JSONEncoder) writeObjectCompact(obj *iterator.Object) {
+func (sw *Encoder) writeObjectCompact(obj *iterator.Object) {
 	type keyValue struct {
 		key   *token.Scalar
 		value iterator.Value
@@ -149,7 +149,7 @@ func (sw *JSONEncoder) writeObjectCompact(obj *iterator.Object) {
 	sw.PrintBytes(closeObjectBytes)
 }
 
-func (sw *JSONEncoder) writeArray(arr *iterator.Array) {
+func (sw *Encoder) writeArray(arr *iterator.Array) {
 	sw.PrintBytes(openArrayBytes)
 	firstItem := true
 	for arr.Advance() {
@@ -191,7 +191,7 @@ func (sw *JSONEncoder) writeArray(arr *iterator.Array) {
 //	         [5, 6, 7],
 //	         8, 9, 10, 11, 12
 //	      ]
-func (sw *JSONEncoder) writeArrayCompact(arr *iterator.Array) {
+func (sw *Encoder) writeArrayCompact(arr *iterator.Array) {
 	compactItems := make([]iterator.Value, 0, 10)
 	totalWidth := -2
 	sw.PrintBytes(openArrayBytes)

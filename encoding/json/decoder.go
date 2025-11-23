@@ -1,4 +1,4 @@
-package jsonstream
+package json
 
 import (
 	"fmt"
@@ -8,28 +8,28 @@ import (
 	"github.com/arnodel/jsonstream/token"
 )
 
-// A JSONDecoder reads JSON input and streams it into a JSON stream.
-type JSONDecoder struct {
+// A Decoder reads JSON input and streams it into a JSON stream.
+type Decoder struct {
 	scanr *scanner.Scanner
 }
 
-var _ token.StreamSource = &JSONDecoder{}
+var _ token.StreamSource = &Decoder{}
 
-// NewJSONDecoder sets up a new JSONDecoder instance to read from the giver input.
-func NewJSONDecoder(in io.Reader) *JSONDecoder {
-	return &JSONDecoder{scanr: scanner.NewScanner(in)}
+// NewDecoder sets up a new Decoder instance to read from the given input.
+func NewDecoder(in io.Reader) *Decoder {
+	return &Decoder{scanr: scanner.NewScanner(in)}
 }
 
 // Produce reads a stream of JSON values and streams them, until it runs
 // out of input or encounter invalid JSON, in which case it will return an
 // error.
-func (d *JSONDecoder) Produce(out chan<- token.Token) error {
+func (d *Decoder) Produce(out chan<- token.Token) error {
 	for {
 		b, err := d.scanr.SkipSpaceAndPeek()
 		if err != nil || b == scanner.EOF {
 			return err
 		}
-		err = d.parseValue(out)
+		err = d.ParseValue(out)
 		if err != nil {
 			return err
 		}
@@ -38,7 +38,7 @@ func (d *JSONDecoder) Produce(out chan<- token.Token) error {
 
 // parseValue reads a single JSON value and streams it.  It can return a
 // non-nil error if the input is invalid JSON.
-func (d *JSONDecoder) parseValue(out chan<- token.Token) error {
+func (d *Decoder) ParseValue(out chan<- token.Token) error {
 	b, err := d.scanr.SkipSpaceAndPeek()
 	if err != nil {
 		return err
@@ -48,7 +48,7 @@ func (d *JSONDecoder) parseValue(out chan<- token.Token) error {
 	}
 	switch b {
 	case '"':
-		s, err := parseString(d.scanr)
+		s, err := ParseString(d.scanr)
 		if err != nil {
 			return err
 		}
@@ -81,21 +81,21 @@ func (d *JSONDecoder) parseValue(out chan<- token.Token) error {
 		return nil
 	default:
 		if b == '-' || b >= '0' && b <= '9' {
-			n, err := parseNumber(d.scanr)
+			n, err := ParseNumber(d.scanr)
 			if err != nil {
 				return err
 			}
 			out <- n
 			return nil
 		}
-		return unexpectedByte(d.scanr, "unexpected")
+		return UnexpectedByte(d.scanr, "unexpected")
 	}
 }
 
-func (d *JSONDecoder) parseArray(out chan<- token.Token) error {
+func (d *Decoder) parseArray(out chan<- token.Token) error {
 	var b byte
 	var err error
-	err = expectByte(d.scanr, '[')
+	err = ExpectByte(d.scanr, '[')
 	if err != nil {
 		return err
 	}
@@ -110,7 +110,7 @@ func (d *JSONDecoder) parseArray(out chan<- token.Token) error {
 		return nil
 	}
 	for {
-		err = d.parseValue(out)
+		err = d.ParseValue(out)
 		if err != nil {
 			return err
 		}
@@ -126,14 +126,14 @@ func (d *JSONDecoder) parseArray(out chan<- token.Token) error {
 		case ',':
 			d.scanr.Read()
 		default:
-			return unexpectedByte(d.scanr, "expected ']' or ',', got")
+			return UnexpectedByte(d.scanr, "expected ']' or ',', got")
 		}
 	}
 }
 
-func (d *JSONDecoder) parseObject(out chan<- token.Token) error {
+func (d *Decoder) parseObject(out chan<- token.Token) error {
 	var b byte
-	err := expectByte(d.scanr, '{')
+	err := ExpectByte(d.scanr, '{')
 	if err != nil {
 		return err
 	}
@@ -148,7 +148,7 @@ func (d *JSONDecoder) parseObject(out chan<- token.Token) error {
 		return nil
 	}
 	for {
-		key, err := parseString(d.scanr)
+		key, err := ParseString(d.scanr)
 		if err != nil {
 			return err
 		}
@@ -159,10 +159,10 @@ func (d *JSONDecoder) parseObject(out chan<- token.Token) error {
 			return err
 		}
 		if b != ':' {
-			return unexpectedByte(d.scanr, "expected ':', got")
+			return UnexpectedByte(d.scanr, "expected ':', got")
 		}
 		d.scanr.Read()
-		err = d.parseValue(out)
+		err = d.ParseValue(out)
 		if err != nil {
 			return err
 		}
@@ -182,24 +182,24 @@ func (d *JSONDecoder) parseObject(out chan<- token.Token) error {
 				return err
 			}
 		default:
-			return unexpectedByte(d.scanr, "expected '}' or ',' got")
+			return UnexpectedByte(d.scanr, "expected '}' or ',' got")
 		}
 	}
 }
 
-func expectByte(scanr *scanner.Scanner, xb byte) error {
+func ExpectByte(scanr *scanner.Scanner, xb byte) error {
 	b, err := scanr.Read()
 	if err != nil {
 		return err
 	}
 	if b != xb {
 		scanr.Back()
-		return unexpectedByte(scanr, "expected %q, got", xb)
+		return UnexpectedByte(scanr, "expected %q, got", xb)
 	}
 	return nil
 }
 
-func unexpectedByte(scanr *scanner.Scanner, expected string, args ...interface{}) error {
+func UnexpectedByte(scanr *scanner.Scanner, expected string, args ...interface{}) error {
 	pos := scanr.CurrentPos()
 	b, err := scanr.Read()
 	if err != nil {
@@ -212,9 +212,9 @@ func unexpectedByte(scanr *scanner.Scanner, expected string, args ...interface{}
 	}
 }
 
-func parseString(scanr *scanner.Scanner) (*token.Scalar, error) {
+func ParseString(scanr *scanner.Scanner) (*token.Scalar, error) {
 	scanr.StartToken()
-	err := expectByte(scanr, '"')
+	err := ExpectByte(scanr, '"')
 	if err != nil {
 		return nil, err
 	}
@@ -244,7 +244,7 @@ func parseString(scanr *scanner.Scanner) (*token.Scalar, error) {
 					}
 					if !(b >= '0' && b <= '9' || b >= 'a' && b <= 'f' || b >= 'A' && b <= 'F') {
 						scanr.Back()
-						return nil, unexpectedByte(scanr, "expected hex, got")
+						return nil, UnexpectedByte(scanr, "expected hex, got")
 					}
 				}
 			}
@@ -261,7 +261,7 @@ func parseString(scanr *scanner.Scanner) (*token.Scalar, error) {
 		default:
 			if scanner.IsCtrl(b) {
 				scanr.Back()
-				return nil, unexpectedByte(scanr, "invalid control character in string")
+				return nil, UnexpectedByte(scanr, "invalid control character in string")
 			}
 			if isAlnum {
 				if firstChar {
@@ -275,7 +275,8 @@ func parseString(scanr *scanner.Scanner) (*token.Scalar, error) {
 	}
 }
 
-func parseNumber(scanr *scanner.Scanner) (*token.Scalar, error) {
+// ParseNumber parses a JSON number from the scanner. Exported for use by other format decoders.
+func ParseNumber(scanr *scanner.Scanner) (*token.Scalar, error) {
 	scanr.StartToken()
 	var n int
 	b, err := scanr.Read()
@@ -295,24 +296,24 @@ func parseNumber(scanr *scanner.Scanner) (*token.Scalar, error) {
 			return nil, err
 		}
 	} else if b >= '1' && b <= '9' {
-		b, _, err = readDigits(scanr)
+		b, _, err = ReadDigits(scanr)
 		if err != nil {
 			return nil, err
 		}
 	} else {
 		scanr.Back()
-		return nil, unexpectedByte(scanr, "expected digit, got")
+		return nil, UnexpectedByte(scanr, "expected digit, got")
 	}
 
 	// Fraction part
 	if b == '.' {
-		b, n, err = readDigits(scanr)
+		b, n, err = ReadDigits(scanr)
 		if err != nil {
 			return nil, err
 		}
 		if n == 0 {
 			scanr.Back()
-			return nil, unexpectedByte(scanr, "expected digit, got")
+			return nil, UnexpectedByte(scanr, "expected digit, got")
 		}
 	}
 
@@ -325,20 +326,20 @@ func parseNumber(scanr *scanner.Scanner) (*token.Scalar, error) {
 		if b == '-' || b == '+' {
 			scanr.Read()
 		}
-		_, n, err = readDigits(scanr)
+		_, n, err = ReadDigits(scanr)
 		if err != nil {
 			return nil, err
 		}
 		if n == 0 {
 			scanr.Back()
-			return nil, unexpectedByte(scanr, "expected digit, got")
+			return nil, UnexpectedByte(scanr, "expected digit, got")
 		}
 	}
 	scanr.Back()
 	return token.NewScalar(token.Number, scanr.EndToken()), nil
 }
 
-func readDigits(scanr *scanner.Scanner) (byte, int, error) {
+func ReadDigits(scanr *scanner.Scanner) (byte, int, error) {
 	var n int
 	for {
 		b, err := scanr.Read()
@@ -354,7 +355,7 @@ func readDigits(scanr *scanner.Scanner) (byte, int, error) {
 
 func checkBytes(scanr *scanner.Scanner, expected []byte) error {
 	for _, xb := range expected {
-		if err := expectByte(scanr, xb); err != nil {
+		if err := ExpectByte(scanr, xb); err != nil {
 			return err
 		}
 	}
@@ -372,3 +373,9 @@ var (
 	falseInstance = token.NewScalar(token.Boolean, falseBytes)
 	nullInstance  = token.NewScalar(token.Null, nullBytes)
 )
+
+// NewDecoderFromScanner creates a decoder using an existing scanner. 
+// This is useful for format decoders that need to parse JSON values inline.
+func NewDecoderFromScanner(scanr *scanner.Scanner) *Decoder {
+	return &Decoder{scanr: scanr}
+}

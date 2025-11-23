@@ -1,4 +1,4 @@
-package jsonstream
+package transform
 
 import (
 	"log"

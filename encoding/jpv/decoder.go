@@ -1,14 +1,15 @@
-package jsonstream
+package jpv
 
 import (
 	"errors"
 	"io"
 
+	"github.com/arnodel/jsonstream/encoding/json"
 	"github.com/arnodel/jsonstream/internal/scanner"
 	"github.com/arnodel/jsonstream/token"
 )
 
-// JPVDecoder reads input in JPV format and streams it into a JSON stream.
+// Decoder reads input in JPV format and streams it into a JSON stream.
 //
 // JPV is a format that can represent values where each line specifies a leaf
 // value and its path.  A Lines are separated by '\n' and are of the form
@@ -27,22 +28,22 @@ import (
 //
 // The potential value in this format is that it can be piped through grep and
 // other unix utilites to be filtered / transformed, then turned back into JSON.
-type JPVDecoder struct {
+type Decoder struct {
 	scanr    *scanner.Scanner
 	lastPath []*token.Scalar
 }
 
-var _ token.StreamSource = &JPVDecoder{}
+var _ token.StreamSource = &Decoder{}
 
-// NewJPVDecoder sets up a new GRONDecoder instance to read from the given
+// NewDecoder sets up a new Decoder instance to read from the given
 // input.
-func NewJPVDecoder(in io.Reader) *JPVDecoder {
-	return &JPVDecoder{scanr: scanner.NewScanner(in)}
+func NewDecoder(in io.Reader) *Decoder {
+	return &Decoder{scanr: scanner.NewScanner(in)}
 }
 
 // Produce reads a stream of JPV values and streams them, until it runs out of
 // input or encounters invalid JPV, in which case it will return an error.
-func (d *JPVDecoder) Produce(out chan<- token.Token) error {
+func (d *Decoder) Produce(out chan<- token.Token) error {
 	defer func() {
 		unwindPath(d.lastPath, false, out)
 	}()
@@ -58,8 +59,8 @@ func (d *JPVDecoder) Produce(out chan<- token.Token) error {
 	}
 }
 
-func (d *JPVDecoder) parseLine(out chan<- token.Token) error {
-	err := expectByte(d.scanr, '$')
+func (d *Decoder) parseLine(out chan<- token.Token) error {
+	err := json.ExpectByte(d.scanr, '$')
 	if err != nil {
 		return err
 	}
@@ -73,18 +74,18 @@ func (d *JPVDecoder) parseLine(out chan<- token.Token) error {
 	}
 	if b != '=' {
 		d.scanr.Back()
-		return unexpectedByte(d.scanr, "expected '=', got")
+		return json.UnexpectedByte(d.scanr, "expected '=', got")
 	}
 	err = d.updatePath(linePath, out)
 	if err != nil {
 		return err
 	}
 	// TODO: tidy this up
-	jsonDecoder := JSONDecoder{scanr: d.scanr}
-	return jsonDecoder.parseValue(out)
+	jsonDecoder := json.NewDecoderFromScanner(d.scanr)
+	return jsonDecoder.ParseValue(out)
 }
 
-func (d *JPVDecoder) updatePath(newPath []*token.Scalar, out chan<- token.Token) error {
+func (d *Decoder) updatePath(newPath []*token.Scalar, out chan<- token.Token) error {
 	if len(d.lastPath) == 0 {
 		followPath(newPath, false, out)
 		d.lastPath = newPath
@@ -166,7 +167,7 @@ func parsePath(scanr *scanner.Scanner) ([]*token.Scalar, error) {
 				return nil, err
 			}
 			if b == '"' {
-				s, err := parseString(scanr)
+				s, err := json.ParseString(scanr)
 				if err != nil {
 					return nil, err
 				}
@@ -179,13 +180,13 @@ func parsePath(scanr *scanner.Scanner) ([]*token.Scalar, error) {
 			} else {
 				var n int
 				scanr.StartToken()
-				b, n, err = readDigits(scanr)
+				b, n, err = json.ReadDigits(scanr)
 				if err != nil {
 					return nil, err
 				}
 				if n == 0 {
 					scanr.Back()
-					return nil, unexpectedByte(scanr, "expected digit, got")
+					return nil, json.UnexpectedByte(scanr, "expected digit, got")
 				}
 				path = append(path, token.NewKey(token.Number, scanr.EndToken()))
 			}
@@ -200,7 +201,7 @@ func parsePath(scanr *scanner.Scanner) ([]*token.Scalar, error) {
 			}
 			if !scanner.IsAlpha(b) {
 				scanr.Back()
-				return nil, unexpectedByte(scanr, "expected a-z/A-Z/_, got")
+				return nil, json.UnexpectedByte(scanr, "expected a-z/A-Z/_, got")
 			}
 			for {
 				b, err = scanr.Read()

@@ -1,10 +1,10 @@
 package jsonpathtransformer_test
 
 import (
+	"github.com/arnodel/jsonstream/encoding/json"
 	"strings"
 	"testing"
 
-	"github.com/arnodel/jsonstream"
 	"github.com/arnodel/jsonstream/internal/jsonpath"
 	"github.com/arnodel/jsonstream/jsonpathtransformer"
 	"github.com/arnodel/jsonstream/token"
@@ -49,7 +49,7 @@ func compileQueryStringStrict(s string) (jsonpathtransformer.MainQueryRunner, er
 }
 
 func streamJsonString(s string) <-chan token.Token {
-	decoder := jsonstream.NewJSONDecoder(strings.NewReader(s))
+	decoder := json.NewDecoder(strings.NewReader(s))
 	return token.StartStream(decoder, nil)
 }
 

@@ -15,13 +15,16 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/arnodel/jsonstream"
+	"github.com/arnodel/jsonstream/encoding/csv"
+	"github.com/arnodel/jsonstream/encoding/json"
+	"github.com/arnodel/jsonstream/encoding/jpv"
 	"github.com/arnodel/jsonstream/internal/format"
 	"github.com/arnodel/jsonstream/internal/jsonpath"
 	"github.com/arnodel/jsonstream/internal/legacy"
 	"github.com/arnodel/jsonstream/iterator"
 	"github.com/arnodel/jsonstream/jsonpathtransformer"
 	"github.com/arnodel/jsonstream/token"
+	"github.com/arnodel/jsonstream/transform"
 	"github.com/mattn/go-colorable"
 	"github.com/mattn/go-isatty"
 )
@@ -111,13 +114,13 @@ func main() {
 
 	switch inputFormat {
 	case "json":
-		decoder = jsonstream.NewJSONDecoder(input)
+		decoder = json.NewDecoder(input)
 	case "jpv", "path":
-		decoder = jsonstream.NewJPVDecoder(input)
+		decoder = jpv.NewDecoder(input)
 	case "csv":
-		decoder = jsonstream.NewCSVDecoder(input)
+		decoder = csv.NewDecoder(input)
 	case "csv-header", "csvh":
-		csvDecoder := jsonstream.NewCSVDecoder(input)
+		csvDecoder := csv.NewDecoder(input)
 		csvDecoder.HasHeader = true
 		csvDecoder.RecordsProduceObjects = true
 		decoder = csvDecoder
@@ -159,7 +162,7 @@ func main() {
 	var encoder token.StreamSink
 	switch outputFormat {
 	case "json":
-		encoder = &jsonstream.JSONEncoder{
+		encoder = &json.Encoder{
 			Printer:               printer,
 			Colorizer:             colorizer,
 			CompactWidthLimit:     compactMaxWidth,
@@ -167,7 +170,7 @@ func main() {
 		}
 	case "jpv", "path":
 		{
-			jpvEncoder := &jsonstream.JPVEncoder{Printer: printer, Colorizer: colorizer}
+			jpvEncoder := &jpv.Encoder{Printer: printer, Colorizer: colorizer}
 			jpvEncoder.AlwaysQuoteKeys = quoteKeys
 			encoder = jpvEncoder
 		}
@@ -188,13 +191,13 @@ func main() {
 
 func parseTransformer(arg string) (token.StreamTransformer, error) {
 	if arg == "split" {
-		return iterator.AsStreamTransformer(jsonstream.ExplodeArray{}), nil
+		return iterator.AsStreamTransformer(transform.ExplodeArray{}), nil
 	}
 	if arg == "join" {
-		return jsonstream.JoinStream{}, nil
+		return transform.JoinStream{}, nil
 	}
 	if arg == "trace" {
-		return jsonstream.TraceStream{}, nil
+		return transform.TraceStream{}, nil
 	}
 	if strings.HasPrefix(arg, "...") {
 		return iterator.AsStreamTransformer(&legacy.DeepKeyExtractor{Key: strings.TrimPrefix(arg, "...")}), nil
@@ -207,7 +210,7 @@ func parseTransformer(arg string) (token.StreamTransformer, error) {
 		if err != nil {
 			return nil, err
 		}
-		return &jsonstream.MaxDepthFilter{MaxDepth: int(depth)}, nil
+		return &transform.MaxDepthFilter{MaxDepth: int(depth)}, nil
 	}
 	if strings.HasPrefix(arg, "$") {
 		query, err := jsonpath.ParseQueryString(arg)

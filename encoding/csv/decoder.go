@@ -1,4 +1,4 @@
-package jsonstream
+package csv
 
 import (
 	"encoding/csv"
@@ -6,28 +6,29 @@ import (
 	"io"
 	"strings"
 
+	"github.com/arnodel/jsonstream/encoding/json"
 	"github.com/arnodel/jsonstream/internal/scanner"
 	"github.com/arnodel/jsonstream/token"
 )
 
-// A CSVDecoder reads CSV input and streams it into a JSON stream.
-type CSVDecoder struct {
+// A Decoder reads CSV input and streams it into a JSON stream.
+type Decoder struct {
 	reader                *csv.Reader
 	HasHeader             bool // When true, treat the first record as a header
 	RecordsProduceObjects bool // When false, produce an array for each record, else an object
 	fieldNames            []*token.Scalar
 }
 
-var _ token.StreamSource = &CSVDecoder{}
+var _ token.StreamSource = &Decoder{}
 
-// NewCSVDecoder sets up a new CSVDecoder isntance to read from the given input.
-func NewCSVDecoder(in io.Reader) *CSVDecoder {
-	return &CSVDecoder{reader: csv.NewReader(in)}
+// NewDecoder sets up a new Decoder instance to read from the given input.
+func NewDecoder(in io.Reader) *Decoder {
+	return &Decoder{reader: csv.NewReader(in)}
 }
 
 // Produce reads a stream of CSV records, until it runs out of input or
 // encounters invalid CSV, in which case it will return an error
-func (d *CSVDecoder) Produce(out chan<- token.Token) error {
+func (d *Decoder) Produce(out chan<- token.Token) error {
 	recordCount := 0
 	for {
 		record, err := d.reader.Read()
@@ -47,14 +48,14 @@ func (d *CSVDecoder) Produce(out chan<- token.Token) error {
 	}
 }
 
-// SetFieldNames sets the field namas for records.  Should be called before Produce.
-func (d *CSVDecoder) SetFieldNames(record []string) {
+// SetFieldNames sets the field names for records.  Should be called before Produce.
+func (d *Decoder) SetFieldNames(record []string) {
 	for _, field := range record {
 		d.fieldNames = append(d.fieldNames, fieldToScalar(field, true))
 	}
 }
 
-func (d *CSVDecoder) produceRecord(record []string, out chan<- token.Token) {
+func (d *Decoder) produceRecord(record []string, out chan<- token.Token) {
 	if d.RecordsProduceObjects {
 		out <- &token.StartObject{}
 		for i, field := range record {
@@ -71,7 +72,7 @@ func (d *CSVDecoder) produceRecord(record []string, out chan<- token.Token) {
 	}
 }
 
-func (d *CSVDecoder) getFieldName(i int) *token.Scalar {
+func (d *Decoder) getFieldName(i int) *token.Scalar {
 	if i >= len(d.fieldNames) {
 		for j := len(d.fieldNames); j <= i; j++ {
 			d.fieldNames = append(d.fieldNames, fieldToScalar(fmt.Sprintf("field_%d", j+1), true))
@@ -111,8 +112,8 @@ func fieldToScalar(field string, isHeader bool) *token.Scalar {
 	}
 	if fieldCouldBeNumber {
 		reader := strings.NewReader(field)
-		scanner := scanner.NewScanner(reader)
-		scalar, err := parseNumber(scanner)
+		scanr := scanner.NewScanner(reader)
+		scalar, err := json.ParseNumber(scanr)
 		if err == nil && reader.Len() == 0 {
 			return scalar
 		}
@@ -155,3 +156,9 @@ func csvFieldToStringScalar(field string, escapeCount int) *token.Scalar {
 	tokenBytes[i] = '"'
 	return token.NewScalar(token.String, tokenBytes)
 }
+
+var (
+	trueInstance  = token.NewScalar(token.Boolean, []byte("true"))
+	falseInstance = token.NewScalar(token.Boolean, []byte("false"))
+	nullInstance  = token.NewScalar(token.Null, []byte("null"))
+)
