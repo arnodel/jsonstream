@@ -106,8 +106,6 @@ type Scalar struct {
 
 // EqualsString is a convenience method to check if a Scalar represents the
 // passed string.
-//
-// TODO move that somewhere more suitable.
 func (s *Scalar) EqualsString(str string) bool {
 	if s.Type() != String {
 		return false

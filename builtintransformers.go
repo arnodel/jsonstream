@@ -54,6 +54,9 @@ func (f *MaxDepthFilter) Transform(in <-chan token.Token, out token.WriteStream)
 // KeyExtractor is a Transformer that transforms an object into the value
 // associated with a particular key.
 //
+// Deprecated: Use JSONPath queries instead (e.g., $.key).
+// This transformer is kept for backward compatibility but will be moved to internal in a future version.
+//
 // E.g. if the key is "name"
 //
 //	{"name": "Casimir", "color": "orange"} -> "Casimir"
@@ -78,6 +81,9 @@ func (f *KeyExtractor) TransformValue(value iterator.Value, out token.WriteStrea
 
 // DeepKeyExtractor is a Transformer that finds all instances of a given key
 // in the json stream and returns their associated values (in a stream)
+//
+// Deprecated: Use JSONPath descendant queries instead (e.g., $..key).
+// This transformer is kept for backward compatibility but will be moved to internal in a future version.
 //
 // E.g. if the key is "id"
 //

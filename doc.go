@@ -23,6 +23,6 @@ package jsonstream
 // so there is no facility for marshaling or unmarshaling as in the standard library
 // [encoding/json] package.
 //
-// The CLI utility is in the directory cmd/pj.  You can install it with
+// The CLI utility is in the directory cmd/jp.  You can install it with
 //
-//  go install github.com/arnodel/jsonstream/cmd/pj
+//  go install github.com/arnodel/jsonstream/cmd/jp
