@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/arnodel/jsonstream/internal/format"
 	"github.com/arnodel/jsonstream/iterator"
 	"github.com/arnodel/jsonstream/token"
 )
@@ -12,8 +13,8 @@ import (
 // Printer instance for formatting.  It prints the JSON value in the JPV format
 // (see [JPVDecoder] for details of the format).
 type JPVEncoder struct {
-	Printer
-	*Colorizer
+	format.Printer
+	*format.Colorizer
 
 	AlwaysQuoteKeys bool
 
@@ -30,7 +31,7 @@ var _ token.StreamSink = &JPVEncoder{}
 // And error can be returned if the Printer could not perform some writing
 // operation.  A typical example is if it attempt to write to a closed pipe.
 func (e *JPVEncoder) Consume(stream <-chan token.Token) (err error) {
-	defer CatchPrinterError(&err)
+	defer format.CatchPrinterError(&err)
 	iterator := iterator.New(token.ChannelReadStream(stream))
 	for iterator.Advance() {
 		e.writeValue(iterator.CurrentValue())

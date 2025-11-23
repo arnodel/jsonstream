@@ -98,12 +98,12 @@ func fieldToScalar(field string, isHeader bool) *token.Scalar {
 		if b == '"' || b == '\n' || b == '\\' {
 			escapeCount++
 		} else if i == 0 {
-			fieldIsAlnum = isalpha(b)
+			fieldIsAlnum = scanner.IsAlpha(b)
 		} else {
-			fieldIsAlnum = fieldIsAlnum && isalnum(b)
+			fieldIsAlnum = fieldIsAlnum && scanner.IsAlnum(b)
 		}
 		if fieldCouldBeNumber {
-			fieldCouldBeNumber = isdigit(b) || b == '.' || b == 'e' || b == 'E' || b == '+' || b == '-'
+			fieldCouldBeNumber = scanner.IsDigit(b) || b == '.' || b == 'e' || b == 'E' || b == '+' || b == '-'
 		}
 	}
 	if escapeCount > 0 {

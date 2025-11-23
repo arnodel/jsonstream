@@ -16,7 +16,9 @@ import (
 	"syscall"
 
 	"github.com/arnodel/jsonstream"
+	"github.com/arnodel/jsonstream/internal/format"
 	"github.com/arnodel/jsonstream/internal/jsonpath"
+	"github.com/arnodel/jsonstream/internal/legacy"
 	"github.com/arnodel/jsonstream/iterator"
 	"github.com/arnodel/jsonstream/jsonpathtransformer"
 	"github.com/arnodel/jsonstream/token"
@@ -42,7 +44,7 @@ func main() {
 	var indent int
 	var outputFormat string
 	var inputFormat string
-	var colorizer *jsonstream.Colorizer
+	var colorizer *format.Colorizer
 	var quoteKeys bool
 	var compactMaxWidth int
 
@@ -144,7 +146,7 @@ func main() {
 	out := bufio.NewWriter(stdout)
 	defer out.Flush()
 
-	printer := &jsonstream.DefaultPrinter{
+	printer := &format.DefaultPrinter{
 		Writer:     out,
 		IndentSize: indent,
 	}
@@ -195,10 +197,10 @@ func parseTransformer(arg string) (token.StreamTransformer, error) {
 		return jsonstream.TraceStream{}, nil
 	}
 	if strings.HasPrefix(arg, "...") {
-		return iterator.AsStreamTransformer(&jsonstream.DeepKeyExtractor{Key: strings.TrimPrefix(arg, "...")}), nil
+		return iterator.AsStreamTransformer(&legacy.DeepKeyExtractor{Key: strings.TrimPrefix(arg, "...")}), nil
 	}
 	if strings.HasPrefix(arg, ".") {
-		return iterator.AsStreamTransformer(&jsonstream.KeyExtractor{Key: strings.TrimPrefix(arg, ".")}), nil
+		return iterator.AsStreamTransformer(&legacy.KeyExtractor{Key: strings.TrimPrefix(arg, ".")}), nil
 	}
 	if strings.HasPrefix(arg, "depth=") {
 		depth, err := strconv.ParseInt(strings.TrimPrefix(arg, "depth="), 10, 64)
@@ -283,7 +285,7 @@ var (
 )
 
 // The colors I chose :)
-var defaultColorizer = jsonstream.Colorizer{
+var defaultColorizer = format.Colorizer{
 	ScalarColorCodes: [4][]byte{DimWhite, Yellow, White, Green},
 	KeyColorCode:     BrightBlue,
 	ResetCode:        Reset,

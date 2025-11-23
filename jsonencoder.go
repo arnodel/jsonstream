@@ -3,6 +3,7 @@ package jsonstream
 import (
 	"fmt"
 
+	"github.com/arnodel/jsonstream/internal/format"
 	"github.com/arnodel/jsonstream/iterator"
 	"github.com/arnodel/jsonstream/token"
 )
@@ -10,8 +11,8 @@ import (
 // A JSONEncoder can output a stream encoding a (stream of) JSON values
 // using the given Printer instance for formatting.
 type JSONEncoder struct {
-	Printer
-	*Colorizer
+	format.Printer
+	*format.Colorizer
 	CompactWidthLimit     int
 	CompactObjectMaxItems int
 }
@@ -26,7 +27,7 @@ var _ token.StreamSink = &JSONEncoder{}
 // And error can be returned if the Printer could not perform some writing
 // operation.  A typical example is if it attempt to write to a closed pipe.
 func (sw *JSONEncoder) Consume(stream <-chan token.Token) (err error) {
-	defer CatchPrinterError(&err)
+	defer format.CatchPrinterError(&err)
 	iterator := iterator.New(token.ChannelReadStream(stream))
 	for iterator.Advance() {
 		sw.writeValue(iterator.CurrentValue())

@@ -198,7 +198,7 @@ func parsePath(scanr *scanner.Scanner) ([]*token.Scalar, error) {
 			if err != nil {
 				return nil, err
 			}
-			if !isalpha(b) {
+			if !scanner.IsAlpha(b) {
 				scanr.Back()
 				return nil, unexpectedByte(scanr, "expected a-z/A-Z/_, got")
 			}
@@ -207,7 +207,7 @@ func parsePath(scanr *scanner.Scanner) ([]*token.Scalar, error) {
 				if err != nil {
 					return nil, err
 				}
-				if !isalnum(b) {
+				if !scanner.IsAlnum(b) {
 					scanr.Back()
 					keyBytes := scanr.EndToken()
 					key := token.NewScalar(token.String, append(append([]byte{'"'}, keyBytes...), '"'))
@@ -221,20 +221,4 @@ func parsePath(scanr *scanner.Scanner) ([]*token.Scalar, error) {
 			return path, nil
 		}
 	}
-}
-
-func isalpha[T byte | rune](b T) bool {
-	return b >= 'a' && b <= 'z' || b >= 'A' && b <= 'Z' || b == '_'
-}
-
-func isdigit[T byte | rune](b T) bool {
-	return b >= '0' && b <= '9'
-}
-
-func isalnum[T byte | rune](b T) bool {
-	return isalpha(b) || isdigit(b)
-}
-
-func isctrl[T byte | rune](b T) bool {
-	return b < 32
 }

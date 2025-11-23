@@ -259,16 +259,16 @@ func parseString(scanr *scanner.Scanner) (*token.Scalar, error) {
 			}
 			return scalar, nil
 		default:
-			if isctrl(b) {
+			if scanner.IsCtrl(b) {
 				scanr.Back()
 				return nil, unexpectedByte(scanr, "invalid control character in string")
 			}
 			if isAlnum {
 				if firstChar {
-					isAlnum = isalpha(b)
+					isAlnum = scanner.IsAlpha(b)
 					firstChar = false
 				} else {
-					isAlnum = isalnum(b)
+					isAlnum = scanner.IsAlnum(b)
 				}
 			}
 		}
@@ -345,7 +345,7 @@ func readDigits(scanr *scanner.Scanner) (byte, int, error) {
 		if err != nil {
 			return 0, n, err
 		}
-		if !isdigit(b) {
+		if !scanner.IsDigit(b) {
 			return b, n, nil
 		}
 		n++
