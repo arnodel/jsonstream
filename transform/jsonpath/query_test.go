@@ -1,13 +1,13 @@
-package jsonpathtransformer_test
+package jsonpath_test
 
 import (
-	"github.com/arnodel/jsonstream/encoding/json"
 	"strings"
 	"testing"
 
+	"github.com/arnodel/jsonstream/encoding/json"
 	"github.com/arnodel/jsonstream/internal/jsonpath"
-	"github.com/arnodel/jsonstream/jsonpathtransformer"
 	"github.com/arnodel/jsonstream/token"
+	jsonpathtransformer "github.com/arnodel/jsonstream/transform/jsonpath"
 )
 
 func runSimpleTest(t *testing.T, input, query, output string) {

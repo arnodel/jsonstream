@@ -13,6 +13,9 @@
           "first",
           "second"
         ]
+      ],
+      "result_paths": [
+        "$"
       ]
     },
     {
@@ -40,6 +43,9 @@
       },
       "result": [
         "A"
+      ],
+      "result_paths": [
+        "$['a']"
       ]
     },
     {
@@ -51,6 +57,9 @@
       },
       "result": [
         "A"
+      ],
+      "result_paths": [
+        "$['☺']"
       ]
     },
     {
@@ -62,6 +71,9 @@
       },
       "result": [
         "A"
+      ],
+      "result_paths": [
+        "$['_']"
       ]
     },
     {
@@ -81,7 +93,8 @@
         "a": "A",
         "b": "B"
       },
-      "result": []
+      "result": [],
+      "result_paths": []
     },
     {
       "name": "basic, name shorthand, array data",
@@ -90,7 +103,25 @@
         "first",
         "second"
       ],
-      "result": []
+      "result": [],
+      "result_paths": []
+    },
+    {
+      "name": "basic, name shorthand, object data, nested",
+      "selector": "$.a.b.c",
+      "document": {
+        "a": {
+          "b": {
+            "c": "C"
+          }
+        }
+      },
+      "result": [
+        "C"
+      ],
+      "result_paths": [
+        "$['a']['b']['c']"
+      ]
     },
     {
       "name": "basic, wildcard shorthand, object data",
@@ -108,6 +139,16 @@
           "B",
           "A"
         ]
+      ],
+      "results_paths": [
+        [
+          "$['a']",
+          "$['b']"
+        ],
+        [
+          "$['b']",
+          "$['a']"
+        ]
       ]
     },
     {
@@ -120,6 +161,10 @@
       "result": [
         "first",
         "second"
+      ],
+      "result_paths": [
+        "$[0]",
+        "$[1]"
       ]
     },
     {
@@ -132,6 +177,10 @@
       "result": [
         "first",
         "second"
+      ],
+      "result_paths": [
+        "$[0]",
+        "$[1]"
       ]
     },
     {
@@ -156,6 +205,16 @@
           "Ay",
           "Ax"
         ]
+      ],
+      "results_paths": [
+        [
+          "$['x']['a']",
+          "$['y']['a']"
+        ],
+        [
+          "$['y']['a']",
+          "$['x']['a']"
+        ]
       ]
     },
     {
@@ -176,6 +235,10 @@
       "result": [
         0,
         2
+      ],
+      "result_paths": [
+        "$[0]",
+        "$[2]"
       ]
     },
     {
@@ -213,6 +276,9 @@
       ],
       "result": [
         1
+      ],
+      "result_paths": [
+        "$[1]"
       ]
     },
     {
@@ -224,6 +290,9 @@
       },
       "result": [
         1
+      ],
+      "result_paths": [
+        "$['a']"
       ]
     },
     {
@@ -245,6 +314,11 @@
         1,
         5,
         6
+      ],
+      "result_paths": [
+        "$[1]",
+        "$[5]",
+        "$[6]"
       ]
     },
     {
@@ -267,6 +341,12 @@
         0,
         1,
         2
+      ],
+      "result_paths": [
+        "$[1]",
+        "$[0]",
+        "$[1]",
+        "$[2]"
       ]
     },
     {
@@ -287,6 +367,10 @@
       "result": [
         1,
         1
+      ],
+      "result_paths": [
+        "$[1]",
+        "$[1]"
       ]
     },
     {
@@ -316,6 +400,19 @@
         8,
         9,
         1
+      ],
+      "result_paths": [
+        "$[0]",
+        "$[1]",
+        "$[2]",
+        "$[3]",
+        "$[4]",
+        "$[5]",
+        "$[6]",
+        "$[7]",
+        "$[8]",
+        "$[9]",
+        "$[1]"
       ]
     },
     {
@@ -335,6 +432,18 @@
           "B",
           "A",
           "A"
+        ]
+      ],
+      "results_paths": [
+        [
+          "$['a']",
+          "$['b']",
+          "$['a']"
+        ],
+        [
+          "$['b']",
+          "$['a']",
+          "$['a']"
         ]
       ]
     },
@@ -366,6 +475,20 @@
         9,
         0,
         1
+      ],
+      "result_paths": [
+        "$[0]",
+        "$[1]",
+        "$[2]",
+        "$[3]",
+        "$[4]",
+        "$[5]",
+        "$[6]",
+        "$[7]",
+        "$[8]",
+        "$[9]",
+        "$[0]",
+        "$[1]"
       ]
     },
     {
@@ -383,6 +506,14 @@
         0,
         1,
         2
+      ],
+      "result_paths": [
+        "$[0]",
+        "$[1]",
+        "$[2]",
+        "$[0]",
+        "$[1]",
+        "$[2]"
       ]
     },
     {
@@ -406,6 +537,10 @@
       "result": [
         1,
         3
+      ],
+      "result_paths": [
+        "$['o'][1]",
+        "$['o'][2][1]"
       ]
     },
     {
@@ -424,6 +559,61 @@
       "result": [
         "b",
         "c"
+      ],
+      "result_paths": [
+        "$['o'][0]['a']",
+        "$['o'][1]['a']"
+      ]
+    },
+    {
+      "name": "basic, name shorthand, true",
+      "selector": "$.true",
+      "document": {
+        "true": "A",
+        "_foo": "B"
+      },
+      "result": [
+        "A"
+      ],
+      "result_paths": [
+        "$['true']"
+      ],
+      "tags": [
+        "boundary"
+      ]
+    },
+    {
+      "name": "basic, name shorthand, false",
+      "selector": "$.false",
+      "document": {
+        "false": "A",
+        "_foo": "B"
+      },
+      "result": [
+        "A"
+      ],
+      "result_paths": [
+        "$['false']"
+      ],
+      "tags": [
+        "boundary"
+      ]
+    },
+    {
+      "name": "basic, name shorthand, null",
+      "selector": "$.null",
+      "document": {
+        "null": "A",
+        "_foo": "B"
+      },
+      "result": [
+        "A"
+      ],
+      "result_paths": [
+        "$['null']"
+      ],
+      "tags": [
+        "boundary"
       ]
     },
     {
@@ -436,6 +626,10 @@
       "result": [
         0,
         1
+      ],
+      "result_paths": [
+        "$[0]",
+        "$[1]"
       ]
     },
     {
@@ -448,6 +642,10 @@
       "result": [
         0,
         1
+      ],
+      "result_paths": [
+        "$[0]",
+        "$[1]"
       ]
     },
     {
@@ -493,6 +691,22 @@
           ],
           2,
           1
+        ]
+      ],
+      "results_paths": [
+        [
+          "$[0]",
+          "$[1]",
+          "$[0][0]",
+          "$[0][0][0]",
+          "$[1][0]"
+        ],
+        [
+          "$[0]",
+          "$[1]",
+          "$[0][0]",
+          "$[1][0]",
+          "$[0][0][0]"
         ]
       ]
     },
@@ -600,6 +814,50 @@
           },
           1
         ]
+      ],
+      "results_paths": [
+        [
+          "$['a']",
+          "$['b']",
+          "$['a']['c']",
+          "$['a']['c']['e']",
+          "$['b']['d']"
+        ],
+        [
+          "$['a']",
+          "$['b']",
+          "$['a']['c']",
+          "$['b']['d']",
+          "$['a']['c']['e']"
+        ],
+        [
+          "$['a']",
+          "$['b']",
+          "$['b']['d']",
+          "$['a']['c']",
+          "$['a']['c']['e']"
+        ],
+        [
+          "$['b']",
+          "$['a']",
+          "$['a']['c']",
+          "$['a']['c']['e']",
+          "$['b']['d']"
+        ],
+        [
+          "$['b']",
+          "$['a']",
+          "$['a']['c']",
+          "$['b']['d']",
+          "$['a']['c']['e']"
+        ],
+        [
+          "$['b']",
+          "$['a']",
+          "$['b']['d']",
+          "$['a']['c']",
+          "$['a']['c']['e']"
+        ]
       ]
     },
     {
@@ -610,6 +868,9 @@
       },
       "result": [
         "b"
+      ],
+      "result_paths": [
+        "$['a']"
       ]
     },
     {
@@ -632,6 +893,11 @@
           "a": "b"
         },
         "b"
+      ],
+      "result_paths": [
+        "$['o']",
+        "$['o'][0]",
+        "$['o'][0]['a']"
       ]
     },
     {
@@ -652,6 +918,12 @@
         "e",
         "c",
         "f"
+      ],
+      "result_paths": [
+        "$[0]['a']",
+        "$[0]['d']",
+        "$[1]['a']",
+        "$[1]['d']"
       ]
     },
     {
@@ -680,11 +952,35 @@
           "b",
           "e"
         ]
+      ],
+      "results_paths": [
+        [
+          "$['x']['a']",
+          "$['x']['d']",
+          "$['y']['a']",
+          "$['y']['d']"
+        ],
+        [
+          "$['y']['a']",
+          "$['y']['d']",
+          "$['x']['a']",
+          "$['x']['d']"
+        ]
       ]
     },
     {
       "name": "basic, bald descendant segment",
       "selector": "$..",
+      "invalid_selector": true
+    },
+    {
+      "name": "basic, current node identifier without filter selector",
+      "selector": "$[@.a]",
+      "invalid_selector": true
+    },
+    {
+      "name": "basic, root node identifier in brackets without filter selector",
+      "selector": "$[$.a]",
       "invalid_selector": true
     },
     {
@@ -702,6 +998,16 @@
         [
           null,
           1
+        ]
+      ],
+      "results_paths": [
+        [
+          "$['a']",
+          "$['b']"
+        ],
+        [
+          "$['b']",
+          "$['a']"
         ]
       ]
     },
@@ -723,6 +1029,9 @@
           "a": "b",
           "d": "e"
         }
+      ],
+      "result_paths": [
+        "$[0]"
       ]
     },
     {
@@ -743,6 +1052,9 @@
           "a": null,
           "d": "e"
         }
+      ],
+      "result_paths": [
+        "$[0]"
       ]
     },
     {
@@ -760,6 +1072,16 @@
         [
           null,
           1
+        ]
+      ],
+      "results_paths": [
+        [
+          "$['a']",
+          "$['b']"
+        ],
+        [
+          "$['b']",
+          "$['a']"
         ]
       ]
     },
@@ -785,6 +1107,10 @@
           "b": "c",
           "d": "f"
         }
+      ],
+      "result_paths": [
+        "$[0]",
+        "$[1]"
       ]
     },
     {
@@ -805,6 +1131,9 @@
           "a": "b",
           "d": "e"
         }
+      ],
+      "result_paths": [
+        "$[0]"
       ]
     },
     {
@@ -825,6 +1154,9 @@
           "a": "1",
           "d": "e"
         }
+      ],
+      "result_paths": [
+        "$[0]"
       ]
     },
     {
@@ -845,6 +1177,9 @@
           "a": "b",
           "d": "e"
         }
+      ],
+      "result_paths": [
+        "$[0]"
       ]
     },
     {
@@ -865,6 +1200,9 @@
           "a": "1",
           "d": "e"
         }
+      ],
+      "result_paths": [
+        "$[0]"
       ]
     },
     {
@@ -893,6 +1231,9 @@
           "a": 1,
           "d": "e"
         }
+      ],
+      "result_paths": [
+        "$[0]"
       ]
     },
     {
@@ -913,6 +1254,9 @@
           "a": null,
           "d": "e"
         }
+      ],
+      "result_paths": [
+        "$[0]"
       ]
     },
     {
@@ -927,7 +1271,8 @@
           "d": "f"
         }
       ],
-      "result": []
+      "result": [],
+      "result_paths": []
     },
     {
       "name": "filter, equals true",
@@ -947,6 +1292,9 @@
           "a": true,
           "d": "e"
         }
+      ],
+      "result_paths": [
+        "$[0]"
       ]
     },
     {
@@ -967,6 +1315,9 @@
           "a": false,
           "d": "e"
         }
+      ],
+      "result_paths": [
+        "$[0]"
       ]
     },
     {
@@ -993,6 +1344,13 @@
         [
           false
         ]
+      ],
+      "result_paths": [
+        "$[0]",
+        "$[1]",
+        "$[2]",
+        "$[3]",
+        "$[4]"
       ]
     },
     {
@@ -1019,6 +1377,34 @@
         [
           false
         ]
+      ],
+      "result_paths": [
+        "$[0]",
+        "$[1]",
+        "$[2]",
+        "$[3]",
+        "$[4]"
+      ]
+    },
+    {
+      "name": "filter, equals, absent from index selector equals absent from name selector",
+      "selector": "$[?@.absent==@.list[9]]",
+      "document": [
+        {
+          "list": [
+            1
+          ]
+        }
+      ],
+      "result": [
+        {
+          "list": [
+            1
+          ]
+        }
+      ],
+      "result_paths": [
+        "$[0]"
       ]
     },
     {
@@ -1104,6 +1490,9 @@
             ]
           ]
         }
+      ],
+      "result_paths": [
+        "$[1]"
       ]
     },
     {
@@ -1202,6 +1591,10 @@
             "x": 1
           }
         }
+      ],
+      "result_paths": [
+        "$[1]",
+        "$[2]"
       ]
     },
     {
@@ -1222,6 +1615,9 @@
           "a": "c",
           "d": "f"
         }
+      ],
+      "result_paths": [
+        "$[1]"
       ]
     },
     {
@@ -1242,6 +1638,9 @@
           "a": 1,
           "d": "f"
         }
+      ],
+      "result_paths": [
+        "$[1]"
       ]
     },
     {
@@ -1262,6 +1661,9 @@
           "a": 1,
           "d": "f"
         }
+      ],
+      "result_paths": [
+        "$[1]"
       ]
     },
     {
@@ -1282,6 +1684,9 @@
           "a": "c",
           "d": "f"
         }
+      ],
+      "result_paths": [
+        "$[1]"
       ]
     },
     {
@@ -1302,6 +1707,9 @@
           "a": 1,
           "d": "f"
         }
+      ],
+      "result_paths": [
+        "$[1]"
       ]
     },
     {
@@ -1322,6 +1730,9 @@
           "a": 1,
           "d": "f"
         }
+      ],
+      "result_paths": [
+        "$[1]"
       ]
     },
     {
@@ -1350,6 +1761,10 @@
           "a": "1",
           "d": "f"
         }
+      ],
+      "result_paths": [
+        "$[1]",
+        "$[2]"
       ]
     },
     {
@@ -1370,6 +1785,9 @@
           "a": "c",
           "d": "f"
         }
+      ],
+      "result_paths": [
+        "$[1]"
       ]
     },
     {
@@ -1390,6 +1808,9 @@
           "a": "c",
           "d": "f"
         }
+      ],
+      "result_paths": [
+        "$[1]"
       ]
     },
     {
@@ -1412,6 +1833,10 @@
           "a": "c",
           "d": "f"
         }
+      ],
+      "result_paths": [
+        "$[0]",
+        "$[1]"
       ]
     },
     {
@@ -1432,6 +1857,9 @@
           "a": "c",
           "d": "f"
         }
+      ],
+      "result_paths": [
+        "$[1]"
       ]
     },
     {
@@ -1452,6 +1880,9 @@
           "a": "c",
           "d": "f"
         }
+      ],
+      "result_paths": [
+        "$[1]"
       ]
     },
     {
@@ -1472,6 +1903,9 @@
           "a": "b",
           "d": "e"
         }
+      ],
+      "result_paths": [
+        "$[0]"
       ]
     },
     {
@@ -1492,6 +1926,9 @@
           "a": "b",
           "d": "e"
         }
+      ],
+      "result_paths": [
+        "$[0]"
       ]
     },
     {
@@ -1520,6 +1957,9 @@
           "a": 1,
           "d": "e"
         }
+      ],
+      "result_paths": [
+        "$[0]"
       ]
     },
     {
@@ -1535,7 +1975,8 @@
           "d": "f"
         }
       ],
-      "result": []
+      "result": [],
+      "result_paths": []
     },
     {
       "name": "filter, less than true",
@@ -1550,7 +1991,8 @@
           "d": "f"
         }
       ],
-      "result": []
+      "result": [],
+      "result_paths": []
     },
     {
       "name": "filter, less than false",
@@ -1565,7 +2007,8 @@
           "d": "f"
         }
       ],
-      "result": []
+      "result": [],
+      "result_paths": []
     },
     {
       "name": "filter, less than or equal to string, single quotes",
@@ -1589,6 +2032,10 @@
           "a": "c",
           "d": "f"
         }
+      ],
+      "result_paths": [
+        "$[0]",
+        "$[1]"
       ]
     },
     {
@@ -1613,6 +2060,10 @@
           "a": "c",
           "d": "f"
         }
+      ],
+      "result_paths": [
+        "$[0]",
+        "$[1]"
       ]
     },
     {
@@ -1645,6 +2096,10 @@
           "a": 10,
           "d": "e"
         }
+      ],
+      "result_paths": [
+        "$[0]",
+        "$[1]"
       ]
     },
     {
@@ -1665,6 +2120,9 @@
           "a": null,
           "d": "e"
         }
+      ],
+      "result_paths": [
+        "$[0]"
       ]
     },
     {
@@ -1685,6 +2143,9 @@
           "a": true,
           "d": "e"
         }
+      ],
+      "result_paths": [
+        "$[0]"
       ]
     },
     {
@@ -1705,6 +2166,9 @@
           "a": false,
           "d": "e"
         }
+      ],
+      "result_paths": [
+        "$[0]"
       ]
     },
     {
@@ -1729,6 +2193,9 @@
           "a": "d",
           "d": "f"
         }
+      ],
+      "result_paths": [
+        "$[2]"
       ]
     },
     {
@@ -1753,6 +2220,9 @@
           "a": "d",
           "d": "f"
         }
+      ],
+      "result_paths": [
+        "$[2]"
       ]
     },
     {
@@ -1781,6 +2251,9 @@
           "a": 20,
           "d": "f"
         }
+      ],
+      "result_paths": [
+        "$[3]"
       ]
     },
     {
@@ -1796,7 +2269,8 @@
           "d": "f"
         }
       ],
-      "result": []
+      "result": [],
+      "result_paths": []
     },
     {
       "name": "filter, greater than true",
@@ -1811,7 +2285,8 @@
           "d": "f"
         }
       ],
-      "result": []
+      "result": [],
+      "result_paths": []
     },
     {
       "name": "filter, greater than false",
@@ -1826,7 +2301,8 @@
           "d": "f"
         }
       ],
-      "result": []
+      "result": [],
+      "result_paths": []
     },
     {
       "name": "filter, greater than or equal to string, single quotes",
@@ -1854,6 +2330,10 @@
           "a": "d",
           "d": "f"
         }
+      ],
+      "result_paths": [
+        "$[1]",
+        "$[2]"
       ]
     },
     {
@@ -1882,6 +2362,10 @@
           "a": "d",
           "d": "f"
         }
+      ],
+      "result_paths": [
+        "$[1]",
+        "$[2]"
       ]
     },
     {
@@ -1914,6 +2398,10 @@
           "a": 20,
           "d": "f"
         }
+      ],
+      "result_paths": [
+        "$[1]",
+        "$[3]"
       ]
     },
     {
@@ -1934,6 +2422,9 @@
           "a": null,
           "d": "e"
         }
+      ],
+      "result_paths": [
+        "$[0]"
       ]
     },
     {
@@ -1954,6 +2445,9 @@
           "a": true,
           "d": "e"
         }
+      ],
+      "result_paths": [
+        "$[0]"
       ]
     },
     {
@@ -1974,6 +2468,9 @@
           "a": false,
           "d": "e"
         }
+      ],
+      "result_paths": [
+        "$[0]"
       ]
     },
     {
@@ -1993,6 +2490,9 @@
           "a": "c",
           "d": "f"
         }
+      ],
+      "result_paths": [
+        "$[1]"
       ]
     },
     {
@@ -2015,6 +2515,9 @@
           "a": false,
           "b": false
         }
+      ],
+      "result_paths": [
+        "$[0]"
       ]
     },
     {
@@ -2040,6 +2543,10 @@
         {
           "b": false
         }
+      ],
+      "result_paths": [
+        "$[0]",
+        "$[1]"
       ]
     },
     {
@@ -2064,6 +2571,9 @@
           "a": 5,
           "d": "f"
         }
+      ],
+      "result_paths": [
+        "$[1]"
       ]
     },
     {
@@ -2096,6 +2606,10 @@
           "a": "d",
           "d": "f"
         }
+      ],
+      "result_paths": [
+        "$[1]",
+        "$[3]"
       ]
     },
     {
@@ -2124,6 +2638,10 @@
           "a": "d",
           "d": "f"
         }
+      ],
+      "result_paths": [
+        "$[0]",
+        "$[2]"
       ]
     },
     {
@@ -2146,6 +2664,9 @@
         {
           "d": "f"
         }
+      ],
+      "result_paths": [
+        "$[1]"
       ]
     },
     {
@@ -2168,6 +2689,9 @@
         {
           "d": "f"
         }
+      ],
+      "result_paths": [
+        "$[1]"
       ]
     },
     {
@@ -2191,6 +2715,10 @@
         {
           "a": 3
         }
+      ],
+      "result_paths": [
+        "$[2]",
+        "$[4]"
       ]
     },
     {
@@ -2232,6 +2760,12 @@
           "a": 3,
           "b": 4
         }
+      ],
+      "result_paths": [
+        "$[2]",
+        "$[3]",
+        "$[4]",
+        "$[6]"
       ]
     },
     {
@@ -2262,6 +2796,10 @@
           3,
           4
         ]
+      ],
+      "result_paths": [
+        "$[2]",
+        "$[3]"
       ]
     },
     {
@@ -2282,6 +2820,11 @@
         1,
         [],
         {}
+      ],
+      "result_paths": [
+        "$[0]",
+        "$[1]",
+        "$[3]"
       ]
     },
     {
@@ -2333,6 +2876,10 @@
         [
           42
         ]
+      ],
+      "result_paths": [
+        "$[2]",
+        "$[3]"
       ]
     },
     {
@@ -2341,7 +2888,8 @@
       "document": {
         "a": 1
       },
-      "result": []
+      "result": [],
+      "result_paths": []
     },
     {
       "name": "filter, name segment on array, selects nothing",
@@ -2352,7 +2900,8 @@
           6
         ]
       ],
-      "result": []
+      "result": [],
+      "result_paths": []
     },
     {
       "name": "filter, index segment on object, selects nothing",
@@ -2362,7 +2911,45 @@
           "0": 5
         }
       ],
-      "result": []
+      "result": [],
+      "result_paths": []
+    },
+    {
+      "name": "filter, followed by name selector",
+      "selector": "$[?@.a==1].b.x",
+      "document": [
+        {
+          "a": 1,
+          "b": {
+            "x": 2
+          }
+        }
+      ],
+      "result": [
+        2
+      ],
+      "result_paths": [
+        "$[0]['b']['x']"
+      ]
+    },
+    {
+      "name": "filter, followed by child segment that selects multiple elements",
+      "selector": "$[?@.z=='_']['x','y']",
+      "document": [
+        {
+          "x": 1,
+          "y": null,
+          "z": "_"
+        }
+      ],
+      "result": [
+        1,
+        null
+      ],
+      "result_paths": [
+        "$[0]['x']",
+        "$[0]['y']"
+      ]
     },
     {
       "name": "filter, relative non-singular query, index, equal",
@@ -2590,6 +3177,10 @@
           "b": "c",
           "d": "f"
         }
+      ],
+      "result_paths": [
+        "$[0]",
+        "$[1]"
       ]
     },
     {
@@ -2610,6 +3201,9 @@
           "a": "b",
           "d": "e"
         }
+      ],
+      "result_paths": [
+        "$[0]"
       ]
     },
     {
@@ -2638,6 +3232,11 @@
           "b": "c",
           "d": "f"
         }
+      ],
+      "result_paths": [
+        "$[0]",
+        "$[0]",
+        "$[1]"
       ]
     },
     {
@@ -2662,6 +3261,10 @@
           "b": "c",
           "d": "f"
         }
+      ],
+      "result_paths": [
+        "$[0]",
+        "$[1]"
       ]
     },
     {
@@ -2690,6 +3293,11 @@
           "b": "c",
           "d": "f"
         }
+      ],
+      "result_paths": [
+        "$[0]",
+        "$[0]",
+        "$[1]"
       ]
     },
     {
@@ -2720,6 +3328,11 @@
         {
           "g": "h"
         }
+      ],
+      "result_paths": [
+        "$[0]",
+        "$[1]",
+        "$[2]"
       ]
     },
     {
@@ -2749,6 +3362,11 @@
           "d": "f"
         }
       ],
+      "result_paths": [
+        "$[1]",
+        "$[0]",
+        "$[1]"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -2775,6 +3393,9 @@
           "a": 0,
           "d": "e"
         }
+      ],
+      "result_paths": [
+        "$[0]"
       ]
     },
     {
@@ -2799,6 +3420,9 @@
           "a": 0,
           "d": "e"
         }
+      ],
+      "result_paths": [
+        "$[0]"
       ]
     },
     {
@@ -2823,6 +3447,9 @@
           "a": 1,
           "d": "e"
         }
+      ],
+      "result_paths": [
+        "$[0]"
       ]
     },
     {
@@ -2847,6 +3474,9 @@
           "a": 100,
           "d": "e"
         }
+      ],
+      "result_paths": [
+        "$[0]"
       ]
     },
     {
@@ -2871,6 +3501,9 @@
           "a": 100,
           "d": "e"
         }
+      ],
+      "result_paths": [
+        "$[0]"
       ]
     },
     {
@@ -2895,6 +3528,9 @@
           "a": 100,
           "d": "e"
         }
+      ],
+      "result_paths": [
+        "$[0]"
       ]
     },
     {
@@ -2919,6 +3555,9 @@
           "a": 0.01,
           "d": "e"
         }
+      ],
+      "result_paths": [
+        "$[0]"
       ]
     },
     {
@@ -2943,6 +3582,9 @@
           "a": 1,
           "d": "e"
         }
+      ],
+      "result_paths": [
+        "$[0]"
       ]
     },
     {
@@ -2967,6 +3609,9 @@
           "a": 1,
           "d": "e"
         }
+      ],
+      "result_paths": [
+        "$[0]"
       ]
     },
     {
@@ -2991,6 +3636,9 @@
           "a": 1,
           "d": "e"
         }
+      ],
+      "result_paths": [
+        "$[0]"
       ]
     },
     {
@@ -3015,6 +3663,9 @@
           "a": 0.01,
           "d": "e"
         }
+      ],
+      "result_paths": [
+        "$[0]"
       ]
     },
     {
@@ -3039,6 +3690,9 @@
           "a": 1,
           "d": "e"
         }
+      ],
+      "result_paths": [
+        "$[0]"
       ]
     },
     {
@@ -3063,6 +3717,9 @@
           "a": 1.1,
           "d": "e"
         }
+      ],
+      "result_paths": [
+        "$[0]"
       ]
     },
     {
@@ -3087,6 +3744,9 @@
           "a": 1.1,
           "d": "e"
         }
+      ],
+      "result_paths": [
+        "$[0]"
       ]
     },
     {
@@ -3111,6 +3771,9 @@
           "a": 110,
           "d": "e"
         }
+      ],
+      "result_paths": [
+        "$[0]"
       ]
     },
     {
@@ -3135,6 +3798,9 @@
           "a": 110,
           "d": "e"
         }
+      ],
+      "result_paths": [
+        "$[0]"
       ]
     },
     {
@@ -3159,6 +3825,9 @@
           "a": 0.011,
           "d": "e"
         }
+      ],
+      "result_paths": [
+        "$[0]"
       ]
     },
     {
@@ -3271,6 +3940,10 @@
           "a": null
         }
       ],
+      "result_paths": [
+        "$['values'][1]",
+        "$['values'][2]"
+      ],
       "tags": [
         "function"
       ]
@@ -3293,6 +3966,9 @@
         {
           "c": 3
         }
+      ],
+      "result_paths": [
+        "$[2]"
       ]
     },
     {
@@ -3317,6 +3993,10 @@
           "c": 3
         }
       ],
+      "result_paths": [
+        "$[1]",
+        "$[2]"
+      ],
       "tags": [
         "function",
         "whitespace"
@@ -3339,6 +4019,282 @@
           2,
           1
         ]
+      ],
+      "results_paths": [
+        [
+          "$['a']",
+          "$['b']"
+        ],
+        [
+          "$['b']",
+          "$['a']"
+        ]
+      ]
+    },
+    {
+      "name": "filter, two consecutive ands",
+      "selector": "$[?@.a && @.b && @.c]",
+      "document": [
+        {
+          "a": 1,
+          "b": 2
+        },
+        {
+          "a": 1,
+          "c": 3
+        },
+        {
+          "b": 2,
+          "c": 3
+        },
+        {
+          "a": 1,
+          "b": 2,
+          "c": 3
+        }
+      ],
+      "result": [
+        {
+          "a": 1,
+          "b": 2,
+          "c": 3
+        }
+      ],
+      "result_paths": [
+        "$[3]"
+      ]
+    },
+    {
+      "name": "filter, two consecutive ors",
+      "selector": "$[?@.a || @.b || @.c]",
+      "document": [
+        {
+          "a": 1,
+          "b": 2
+        },
+        {
+          "a": 1,
+          "c": 3
+        },
+        {
+          "b": 2,
+          "c": 3
+        },
+        {
+          "a": 1,
+          "b": 2,
+          "c": 3
+        }
+      ],
+      "result": [
+        {
+          "a": 1,
+          "b": 2
+        },
+        {
+          "a": 1,
+          "c": 3
+        },
+        {
+          "b": 2,
+          "c": 3
+        },
+        {
+          "a": 1,
+          "b": 2,
+          "c": 3
+        }
+      ],
+      "result_paths": [
+        "$[0]",
+        "$[1]",
+        "$[2]",
+        "$[3]"
+      ]
+    },
+    {
+      "name": "filter, multiple consecutive ands",
+      "selector": "$[?@.a && @.b && @.c && @.d && @.e]",
+      "document": [
+        {
+          "a": 1,
+          "b": 2,
+          "c": 3,
+          "d": 4
+        },
+        {
+          "b": 2,
+          "c": 3,
+          "d": 4,
+          "e": 5
+        },
+        {
+          "a": 1,
+          "c": 3,
+          "e": 5
+        },
+        {
+          "a": 1,
+          "b": 2,
+          "c": 3,
+          "d": 4,
+          "e": 5
+        }
+      ],
+      "result": [
+        {
+          "a": 1,
+          "b": 2,
+          "c": 3,
+          "d": 4,
+          "e": 5
+        }
+      ],
+      "result_paths": [
+        "$[3]"
+      ]
+    },
+    {
+      "name": "filter, multiple consecutive ors",
+      "selector": "$[?@.a || @.b || @.c || @.d || @.e]",
+      "document": [
+        {
+          "a": 1,
+          "b": 2,
+          "c": 3,
+          "d": 4
+        },
+        {
+          "b": 2,
+          "c": 3,
+          "d": 4,
+          "e": 5
+        },
+        {
+          "a": 1,
+          "c": 3,
+          "e": 5
+        },
+        {
+          "a": 1,
+          "b": 2,
+          "c": 3,
+          "d": 4,
+          "e": 5
+        }
+      ],
+      "result": [
+        {
+          "a": 1,
+          "b": 2,
+          "c": 3,
+          "d": 4
+        },
+        {
+          "b": 2,
+          "c": 3,
+          "d": 4,
+          "e": 5
+        },
+        {
+          "a": 1,
+          "c": 3,
+          "e": 5
+        },
+        {
+          "a": 1,
+          "b": 2,
+          "c": 3,
+          "d": 4,
+          "e": 5
+        }
+      ],
+      "result_paths": [
+        "$[0]",
+        "$[1]",
+        "$[2]",
+        "$[3]"
+      ]
+    },
+    {
+      "name": "filter, multiple consecutive ors and ands",
+      "selector": "$[?@.a && @.b && @.c || @.d || @.e]",
+      "document": [
+        {
+          "a": 1
+        },
+        {
+          "e": 5
+        },
+        {
+          "a": 1,
+          "b": 2
+        },
+        {
+          "d": 4,
+          "e": 5
+        },
+        {
+          "a": 1,
+          "b": 2,
+          "c": 3
+        },
+        {
+          "c": 3,
+          "d": 4,
+          "e": 5
+        },
+        {
+          "a": 1,
+          "c": 3,
+          "e": 5
+        },
+        {
+          "a": 1,
+          "b": 2,
+          "c": 3,
+          "d": 4,
+          "e": 5
+        }
+      ],
+      "result": [
+        {
+          "e": 5
+        },
+        {
+          "d": 4,
+          "e": 5
+        },
+        {
+          "a": 1,
+          "b": 2,
+          "c": 3
+        },
+        {
+          "c": 3,
+          "d": 4,
+          "e": 5
+        },
+        {
+          "a": 1,
+          "c": 3,
+          "e": 5
+        },
+        {
+          "a": 1,
+          "b": 2,
+          "c": 3,
+          "d": 4,
+          "e": 5
+        }
+      ],
+      "result_paths": [
+        "$[1]",
+        "$[3]",
+        "$[4]",
+        "$[5]",
+        "$[6]",
+        "$[7]"
       ]
     },
     {
@@ -3377,6 +4333,11 @@
           "b": 2,
           "c": 3
         }
+      ],
+      "result_paths": [
+        "$[0]",
+        "$[1]",
+        "$[4]"
       ],
       "tags": [
         "whitespace"
@@ -3435,6 +4396,13 @@
           "c": 3
         }
       ],
+      "result_paths": [
+        "$[2]",
+        "$[3]",
+        "$[4]",
+        "$[5]",
+        "$[6]"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -3485,6 +4453,11 @@
           "c": 3
         }
       ],
+      "result_paths": [
+        "$[1]",
+        "$[2]",
+        "$[6]"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -3531,6 +4504,11 @@
           "c": 3
         }
       ],
+      "result_paths": [
+        "$[1]",
+        "$[2]",
+        "$[5]"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -3545,6 +4523,9 @@
       ],
       "result": [
         "quoted' literal"
+      ],
+      "result_paths": [
+        "$[0]"
       ]
     },
     {
@@ -3558,6 +4539,9 @@
       ],
       "result": [
         "quoted\" literal"
+      ],
+      "result_paths": [
+        "$[0]"
       ],
       "tags": [
         "whitespace"
@@ -3575,6 +4559,9 @@
       "result": [
         "quoted' literal"
       ],
+      "result_paths": [
+        "$[0]"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -3590,6 +4577,9 @@
       ],
       "result": [
         "quoted\" literal"
+      ],
+      "result_paths": [
+        "$[0]"
       ],
       "tags": [
         "whitespace"
@@ -3707,6 +4697,9 @@
       "result": [
         "first"
       ],
+      "result_paths": [
+        "$[0]"
+      ],
       "tags": [
         "index"
       ]
@@ -3721,6 +4714,9 @@
       "result": [
         "second"
       ],
+      "result_paths": [
+        "$[1]"
+      ],
       "tags": [
         "index"
       ]
@@ -3733,6 +4729,7 @@
         "second"
       ],
       "result": [],
+      "result_paths": [],
       "tags": [
         "boundary",
         "index"
@@ -3746,6 +4743,7 @@
         "second"
       ],
       "result": [],
+      "result_paths": [],
       "tags": [
         "boundary",
         "index"
@@ -3759,6 +4757,7 @@
         "second"
       ],
       "result": [],
+      "result_paths": [],
       "tags": [
         "boundary",
         "index"
@@ -3809,6 +4808,9 @@
       "result": [
         "second"
       ],
+      "result_paths": [
+        "$[1]"
+      ],
       "tags": [
         "index"
       ]
@@ -3823,6 +4825,9 @@
       "result": [
         "first"
       ],
+      "result_paths": [
+        "$[0]"
+      ],
       "tags": [
         "index"
       ]
@@ -3835,6 +4840,7 @@
         "second"
       ],
       "result": [],
+      "result_paths": [],
       "tags": [
         "boundary",
         "index"
@@ -3847,6 +4853,7 @@
         "foo": 1
       },
       "result": [],
+      "result_paths": [],
       "tags": [
         "index"
       ]
@@ -3909,6 +4916,9 @@
       },
       "result": [
         "A"
+      ],
+      "result_paths": [
+        "$['a']"
       ]
     },
     {
@@ -3918,7 +4928,8 @@
         "a": "A",
         "b": "B"
       },
-      "result": []
+      "result": [],
+      "result_paths": []
     },
     {
       "name": "name selector, double quotes, array data",
@@ -3927,7 +4938,39 @@
         "first",
         "second"
       ],
-      "result": []
+      "result": [],
+      "result_paths": []
+    },
+    {
+      "name": "name selector, name, double quotes, contains single quote",
+      "selector": "$[\"a'\"]",
+      "document": {
+        "a'": "A",
+        "b": "B"
+      },
+      "result": [
+        "A"
+      ],
+      "result_paths": [
+        "$['a\\'']"
+      ]
+    },
+    {
+      "name": "name selector, name, double quotes, nested",
+      "selector": "$[\"a\"][\"b\"][\"c\"]",
+      "document": {
+        "a": {
+          "b": {
+            "c": "C"
+          }
+        }
+      },
+      "result": [
+        "C"
+      ],
+      "result_paths": [
+        "$['a']['b']['c']"
+      ]
     },
     {
       "name": "name selector, double quotes, embedded U+0000",
@@ -4194,6 +5237,9 @@
       "result": [
         "A"
       ],
+      "result_paths": [
+        "$[' ']"
+      ],
       "tags": [
         "unicode"
       ]
@@ -4206,6 +5252,9 @@
       },
       "result": [
         "A"
+      ],
+      "result_paths": [
+        "$['']"
       ],
       "tags": [
         "unicode"
@@ -4220,6 +5269,9 @@
       "result": [
         "A"
       ],
+      "result_paths": [
+        "$['𝄞']"
+      ],
       "tags": [
         "unicode"
       ]
@@ -4232,6 +5284,9 @@
       },
       "result": [
         "A"
+      ],
+      "result_paths": [
+        "$['\"']"
       ]
     },
     {
@@ -4242,6 +5297,9 @@
       },
       "result": [
         "A"
+      ],
+      "result_paths": [
+        "$['\\\\']"
       ]
     },
     {
@@ -4252,6 +5310,9 @@
       },
       "result": [
         "A"
+      ],
+      "result_paths": [
+        "$['/']"
       ]
     },
     {
@@ -4262,6 +5323,9 @@
       },
       "result": [
         "A"
+      ],
+      "result_paths": [
+        "$['\\b']"
       ]
     },
     {
@@ -4272,6 +5336,9 @@
       },
       "result": [
         "A"
+      ],
+      "result_paths": [
+        "$['\\f']"
       ]
     },
     {
@@ -4282,6 +5349,9 @@
       },
       "result": [
         "A"
+      ],
+      "result_paths": [
+        "$['\\n']"
       ]
     },
     {
@@ -4292,6 +5362,9 @@
       },
       "result": [
         "A"
+      ],
+      "result_paths": [
+        "$['\\r']"
       ]
     },
     {
@@ -4302,6 +5375,9 @@
       },
       "result": [
         "A"
+      ],
+      "result_paths": [
+        "$['\\t']"
       ]
     },
     {
@@ -4312,6 +5388,9 @@
       },
       "result": [
         "A"
+      ],
+      "result_paths": [
+        "$['☺']"
       ],
       "tags": [
         "unicode"
@@ -4326,6 +5405,9 @@
       "result": [
         "A"
       ],
+      "result_paths": [
+        "$['☺']"
+      ],
       "tags": [
         "unicode"
       ]
@@ -4338,6 +5420,9 @@
       },
       "result": [
         "A"
+      ],
+      "result_paths": [
+        "$['𝄞']"
       ],
       "tags": [
         "unicode"
@@ -4352,6 +5437,9 @@
       "result": [
         "A"
       ],
+      "result_paths": [
+        "$['😀']"
+      ],
       "tags": [
         "unicode"
       ]
@@ -4365,6 +5453,9 @@
       "result": [
         "A"
       ],
+      "result_paths": [
+        "$['퟿퟿']"
+      ],
       "tags": [
         "unicode"
       ]
@@ -4377,6 +5468,9 @@
       },
       "result": [
         "A"
+      ],
+      "result_paths": [
+        "$['']"
       ],
       "tags": [
         "unicode"
@@ -4572,6 +5666,9 @@
       },
       "result": [
         "A"
+      ],
+      "result_paths": [
+        "$['a']"
       ]
     },
     {
@@ -4581,7 +5678,8 @@
         "a": "A",
         "b": "B"
       },
-      "result": []
+      "result": [],
+      "result_paths": []
     },
     {
       "name": "name selector, single quotes, array data",
@@ -4590,7 +5688,8 @@
         "first",
         "second"
       ],
-      "result": []
+      "result": [],
+      "result_paths": []
     },
     {
       "name": "name selector, single quotes, embedded U+0000",
@@ -4857,6 +5956,9 @@
       "result": [
         "A"
       ],
+      "result_paths": [
+        "$[' ']"
+      ],
       "tags": [
         "unicode"
       ]
@@ -4869,6 +5971,9 @@
       },
       "result": [
         "A"
+      ],
+      "result_paths": [
+        "$['\\'']"
       ]
     },
     {
@@ -4879,6 +5984,9 @@
       },
       "result": [
         "A"
+      ],
+      "result_paths": [
+        "$['\\\\']"
       ]
     },
     {
@@ -4889,6 +5997,9 @@
       },
       "result": [
         "A"
+      ],
+      "result_paths": [
+        "$['/']"
       ],
       "tags": [
         "unicode"
@@ -4902,6 +6013,9 @@
       },
       "result": [
         "A"
+      ],
+      "result_paths": [
+        "$['\\b']"
       ]
     },
     {
@@ -4912,6 +6026,9 @@
       },
       "result": [
         "A"
+      ],
+      "result_paths": [
+        "$['\\f']"
       ]
     },
     {
@@ -4922,6 +6039,9 @@
       },
       "result": [
         "A"
+      ],
+      "result_paths": [
+        "$['\\n']"
       ]
     },
     {
@@ -4932,6 +6052,9 @@
       },
       "result": [
         "A"
+      ],
+      "result_paths": [
+        "$['\\r']"
       ]
     },
     {
@@ -4942,6 +6065,9 @@
       },
       "result": [
         "A"
+      ],
+      "result_paths": [
+        "$['\\t']"
       ]
     },
     {
@@ -4952,6 +6078,9 @@
       },
       "result": [
         "A"
+      ],
+      "result_paths": [
+        "$['☺']"
       ],
       "tags": [
         "unicode"
@@ -4966,6 +6095,9 @@
       "result": [
         "A"
       ],
+      "result_paths": [
+        "$['☺']"
+      ],
       "tags": [
         "unicode"
       ]
@@ -4979,6 +6111,9 @@
       "result": [
         "A"
       ],
+      "result_paths": [
+        "$['𝄞']"
+      ],
       "tags": [
         "unicode"
       ]
@@ -4991,6 +6126,9 @@
       },
       "result": [
         "A"
+      ],
+      "result_paths": [
+        "$['😀']"
       ],
       "tags": [
         "unicode"
@@ -5021,6 +6159,9 @@
       },
       "result": [
         "C"
+      ],
+      "result_paths": [
+        "$['']"
       ]
     },
     {
@@ -5033,6 +6174,9 @@
       },
       "result": [
         "C"
+      ],
+      "result_paths": [
+        "$['']"
       ]
     },
     {
@@ -5053,6 +6197,10 @@
       "result": [
         1,
         2
+      ],
+      "result_paths": [
+        "$[1]",
+        "$[2]"
       ],
       "tags": [
         "slice"
@@ -5078,6 +6226,11 @@
         3,
         5
       ],
+      "result_paths": [
+        "$[1]",
+        "$[3]",
+        "$[5]"
+      ],
       "tags": [
         "slice"
       ]
@@ -5097,6 +6250,12 @@
         2,
         3
       ],
+      "result_paths": [
+        "$[0]",
+        "$[1]",
+        "$[2]",
+        "$[3]"
+      ],
       "tags": [
         "slice"
       ]
@@ -5115,6 +6274,12 @@
         1,
         2,
         3
+      ],
+      "result_paths": [
+        "$[0]",
+        "$[1]",
+        "$[2]",
+        "$[3]"
       ],
       "tags": [
         "slice"
@@ -5138,6 +6303,10 @@
       "result": [
         0,
         1
+      ],
+      "result_paths": [
+        "$[0]",
+        "$[1]"
       ],
       "tags": [
         "slice"
@@ -5165,6 +6334,13 @@
         6,
         8
       ],
+      "result_paths": [
+        "$[0]",
+        "$[2]",
+        "$[4]",
+        "$[6]",
+        "$[8]"
+      ],
       "tags": [
         "slice"
       ]
@@ -5184,6 +6360,12 @@
         1,
         0
       ],
+      "result_paths": [
+        "$[3]",
+        "$[2]",
+        "$[1]",
+        "$[0]"
+      ],
       "tags": [
         "slice"
       ]
@@ -5201,6 +6383,11 @@
         3,
         2,
         1
+      ],
+      "result_paths": [
+        "$[3]",
+        "$[2]",
+        "$[1]"
       ],
       "tags": [
         "slice"
@@ -5220,6 +6407,11 @@
         1,
         0
       ],
+      "result_paths": [
+        "$[2]",
+        "$[1]",
+        "$[0]"
+      ],
       "tags": [
         "slice"
       ]
@@ -5236,6 +6428,10 @@
       "result": [
         3,
         1
+      ],
+      "result_paths": [
+        "$[3]",
+        "$[1]"
       ],
       "tags": [
         "slice"
@@ -5257,6 +6453,7 @@
         9
       ],
       "result": [],
+      "result_paths": [],
       "tags": [
         "slice"
       ]
@@ -5279,6 +6476,10 @@
       "result": [
         9,
         8
+      ],
+      "result_paths": [
+        "$[9]",
+        "$[8]"
       ],
       "tags": [
         "slice"
@@ -5304,6 +6505,11 @@
         7,
         5
       ],
+      "result_paths": [
+        "$[9]",
+        "$[7]",
+        "$[5]"
+      ],
       "tags": [
         "slice"
       ]
@@ -5328,6 +6534,11 @@
         7,
         5
       ],
+      "result_paths": [
+        "$[9]",
+        "$[7]",
+        "$[5]"
+      ],
       "tags": [
         "slice"
       ]
@@ -5351,6 +6562,10 @@
         5,
         6
       ],
+      "result_paths": [
+        "$[5]",
+        "$[6]"
+      ],
       "tags": [
         "slice"
       ]
@@ -5373,6 +6588,10 @@
       "result": [
         8,
         9
+      ],
+      "result_paths": [
+        "$[8]",
+        "$[9]"
       ],
       "tags": [
         "slice"
@@ -5403,6 +6622,16 @@
         7,
         8
       ],
+      "result_paths": [
+        "$[1]",
+        "$[2]",
+        "$[3]",
+        "$[4]",
+        "$[5]",
+        "$[6]",
+        "$[7]",
+        "$[8]"
+      ],
       "tags": [
         "slice"
       ]
@@ -5432,6 +6661,16 @@
         3,
         2
       ],
+      "result_paths": [
+        "$[9]",
+        "$[8]",
+        "$[7]",
+        "$[6]",
+        "$[5]",
+        "$[4]",
+        "$[3]",
+        "$[2]"
+      ],
       "tags": [
         "slice"
       ]
@@ -5454,6 +6693,88 @@
       "result": [
         7,
         6
+      ],
+      "result_paths": [
+        "$[7]",
+        "$[6]"
+      ],
+      "tags": [
+        "slice"
+      ]
+    },
+    {
+      "name": "slice selector, in serial, on nested array",
+      "selector": "$[1:3][1:2]",
+      "document": [
+        [
+          "a",
+          "b",
+          "c"
+        ],
+        [
+          "d",
+          "e",
+          "f"
+        ],
+        [
+          "g",
+          "h",
+          "i"
+        ]
+      ],
+      "result": [
+        "e",
+        "h"
+      ],
+      "result_paths": [
+        "$[1][1]",
+        "$[2][1]"
+      ],
+      "tags": [
+        "slice"
+      ]
+    },
+    {
+      "name": "slice selector, in serial, on flat array",
+      "selector": "$[1:3][::]",
+      "document": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "result": [],
+      "result_paths": [],
+      "tags": [
+        "slice"
+      ]
+    },
+    {
+      "name": "slice selector, negative from, negative to, positive step",
+      "selector": "$[-5:-2]",
+      "document": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "result": [
+        5,
+        6,
+        7
+      ],
+      "result_paths": [
+        "$[5]",
+        "$[6]",
+        "$[7]"
       ],
       "tags": [
         "slice"
@@ -5491,6 +6812,7 @@
         9
       ],
       "result": [],
+      "result_paths": [],
       "tags": [
         "slice"
       ]
@@ -5511,6 +6833,7 @@
         9
       ],
       "result": [],
+      "result_paths": [],
       "tags": [
         "slice"
       ]
@@ -5520,6 +6843,7 @@
       "selector": "$[:]",
       "document": [],
       "result": [],
+      "result_paths": [],
       "tags": [
         "slice"
       ]
@@ -5529,6 +6853,7 @@
       "selector": "$[::-1]",
       "document": [],
       "result": [],
+      "result_paths": [],
       "tags": [
         "slice"
       ]
@@ -5560,6 +6885,18 @@
         8,
         9
       ],
+      "result_paths": [
+        "$[0]",
+        "$[1]",
+        "$[2]",
+        "$[3]",
+        "$[4]",
+        "$[5]",
+        "$[6]",
+        "$[7]",
+        "$[8]",
+        "$[9]"
+      ],
       "tags": [
         "slice"
       ]
@@ -5590,6 +6927,17 @@
         2,
         1
       ],
+      "result_paths": [
+        "$[9]",
+        "$[8]",
+        "$[7]",
+        "$[6]",
+        "$[5]",
+        "$[4]",
+        "$[3]",
+        "$[2]",
+        "$[1]"
+      ],
       "tags": [
         "slice"
       ]
@@ -5619,6 +6967,16 @@
         8,
         9
       ],
+      "result_paths": [
+        "$[2]",
+        "$[3]",
+        "$[4]",
+        "$[5]",
+        "$[6]",
+        "$[7]",
+        "$[8]",
+        "$[9]"
+      ],
       "tags": [
         "boundary",
         "slice"
@@ -5641,6 +6999,9 @@
       ],
       "result": [
         0
+      ],
+      "result_paths": [
+        "$[0]"
       ],
       "tags": [
         "boundary",
@@ -5673,6 +7034,17 @@
         2,
         1
       ],
+      "result_paths": [
+        "$[9]",
+        "$[8]",
+        "$[7]",
+        "$[6]",
+        "$[5]",
+        "$[4]",
+        "$[3]",
+        "$[2]",
+        "$[1]"
+      ],
       "tags": [
         "boundary",
         "slice"
@@ -5699,6 +7071,12 @@
         1,
         0
       ],
+      "result_paths": [
+        "$[3]",
+        "$[2]",
+        "$[1]",
+        "$[0]"
+      ],
       "tags": [
         "boundary",
         "slice"
@@ -5721,6 +7099,9 @@
       ],
       "result": [
         1
+      ],
+      "result_paths": [
+        "$[1]"
       ],
       "tags": [
         "boundary",
@@ -5745,6 +7126,9 @@
       "result": [
         9
       ],
+      "result_paths": [
+        "$[9]"
+      ],
       "tags": [
         "boundary",
         "slice"
@@ -5755,6 +7139,7 @@
       "selector": "$[-9007199254740991::]",
       "document": [],
       "result": [],
+      "result_paths": [],
       "tags": [
         "boundary",
         "slice"
@@ -5765,6 +7150,7 @@
       "selector": "$[9007199254740991::]",
       "document": [],
       "result": [],
+      "result_paths": [],
       "tags": [
         "boundary",
         "slice"
@@ -5793,6 +7179,7 @@
       "selector": "$[:-9007199254740991:]",
       "document": [],
       "result": [],
+      "result_paths": [],
       "tags": [
         "boundary",
         "slice"
@@ -5803,6 +7190,7 @@
       "selector": "$[:9007199254740991:]",
       "document": [],
       "result": [],
+      "result_paths": [],
       "tags": [
         "boundary",
         "slice"
@@ -5831,6 +7219,7 @@
       "selector": "$[::-9007199254740991]",
       "document": [],
       "result": [],
+      "result_paths": [],
       "tags": [
         "boundary",
         "slice"
@@ -5841,6 +7230,7 @@
       "selector": "$[::9007199254740991]",
       "document": [],
       "result": [],
+      "result_paths": [],
       "tags": [
         "boundary",
         "slice"
@@ -6099,6 +7489,10 @@
           "d": "f"
         }
       ],
+      "result_paths": [
+        "$[0]",
+        "$[1]"
+      ],
       "tags": [
         "count",
         "function"
@@ -6127,6 +7521,7 @@
         }
       ],
       "result": [],
+      "result_paths": [],
       "tags": [
         "count",
         "function"
@@ -6165,6 +7560,10 @@
           "a": 1,
           "d": "f"
         }
+      ],
+      "result_paths": [
+        "$[1]",
+        "$[2]"
       ],
       "tags": [
         "count",
@@ -6259,6 +7658,9 @@
           "a": "ab"
         }
       ],
+      "result_paths": [
+        "$[0]"
+      ],
       "tags": [
         "function",
         "length"
@@ -6282,6 +7684,11 @@
         "☺☺",
         "жж",
         "阿美"
+      ],
+      "result_paths": [
+        "$[1]",
+        "$[4]",
+        "$[7]"
       ],
       "tags": [
         "function",
@@ -6314,6 +7721,9 @@
           ]
         }
       ],
+      "result_paths": [
+        "$[0]"
+      ],
       "tags": [
         "function",
         "length"
@@ -6328,6 +7738,7 @@
         }
       ],
       "result": [],
+      "result_paths": [],
       "tags": [
         "function",
         "length"
@@ -6342,6 +7753,7 @@
         }
       ],
       "result": [],
+      "result_paths": [],
       "tags": [
         "function",
         "length"
@@ -6356,6 +7768,7 @@
         }
       ],
       "result": [],
+      "result_paths": [],
       "tags": [
         "function",
         "length"
@@ -6370,6 +7783,7 @@
         }
       ],
       "result": [],
+      "result_paths": [],
       "tags": [
         "function",
         "length"
@@ -6384,6 +7798,7 @@
         }
       ],
       "result": [],
+      "result_paths": [],
       "tags": [
         "function",
         "length"
@@ -6444,6 +7859,9 @@
           "a": "ab"
         }
       ],
+      "result_paths": [
+        "$['values'][0]"
+      ],
       "tags": [
         "function",
         "length"
@@ -6468,6 +7886,27 @@
           "a": "ab"
         }
       ],
+      "result_paths": [
+        "$[0]"
+      ],
+      "tags": [
+        "function",
+        "length"
+      ]
+    },
+    {
+      "name": "functions, length, non-singular query arg, multiple index selectors",
+      "selector": "$[?length(@[1, 2])<3]",
+      "invalid_selector": true,
+      "tags": [
+        "function",
+        "length"
+      ]
+    },
+    {
+      "name": "functions, length, non-singular query arg, multiple name selectors",
+      "selector": "$[?length(@['a', 'b'])<3]",
+      "invalid_selector": true,
       "tags": [
         "function",
         "length"
@@ -6486,6 +7925,9 @@
           "a": "ab"
         }
       ],
+      "result_paths": [
+        "$[0]"
+      ],
       "tags": [
         "function",
         "match"
@@ -6503,6 +7945,9 @@
         {
           "a": "ab"
         }
+      ],
+      "result_paths": [
+        "$[0]"
       ],
       "tags": [
         "function",
@@ -6529,6 +7974,9 @@
       "result": [
         "bab"
       ],
+      "result_paths": [
+        "$['values'][2]"
+      ],
       "tags": [
         "function",
         "match"
@@ -6543,6 +7991,7 @@
         }
       ],
       "result": [],
+      "result_paths": [],
       "tags": [
         "function",
         "match"
@@ -6557,6 +8006,7 @@
         }
       ],
       "result": [],
+      "result_paths": [],
       "tags": [
         "function",
         "match"
@@ -6575,6 +8025,9 @@
           "a": "bc"
         }
       ],
+      "result_paths": [
+        "$[0]"
+      ],
       "tags": [
         "function",
         "match"
@@ -6589,6 +8042,7 @@
         }
       ],
       "result": [],
+      "result_paths": [],
       "tags": [
         "function",
         "match"
@@ -6603,6 +8057,7 @@
         }
       ],
       "result": [],
+      "result_paths": [],
       "tags": [
         "function",
         "match"
@@ -6622,6 +8077,9 @@
       ],
       "result": [
         "Ж"
+      ],
+      "result_paths": [
+        "$[1]"
       ],
       "tags": [
         "function",
@@ -6643,6 +8101,10 @@
         "ж",
         "1"
       ],
+      "result_paths": [
+        "$[0]",
+        "$[2]"
+      ],
       "tags": [
         "function",
         "match"
@@ -6661,6 +8123,9 @@
       ],
       "result": [
         "a𐄁b"
+      ],
+      "result_paths": [
+        "$[0]"
       ],
       "tags": [
         "function",
@@ -6681,6 +8146,9 @@
       "result": [
         " "
       ],
+      "result_paths": [
+        "$[0]"
+      ],
       "tags": [
         "function",
         "match"
@@ -6699,6 +8167,9 @@
       ],
       "result": [
         " "
+      ],
+      "result_paths": [
+        "$[0]"
       ],
       "tags": [
         "function",
@@ -6751,6 +8222,9 @@
           "a": "ab"
         }
       ],
+      "result_paths": [
+        "$['values'][0]"
+      ],
       "tags": [
         "function",
         "match"
@@ -6768,6 +8242,10 @@
         "abc",
         "a.c"
       ],
+      "result_paths": [
+        "$[0]",
+        "$[1]"
+      ],
       "tags": [
         "function",
         "match"
@@ -6783,6 +8261,9 @@
       ],
       "result": [
         "a.c"
+      ],
+      "result_paths": [
+        "$[1]"
       ],
       "tags": [
         "function",
@@ -6801,6 +8282,9 @@
       "result": [
         "a\\ c"
       ],
+      "result_paths": [
+        "$[3]"
+      ],
       "tags": [
         "function",
         "match"
@@ -6816,6 +8300,9 @@
       ],
       "result": [
         "a[ c"
+      ],
+      "result_paths": [
+        "$[2]"
       ],
       "tags": [
         "function",
@@ -6835,6 +8322,10 @@
         "a.c",
         "a]c"
       ],
+      "result_paths": [
+        "$[1]",
+        "$[3]"
+      ],
       "tags": [
         "function",
         "match"
@@ -6853,6 +8344,10 @@
         "abc",
         "ab"
       ],
+      "result_paths": [
+        "$[0]",
+        "$[2]"
+      ],
       "tags": [
         "function",
         "match"
@@ -6869,6 +8364,9 @@
       ],
       "result": [
         "abc"
+      ],
+      "result_paths": [
+        "$[0]"
       ],
       "tags": [
         "function",
@@ -6888,6 +8386,9 @@
           "a": "the end is ab"
         }
       ],
+      "result_paths": [
+        "$[0]"
+      ],
       "tags": [
         "function",
         "search"
@@ -6905,6 +8406,9 @@
         {
           "a": "the end is ab"
         }
+      ],
+      "result_paths": [
+        "$[0]"
       ],
       "tags": [
         "function",
@@ -6924,6 +8428,9 @@
           "a": "ab is at the start"
         }
       ],
+      "result_paths": [
+        "$[0]"
+      ],
       "tags": [
         "function",
         "search"
@@ -6941,6 +8448,9 @@
         {
           "a": "contains two matches"
         }
+      ],
+      "result_paths": [
+        "$[0]"
       ],
       "tags": [
         "function",
@@ -6969,6 +8479,11 @@
         "bba",
         "bbab"
       ],
+      "result_paths": [
+        "$['values'][2]",
+        "$['values'][3]",
+        "$['values'][4]"
+      ],
       "tags": [
         "function",
         "search"
@@ -6983,6 +8498,7 @@
         }
       ],
       "result": [],
+      "result_paths": [],
       "tags": [
         "function",
         "search"
@@ -6997,6 +8513,7 @@
         }
       ],
       "result": [],
+      "result_paths": [],
       "tags": [
         "function",
         "search"
@@ -7015,6 +8532,9 @@
           "a": "bc"
         }
       ],
+      "result_paths": [
+        "$[0]"
+      ],
       "tags": [
         "function",
         "search"
@@ -7029,6 +8549,7 @@
         }
       ],
       "result": [],
+      "result_paths": [],
       "tags": [
         "function",
         "search"
@@ -7043,6 +8564,7 @@
         }
       ],
       "result": [],
+      "result_paths": [],
       "tags": [
         "function",
         "search"
@@ -7064,6 +8586,10 @@
         "Ж",
         "жЖ"
       ],
+      "result_paths": [
+        "$[1]",
+        "$[3]"
+      ],
       "tags": [
         "function",
         "search"
@@ -7084,6 +8610,10 @@
         "ж",
         "1"
       ],
+      "result_paths": [
+        "$[0]",
+        "$[2]"
+      ],
       "tags": [
         "function",
         "search"
@@ -7102,6 +8632,9 @@
       ],
       "result": [
         "a𐄁bc"
+      ],
+      "result_paths": [
+        "$[0]"
       ],
       "tags": [
         "function",
@@ -7124,6 +8657,10 @@
         " ",
         "\r \n"
       ],
+      "result_paths": [
+        "$[0]",
+        "$[1]"
+      ],
       "tags": [
         "function",
         "search"
@@ -7144,6 +8681,10 @@
       "result": [
         " ",
         "\r \n"
+      ],
+      "result_paths": [
+        "$[0]",
+        "$[1]"
       ],
       "tags": [
         "function",
@@ -7199,6 +8740,11 @@
         "bba",
         "bbab"
       ],
+      "result_paths": [
+        "$['values'][2]",
+        "$['values'][3]",
+        "$['values'][4]"
+      ],
       "tags": [
         "function",
         "search"
@@ -7216,6 +8762,10 @@
         "x abc y",
         "x a.c y"
       ],
+      "result_paths": [
+        "$[0]",
+        "$[1]"
+      ],
       "tags": [
         "function",
         "search"
@@ -7231,6 +8781,9 @@
       ],
       "result": [
         "x a.c y"
+      ],
+      "result_paths": [
+        "$[1]"
       ],
       "tags": [
         "function",
@@ -7249,6 +8802,9 @@
       "result": [
         "x a\\ c y"
       ],
+      "result_paths": [
+        "$[3]"
+      ],
       "tags": [
         "function",
         "search"
@@ -7264,6 +8820,9 @@
       ],
       "result": [
         "x a[ c y"
+      ],
+      "result_paths": [
+        "$[2]"
       ],
       "tags": [
         "function",
@@ -7282,6 +8841,10 @@
       "result": [
         "x a.c y",
         "x a]c y"
+      ],
+      "result_paths": [
+        "$[1]",
+        "$[3]"
       ],
       "tags": [
         "function",
@@ -7314,6 +8877,10 @@
           "foo": 4
         }
       ],
+      "result_paths": [
+        "$[0]",
+        "$[1]"
+      ],
       "tags": [
         "function",
         "value"
@@ -7333,6 +8900,7 @@
         }
       ],
       "result": [],
+      "result_paths": [],
       "tags": [
         "function",
         "value"
@@ -7384,6 +8952,9 @@
           "d": "e"
         }
       ],
+      "result_paths": [
+        "$[0]"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -7406,6 +8977,9 @@
           "a": "b",
           "d": "e"
         }
+      ],
+      "result_paths": [
+        "$[0]"
       ],
       "tags": [
         "whitespace"
@@ -7430,6 +9004,9 @@
           "d": "e"
         }
       ],
+      "result_paths": [
+        "$[0]"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -7452,6 +9029,9 @@
           "a": "b",
           "d": "e"
         }
+      ],
+      "result_paths": [
+        "$[0]"
       ],
       "tags": [
         "whitespace"
@@ -7476,6 +9056,9 @@
           "d": "e"
         }
       ],
+      "result_paths": [
+        "$[0]"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -7498,6 +9081,9 @@
           "a": "b",
           "d": "e"
         }
+      ],
+      "result_paths": [
+        "$[0]"
       ],
       "tags": [
         "whitespace"
@@ -7522,6 +9108,9 @@
           "d": "e"
         }
       ],
+      "result_paths": [
+        "$[0]"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -7544,6 +9133,9 @@
           "a": "b",
           "d": "e"
         }
+      ],
+      "result_paths": [
+        "$[0]"
       ],
       "tags": [
         "whitespace"
@@ -7568,6 +9160,9 @@
           "d": "e"
         }
       ],
+      "result_paths": [
+        "$[0]"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -7590,6 +9185,9 @@
           "a": "b",
           "d": "e"
         }
+      ],
+      "result_paths": [
+        "$[0]"
       ],
       "tags": [
         "whitespace"
@@ -7614,6 +9212,9 @@
           "d": "e"
         }
       ],
+      "result_paths": [
+        "$[0]"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -7636,6 +9237,9 @@
           "a": "b",
           "d": "e"
         }
+      ],
+      "result_paths": [
+        "$[0]"
       ],
       "tags": [
         "whitespace"
@@ -7660,6 +9264,9 @@
           "d": "e"
         }
       ],
+      "result_paths": [
+        "$[0]"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -7682,6 +9289,9 @@
           "a": "b",
           "d": "e"
         }
+      ],
+      "result_paths": [
+        "$[0]"
       ],
       "tags": [
         "whitespace"
@@ -7706,6 +9316,9 @@
           "d": "e"
         }
       ],
+      "result_paths": [
+        "$[0]"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -7728,6 +9341,9 @@
           "a": "b",
           "d": "e"
         }
+      ],
+      "result_paths": [
+        "$[0]"
       ],
       "tags": [
         "whitespace"
@@ -7796,6 +9412,10 @@
           "b": 2
         }
       ],
+      "result_paths": [
+        "$[0]",
+        "$[1]"
+      ],
       "tags": [
         "count",
         "function",
@@ -7824,6 +9444,10 @@
         {
           "b": 2
         }
+      ],
+      "result_paths": [
+        "$[0]",
+        "$[1]"
       ],
       "tags": [
         "count",
@@ -7854,6 +9478,10 @@
           "b": 2
         }
       ],
+      "result_paths": [
+        "$[0]",
+        "$[1]"
+      ],
       "tags": [
         "count",
         "function",
@@ -7883,6 +9511,10 @@
           "b": 2
         }
       ],
+      "result_paths": [
+        "$[0]",
+        "$[1]"
+      ],
       "tags": [
         "count",
         "function",
@@ -7898,6 +9530,9 @@
       ],
       "result": [
         "foo"
+      ],
+      "result_paths": [
+        "$[0]"
       ],
       "tags": [
         "function",
@@ -7915,6 +9550,9 @@
       "result": [
         "foo"
       ],
+      "result_paths": [
+        "$[0]"
+      ],
       "tags": [
         "function",
         "search",
@@ -7930,6 +9568,9 @@
       ],
       "result": [
         "foo"
+      ],
+      "result_paths": [
+        "$[0]"
       ],
       "tags": [
         "function",
@@ -7947,6 +9588,9 @@
       "result": [
         "foo"
       ],
+      "result_paths": [
+        "$[0]"
+      ],
       "tags": [
         "function",
         "search",
@@ -7962,6 +9606,9 @@
       ],
       "result": [
         "foo"
+      ],
+      "result_paths": [
+        "$[0]"
       ],
       "tags": [
         "function",
@@ -7979,6 +9626,9 @@
       "result": [
         "foo"
       ],
+      "result_paths": [
+        "$[0]"
+      ],
       "tags": [
         "function",
         "search",
@@ -7995,6 +9645,9 @@
       "result": [
         "foo"
       ],
+      "result_paths": [
+        "$[0]"
+      ],
       "tags": [
         "function",
         "search",
@@ -8010,6 +9663,9 @@
       ],
       "result": [
         "foo"
+      ],
+      "result_paths": [
+        "$[0]"
       ],
       "tags": [
         "function",
@@ -8040,6 +9696,10 @@
           "b": 2
         }
       ],
+      "result_paths": [
+        "$[0]",
+        "$[1]"
+      ],
       "tags": [
         "function",
         "search",
@@ -8068,6 +9728,10 @@
         {
           "b": 2
         }
+      ],
+      "result_paths": [
+        "$[0]",
+        "$[1]"
       ],
       "tags": [
         "count",
@@ -8098,6 +9762,10 @@
           "b": 2
         }
       ],
+      "result_paths": [
+        "$[0]",
+        "$[1]"
+      ],
       "tags": [
         "count",
         "function",
@@ -8127,6 +9795,10 @@
           "b": 2
         }
       ],
+      "result_paths": [
+        "$[0]",
+        "$[1]"
+      ],
       "tags": [
         "count",
         "function",
@@ -8150,6 +9822,9 @@
             "b": "foo"
           }
         }
+      ],
+      "result_paths": [
+        "$[0]"
       ],
       "tags": [
         "function",
@@ -8175,6 +9850,9 @@
           }
         }
       ],
+      "result_paths": [
+        "$[0]"
+      ],
       "tags": [
         "function",
         "length",
@@ -8198,6 +9876,9 @@
             "b": "foo"
           }
         }
+      ],
+      "result_paths": [
+        "$[0]"
       ],
       "tags": [
         "function",
@@ -8223,6 +9904,9 @@
           }
         }
       ],
+      "result_paths": [
+        "$[0]"
+      ],
       "tags": [
         "function",
         "length",
@@ -8240,6 +9924,9 @@
       ],
       "result": [
         "foo"
+      ],
+      "result_paths": [
+        "$[0]['a']"
       ],
       "tags": [
         "function",
@@ -8259,6 +9946,9 @@
       "result": [
         "foo"
       ],
+      "result_paths": [
+        "$[0]['a']"
+      ],
       "tags": [
         "function",
         "length",
@@ -8277,6 +9967,9 @@
       "result": [
         "foo"
       ],
+      "result_paths": [
+        "$[0]['a']"
+      ],
       "tags": [
         "function",
         "length",
@@ -8294,6 +9987,9 @@
       ],
       "result": [
         "foo"
+      ],
+      "result_paths": [
+        "$[0]['a']"
       ],
       "tags": [
         "function",
@@ -8323,6 +10019,10 @@
           "b": 2
         }
       ],
+      "result_paths": [
+        "$[0]",
+        "$[1]"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -8348,6 +10048,10 @@
         {
           "b": 2
         }
+      ],
+      "result_paths": [
+        "$[0]",
+        "$[1]"
       ],
       "tags": [
         "whitespace"
@@ -8375,6 +10079,10 @@
           "b": 2
         }
       ],
+      "result_paths": [
+        "$[0]",
+        "$[1]"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -8400,6 +10108,10 @@
         {
           "b": 2
         }
+      ],
+      "result_paths": [
+        "$[0]",
+        "$[1]"
       ],
       "tags": [
         "whitespace"
@@ -8427,6 +10139,10 @@
           "b": 2
         }
       ],
+      "result_paths": [
+        "$[0]",
+        "$[1]"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -8452,6 +10168,10 @@
         {
           "b": 2
         }
+      ],
+      "result_paths": [
+        "$[0]",
+        "$[1]"
       ],
       "tags": [
         "whitespace"
@@ -8479,6 +10199,10 @@
           "b": 2
         }
       ],
+      "result_paths": [
+        "$[0]",
+        "$[1]"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -8505,6 +10229,10 @@
           "b": 2
         }
       ],
+      "result_paths": [
+        "$[0]",
+        "$[1]"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -8529,6 +10257,9 @@
           "a": 1,
           "b": 2
         }
+      ],
+      "result_paths": [
+        "$[2]"
       ],
       "tags": [
         "whitespace"
@@ -8555,6 +10286,9 @@
           "b": 2
         }
       ],
+      "result_paths": [
+        "$[2]"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -8579,6 +10313,9 @@
           "a": 1,
           "b": 2
         }
+      ],
+      "result_paths": [
+        "$[2]"
       ],
       "tags": [
         "whitespace"
@@ -8605,6 +10342,9 @@
           "b": 2
         }
       ],
+      "result_paths": [
+        "$[2]"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -8629,6 +10369,9 @@
           "a": 1,
           "b": 2
         }
+      ],
+      "result_paths": [
+        "$[2]"
       ],
       "tags": [
         "whitespace"
@@ -8655,6 +10398,9 @@
           "b": 2
         }
       ],
+      "result_paths": [
+        "$[2]"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -8679,6 +10425,9 @@
           "a": 1,
           "b": 2
         }
+      ],
+      "result_paths": [
+        "$[2]"
       ],
       "tags": [
         "whitespace"
@@ -8705,6 +10454,9 @@
           "b": 2
         }
       ],
+      "result_paths": [
+        "$[2]"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -8727,6 +10479,9 @@
           "a": 1,
           "b": 1
         }
+      ],
+      "result_paths": [
+        "$[0]"
       ],
       "tags": [
         "whitespace"
@@ -8751,6 +10506,9 @@
           "b": 1
         }
       ],
+      "result_paths": [
+        "$[0]"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -8773,6 +10531,9 @@
           "a": 1,
           "b": 1
         }
+      ],
+      "result_paths": [
+        "$[0]"
       ],
       "tags": [
         "whitespace"
@@ -8797,6 +10558,9 @@
           "b": 1
         }
       ],
+      "result_paths": [
+        "$[0]"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -8819,6 +10583,9 @@
           "a": 1,
           "b": 1
         }
+      ],
+      "result_paths": [
+        "$[0]"
       ],
       "tags": [
         "whitespace"
@@ -8843,6 +10610,9 @@
           "b": 1
         }
       ],
+      "result_paths": [
+        "$[0]"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -8865,6 +10635,9 @@
           "a": 1,
           "b": 1
         }
+      ],
+      "result_paths": [
+        "$[0]"
       ],
       "tags": [
         "whitespace"
@@ -8889,6 +10662,9 @@
           "b": 1
         }
       ],
+      "result_paths": [
+        "$[0]"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -8911,6 +10687,9 @@
           "a": 1,
           "b": 2
         }
+      ],
+      "result_paths": [
+        "$[1]"
       ],
       "tags": [
         "whitespace"
@@ -8935,6 +10714,9 @@
           "b": 2
         }
       ],
+      "result_paths": [
+        "$[1]"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -8957,6 +10739,9 @@
           "a": 1,
           "b": 2
         }
+      ],
+      "result_paths": [
+        "$[1]"
       ],
       "tags": [
         "whitespace"
@@ -8981,6 +10766,9 @@
           "b": 2
         }
       ],
+      "result_paths": [
+        "$[1]"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -9003,6 +10791,9 @@
           "a": 1,
           "b": 2
         }
+      ],
+      "result_paths": [
+        "$[1]"
       ],
       "tags": [
         "whitespace"
@@ -9027,6 +10818,9 @@
           "b": 2
         }
       ],
+      "result_paths": [
+        "$[1]"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -9049,6 +10843,9 @@
           "a": 1,
           "b": 2
         }
+      ],
+      "result_paths": [
+        "$[1]"
       ],
       "tags": [
         "whitespace"
@@ -9073,6 +10870,9 @@
           "b": 2
         }
       ],
+      "result_paths": [
+        "$[1]"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -9095,6 +10895,9 @@
           "a": 1,
           "b": 2
         }
+      ],
+      "result_paths": [
+        "$[1]"
       ],
       "tags": [
         "whitespace"
@@ -9119,6 +10922,9 @@
           "b": 2
         }
       ],
+      "result_paths": [
+        "$[1]"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -9141,6 +10947,9 @@
           "a": 1,
           "b": 2
         }
+      ],
+      "result_paths": [
+        "$[1]"
       ],
       "tags": [
         "whitespace"
@@ -9165,6 +10974,9 @@
           "b": 2
         }
       ],
+      "result_paths": [
+        "$[1]"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -9187,6 +10999,9 @@
           "a": 1,
           "b": 2
         }
+      ],
+      "result_paths": [
+        "$[1]"
       ],
       "tags": [
         "whitespace"
@@ -9211,6 +11026,9 @@
           "b": 2
         }
       ],
+      "result_paths": [
+        "$[1]"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -9233,6 +11051,9 @@
           "a": 1,
           "b": 2
         }
+      ],
+      "result_paths": [
+        "$[1]"
       ],
       "tags": [
         "whitespace"
@@ -9257,6 +11078,9 @@
           "b": 2
         }
       ],
+      "result_paths": [
+        "$[1]"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -9279,6 +11103,9 @@
           "a": 1,
           "b": 2
         }
+      ],
+      "result_paths": [
+        "$[1]"
       ],
       "tags": [
         "whitespace"
@@ -9303,6 +11130,9 @@
           "b": 2
         }
       ],
+      "result_paths": [
+        "$[1]"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -9325,6 +11155,9 @@
           "a": 1,
           "b": 2
         }
+      ],
+      "result_paths": [
+        "$[1]"
       ],
       "tags": [
         "whitespace"
@@ -9349,6 +11182,9 @@
           "b": 2
         }
       ],
+      "result_paths": [
+        "$[1]"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -9371,6 +11207,9 @@
           "a": 1,
           "b": 2
         }
+      ],
+      "result_paths": [
+        "$[1]"
       ],
       "tags": [
         "whitespace"
@@ -9395,6 +11234,9 @@
           "b": 2
         }
       ],
+      "result_paths": [
+        "$[1]"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -9418,6 +11260,9 @@
           "b": 2
         }
       ],
+      "result_paths": [
+        "$[1]"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -9440,6 +11285,9 @@
           "a": 1,
           "b": 2
         }
+      ],
+      "result_paths": [
+        "$[1]"
       ],
       "tags": [
         "whitespace"
@@ -9472,6 +11320,10 @@
           "b": 2
         }
       ],
+      "result_paths": [
+        "$[0]",
+        "$[1]"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -9502,6 +11354,10 @@
           "a": 1,
           "b": 2
         }
+      ],
+      "result_paths": [
+        "$[0]",
+        "$[1]"
       ],
       "tags": [
         "whitespace"
@@ -9534,6 +11390,10 @@
           "b": 2
         }
       ],
+      "result_paths": [
+        "$[0]",
+        "$[1]"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -9564,6 +11424,10 @@
           "a": 1,
           "b": 2
         }
+      ],
+      "result_paths": [
+        "$[0]",
+        "$[1]"
       ],
       "tags": [
         "whitespace"
@@ -9596,6 +11460,10 @@
           "b": 2
         }
       ],
+      "result_paths": [
+        "$[0]",
+        "$[1]"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -9626,6 +11494,10 @@
           "a": 1,
           "b": 2
         }
+      ],
+      "result_paths": [
+        "$[0]",
+        "$[1]"
       ],
       "tags": [
         "whitespace"
@@ -9658,6 +11530,10 @@
           "b": 2
         }
       ],
+      "result_paths": [
+        "$[0]",
+        "$[1]"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -9688,6 +11564,10 @@
           "a": 1,
           "b": 2
         }
+      ],
+      "result_paths": [
+        "$[0]",
+        "$[1]"
       ],
       "tags": [
         "whitespace"
@@ -9720,6 +11600,10 @@
           "b": 2
         }
       ],
+      "result_paths": [
+        "$[0]",
+        "$[1]"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -9750,6 +11634,10 @@
           "a": 1,
           "b": 2
         }
+      ],
+      "result_paths": [
+        "$[0]",
+        "$[1]"
       ],
       "tags": [
         "whitespace"
@@ -9782,6 +11670,10 @@
           "b": 2
         }
       ],
+      "result_paths": [
+        "$[0]",
+        "$[1]"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -9812,6 +11704,10 @@
           "a": 1,
           "b": 2
         }
+      ],
+      "result_paths": [
+        "$[0]",
+        "$[1]"
       ],
       "tags": [
         "whitespace"
@@ -9844,6 +11740,10 @@
           "b": 2
         }
       ],
+      "result_paths": [
+        "$[0]",
+        "$[1]"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -9874,6 +11774,10 @@
           "a": 1,
           "b": 2
         }
+      ],
+      "result_paths": [
+        "$[0]",
+        "$[1]"
       ],
       "tags": [
         "whitespace"
@@ -9906,6 +11810,10 @@
           "b": 2
         }
       ],
+      "result_paths": [
+        "$[0]",
+        "$[1]"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -9937,6 +11845,10 @@
           "b": 2
         }
       ],
+      "result_paths": [
+        "$[0]",
+        "$[1]"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -9961,6 +11873,9 @@
         {
           "d": "f"
         }
+      ],
+      "result_paths": [
+        "$[1]"
       ],
       "tags": [
         "whitespace"
@@ -9987,6 +11902,9 @@
           "d": "f"
         }
       ],
+      "result_paths": [
+        "$[1]"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -10012,6 +11930,9 @@
           "d": "f"
         }
       ],
+      "result_paths": [
+        "$[1]"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -10036,6 +11957,9 @@
         {
           "d": "f"
         }
+      ],
+      "result_paths": [
+        "$[1]"
       ],
       "tags": [
         "whitespace"
@@ -10068,6 +11992,10 @@
           "d": "f"
         }
       ],
+      "result_paths": [
+        "$[0]",
+        "$[2]"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -10098,6 +12026,10 @@
           "a": "d",
           "d": "f"
         }
+      ],
+      "result_paths": [
+        "$[0]",
+        "$[2]"
       ],
       "tags": [
         "whitespace"
@@ -10130,6 +12062,10 @@
           "d": "f"
         }
       ],
+      "result_paths": [
+        "$[0]",
+        "$[2]"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -10161,6 +12097,10 @@
           "d": "f"
         }
       ],
+      "result_paths": [
+        "$[0]",
+        "$[2]"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -10173,6 +12113,9 @@
       },
       "result": [
         "ab"
+      ],
+      "result_paths": [
+        "$['a']"
       ],
       "tags": [
         "whitespace"
@@ -10187,6 +12130,9 @@
       "result": [
         "ab"
       ],
+      "result_paths": [
+        "$['a']"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -10200,6 +12146,9 @@
       "result": [
         "ab"
       ],
+      "result_paths": [
+        "$['a']"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -10212,6 +12161,9 @@
       },
       "result": [
         "ab"
+      ],
+      "result_paths": [
+        "$['a']"
       ],
       "tags": [
         "whitespace"
@@ -10228,6 +12180,9 @@
       "result": [
         "ab"
       ],
+      "result_paths": [
+        "$['a']['b']"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -10242,6 +12197,9 @@
       },
       "result": [
         "ab"
+      ],
+      "result_paths": [
+        "$['a']['b']"
       ],
       "tags": [
         "whitespace"
@@ -10258,6 +12216,9 @@
       "result": [
         "ab"
       ],
+      "result_paths": [
+        "$['a']['b']"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -10273,6 +12234,9 @@
       "result": [
         "ab"
       ],
+      "result_paths": [
+        "$['a']['b']"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -10285,6 +12249,9 @@
       },
       "result": [
         "ab"
+      ],
+      "result_paths": [
+        "$['a']"
       ],
       "tags": [
         "whitespace"
@@ -10299,6 +12266,9 @@
       "result": [
         "ab"
       ],
+      "result_paths": [
+        "$['a']"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -10312,6 +12282,9 @@
       "result": [
         "ab"
       ],
+      "result_paths": [
+        "$['a']"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -10324,6 +12297,9 @@
       },
       "result": [
         "ab"
+      ],
+      "result_paths": [
+        "$['a']"
       ],
       "tags": [
         "whitespace"
@@ -10402,6 +12378,9 @@
       "result": [
         "ab"
       ],
+      "result_paths": [
+        "$['a']"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -10414,6 +12393,9 @@
       },
       "result": [
         "ab"
+      ],
+      "result_paths": [
+        "$['a']"
       ],
       "tags": [
         "whitespace"
@@ -10428,6 +12410,9 @@
       "result": [
         "ab"
       ],
+      "result_paths": [
+        "$['a']"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -10440,6 +12425,9 @@
       },
       "result": [
         "ab"
+      ],
+      "result_paths": [
+        "$['a']"
       ],
       "tags": [
         "whitespace"
@@ -10454,6 +12442,9 @@
       "result": [
         "ab"
       ],
+      "result_paths": [
+        "$['a']"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -10466,6 +12457,9 @@
       },
       "result": [
         "ab"
+      ],
+      "result_paths": [
+        "$['a']"
       ],
       "tags": [
         "whitespace"
@@ -10480,6 +12474,9 @@
       "result": [
         "ab"
       ],
+      "result_paths": [
+        "$['a']"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -10492,6 +12489,9 @@
       },
       "result": [
         "ab"
+      ],
+      "result_paths": [
+        "$['a']"
       ],
       "tags": [
         "whitespace"
@@ -10508,6 +12508,10 @@
         "ab",
         "bc"
       ],
+      "result_paths": [
+        "$['a']",
+        "$['b']"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -10522,6 +12526,10 @@
       "result": [
         "ab",
         "bc"
+      ],
+      "result_paths": [
+        "$['a']",
+        "$['b']"
       ],
       "tags": [
         "whitespace"
@@ -10538,6 +12546,10 @@
         "ab",
         "bc"
       ],
+      "result_paths": [
+        "$['a']",
+        "$['b']"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -10552,6 +12564,10 @@
       "result": [
         "ab",
         "bc"
+      ],
+      "result_paths": [
+        "$['a']",
+        "$['b']"
       ],
       "tags": [
         "whitespace"
@@ -10568,6 +12584,10 @@
         "ab",
         "bc"
       ],
+      "result_paths": [
+        "$['a']",
+        "$['b']"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -10582,6 +12602,10 @@
       "result": [
         "ab",
         "bc"
+      ],
+      "result_paths": [
+        "$['a']",
+        "$['b']"
       ],
       "tags": [
         "whitespace"
@@ -10598,6 +12622,10 @@
         "ab",
         "bc"
       ],
+      "result_paths": [
+        "$['a']",
+        "$['b']"
+      ],
       "tags": [
         "whitespace"
       ]
@@ -10612,6 +12640,10 @@
       "result": [
         "ab",
         "bc"
+      ],
+      "result_paths": [
+        "$['a']",
+        "$['b']"
       ],
       "tags": [
         "whitespace"
@@ -10631,6 +12663,10 @@
       "result": [
         2,
         4
+      ],
+      "result_paths": [
+        "$[1]",
+        "$[3]"
       ],
       "tags": [
         "index",
@@ -10652,6 +12688,10 @@
         2,
         4
       ],
+      "result_paths": [
+        "$[1]",
+        "$[3]"
+      ],
       "tags": [
         "index",
         "whitespace"
@@ -10671,6 +12711,10 @@
       "result": [
         2,
         4
+      ],
+      "result_paths": [
+        "$[1]",
+        "$[3]"
       ],
       "tags": [
         "index",
@@ -10692,6 +12736,10 @@
         2,
         4
       ],
+      "result_paths": [
+        "$[1]",
+        "$[3]"
+      ],
       "tags": [
         "index",
         "whitespace"
@@ -10711,6 +12759,10 @@
       "result": [
         2,
         4
+      ],
+      "result_paths": [
+        "$[1]",
+        "$[3]"
       ],
       "tags": [
         "index",
@@ -10732,6 +12784,10 @@
         2,
         4
       ],
+      "result_paths": [
+        "$[1]",
+        "$[3]"
+      ],
       "tags": [
         "index",
         "whitespace"
@@ -10751,6 +12807,10 @@
       "result": [
         2,
         4
+      ],
+      "result_paths": [
+        "$[1]",
+        "$[3]"
       ],
       "tags": [
         "index",
@@ -10772,6 +12832,10 @@
         2,
         4
       ],
+      "result_paths": [
+        "$[1]",
+        "$[3]"
+      ],
       "tags": [
         "index",
         "whitespace"
@@ -10791,6 +12855,10 @@
       "result": [
         2,
         4
+      ],
+      "result_paths": [
+        "$[1]",
+        "$[3]"
       ],
       "tags": [
         "index",
@@ -10812,6 +12880,10 @@
         2,
         4
       ],
+      "result_paths": [
+        "$[1]",
+        "$[3]"
+      ],
       "tags": [
         "index",
         "whitespace"
@@ -10831,6 +12903,10 @@
       "result": [
         2,
         4
+      ],
+      "result_paths": [
+        "$[1]",
+        "$[3]"
       ],
       "tags": [
         "index",
@@ -10852,6 +12928,10 @@
         2,
         4
       ],
+      "result_paths": [
+        "$[1]",
+        "$[3]"
+      ],
       "tags": [
         "index",
         "whitespace"
@@ -10871,6 +12951,10 @@
       "result": [
         2,
         4
+      ],
+      "result_paths": [
+        "$[1]",
+        "$[3]"
       ],
       "tags": [
         "index",
@@ -10892,6 +12976,10 @@
         2,
         4
       ],
+      "result_paths": [
+        "$[1]",
+        "$[3]"
+      ],
       "tags": [
         "index",
         "whitespace"
@@ -10912,6 +13000,10 @@
         2,
         4
       ],
+      "result_paths": [
+        "$[1]",
+        "$[3]"
+      ],
       "tags": [
         "index",
         "whitespace"
@@ -10931,6 +13023,10 @@
       "result": [
         2,
         4
+      ],
+      "result_paths": [
+        "$[1]",
+        "$[3]"
       ],
       "tags": [
         "index",

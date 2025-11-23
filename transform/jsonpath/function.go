@@ -1,4 +1,4 @@
-package jsonpathtransformer
+package jsonpath
 
 import (
 	"unicode/utf8"

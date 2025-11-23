@@ -22,9 +22,9 @@ import (
 	"github.com/arnodel/jsonstream/internal/jsonpath"
 	"github.com/arnodel/jsonstream/internal/legacy"
 	"github.com/arnodel/jsonstream/iterator"
-	"github.com/arnodel/jsonstream/jsonpathtransformer"
 	"github.com/arnodel/jsonstream/token"
 	"github.com/arnodel/jsonstream/transform"
+	jsonpathtransformer "github.com/arnodel/jsonstream/transform/jsonpath"
 	"github.com/mattn/go-colorable"
 	"github.com/mattn/go-isatty"
 )

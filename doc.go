@@ -8,9 +8,9 @@ package jsonstream
 // - encoding/csv: CSV decoder
 // - encoding/jpv: JPV (JSON Path-Value) decoder and encoder
 // - transform: Built-in stream transformers
+// - transform/jsonpath: JSONPath query execution
 // - token: Core token-based streaming infrastructure
 // - iterator: Value-based iteration over token streams
-// - jsonpathtransformer: JSONPath query execution
 //
 // These can be combined to form a JSON processing pipeline:
 //
