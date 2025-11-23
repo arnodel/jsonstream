@@ -50,10 +50,21 @@ func main() {
 	var jpvQuoteKeys bool
 	var csvHeader string
 	var colorMode string
+	var helpInput bool
+	var helpOutput bool
+	var helpTransforms bool
 
 	if isatty.IsTerminal(os.Stdout.Fd()) {
 		colorizer = &defaultColorizer
 	}
+
+	// Custom usage function
+	flag.Usage = printUsage
+
+	// Help flags
+	flag.BoolVar(&helpInput, "help-input", false, "show detailed help for input formats")
+	flag.BoolVar(&helpOutput, "help-output", false, "show detailed help for output formats")
+	flag.BoolVar(&helpTransforms, "help-transforms", false, "show detailed help for transforms")
 
 	// New flags
 	flag.IntVar(&jsonIndent, "json-indent", 2, "JSON indentation (use -1 for compact)")
@@ -81,6 +92,20 @@ func main() {
 	flag.StringVar(&deprecatedFile, "file", "", "DEPRECATED: use shell redirection (< file)")
 
 	flag.Parse()
+
+	// Handle help flags
+	if helpInput {
+		printInputHelp()
+		return
+	}
+	if helpOutput {
+		printOutputHelp()
+		return
+	}
+	if helpTransforms {
+		printTransformsHelp()
+		return
+	}
 
 	// Handle color mode
 	switch colorMode {
@@ -320,4 +345,320 @@ var defaultColorizer = format.Colorizer{
 	ScalarColorCodes: [4][]byte{DimWhite, Yellow, White, Green},
 	KeyColorCode:     BrightBlue,
 	ResetCode:        Reset,
+}
+
+func printUsage() {
+	fmt.Fprint(os.Stderr, `jp - JSON stream processor
+
+USAGE:
+  jp [options] [transforms...] < input.json
+
+DESCRIPTION:
+  jp processes JSON input in a streaming manner, allowing you to transform,
+  filter, and format JSON data with constant memory usage.
+
+  Input is read from stdin. Use shell redirection to read from files:
+    jp < file.json
+    cat file.json | jp
+
+HELP OPTIONS:
+  -help-input       Show detailed help for input formats
+  -help-output      Show detailed help for output formats and options
+  -help-transforms  Show detailed help for transforms with examples
+
+INPUT/OUTPUT:
+  -in FORMAT        Input format (default: auto)
+                    Formats: json, jpv, csv, csv-with-header (or csvh)
+  -out FORMAT       Output format (default: json)
+                    Formats: json, jpv
+  -csv-header NAMES Comma-separated field names for CSV input
+                    Only valid with '-in csv'
+
+JSON OUTPUT OPTIONS:
+  -json-indent N    Indentation level (default: 2)
+                    Use 0 for no indentation, -1 for single-line output
+  -json-compact N   Max width for compact arrays/objects (default: 60)
+
+JPV OUTPUT OPTIONS:
+  -jpv-quote-keys   Always quote keys in JPV output
+
+COLOR OPTIONS:
+  -color MODE       Control color output (default: auto)
+                    Modes: auto, always, never
+
+TRANSFORMS:
+  Transforms are applied sequentially to the input stream.
+
+  '$...'            JSONPath query (use single quotes!)
+                    Examples: '$.items[0]' '$..name' '$.users[?@.age > 18]'
+  split             Split array into stream of values
+  join              Join stream of values into array
+  depth=N           Truncate output at depth N
+  trace             Log stream to stderr (for debugging)
+
+JSONPATH QUERIES:
+  -strict           Execute JSONPath queries in strict mode
+
+EXAMPLES:
+  # Pretty-print JSON
+  cat data.json | jp
+
+  # Extract specific field from array items
+  cat users.json | jp '$.users[*].name'
+
+  # Filter and transform
+  cat data.json | jp '$.items[?@.price < 100]' split
+
+  # CSV to JSON
+  cat data.csv | jp -in csv-with-header
+
+  # Compact output
+  cat data.json | jp -json-indent -1
+
+For more information, visit: https://github.com/arnodel/jsonstream
+`)
+}
+
+func printInputHelp() {
+	fmt.Fprint(os.Stderr, `jp - Input Format Help
+
+INPUT FORMAT SELECTION:
+  Use the '-in FORMAT' flag to specify the input format.
+  Default is 'auto', which attempts to detect the format automatically.
+
+AVAILABLE FORMATS:
+
+  json
+    Standard JSON format. Supports both single JSON values and JSON Lines
+    (newline-delimited JSON values).
+
+    Example:
+      {"name": "Alice", "age": 30}
+      {"name": "Bob", "age": 25}
+
+  jpv (or path)
+    JSON Path-Value format. Each line specifies a JSONPath and its value.
+    Similar to GRON format but uses JSONPath syntax.
+
+    Example:
+      $["name"] = "Alice"
+      $["items"][0] = "apple"
+      $["items"][1] = "orange"
+
+  csv
+    Comma-Separated Values format. Each record becomes a JSON array.
+    Use '-csv-header' to provide field names and convert to objects.
+
+    Example without -csv-header:
+      Input:  John,Doe,30
+              Jane,Smith,25
+      Output: ["John", "Doe", 30]
+              ["Jane", "Smith", 25]
+
+    Example with -csv-header name,surname,age:
+      Input:  John,Doe,30
+              Jane,Smith,25
+      Output: {"name": "John", "surname": "Doe", "age": 30}
+              {"name": "Jane", "surname": "Smith", "age": 25}
+
+  csv-with-header (or csvh)
+    CSV format where the first row is treated as a header.
+    Each subsequent record becomes a JSON object.
+
+    Example:
+      Input:  name,surname,age
+              John,Doe,30
+              Jane,Smith,25
+      Output: {"name": "John", "surname": "Doe", "age": 30}
+              {"name": "Jane", "surname": "Smith", "age": 25}
+
+  auto (default)
+    Attempts to automatically detect the format based on the first few
+    bytes of input. Falls back to JSON if detection fails.
+
+NOTES:
+  - Empty fields in CSV are converted to null
+  - CSV values 'true' and 'false' are converted to booleans
+  - CSV numeric values are parsed as JSON numbers
+  - Use shell redirection to read from files: jp -in csv < data.csv
+`)
+}
+
+func printOutputHelp() {
+	fmt.Fprint(os.Stderr, `jp - Output Format Help
+
+OUTPUT FORMAT SELECTION:
+  Use the '-out FORMAT' flag to specify the output format.
+  Default is 'json'.
+
+AVAILABLE FORMATS:
+
+  json (default)
+    Standard JSON format with pretty-printing.
+
+    JSON-specific options:
+      -json-indent N     Set indentation level (default: 2)
+                         Use 0 for no indentation
+                         Use -1 for compact single-line output
+
+      -json-compact N    Max width for compact arrays/objects (default: 60)
+                         Small arrays/objects fitting within this width
+                         are displayed on a single line
+
+    Example output:
+      {
+        "name": "Alice",
+        "scores": [95, 87, 92],
+        "address": {
+          "city": "Boston",
+          "zip": "02101"
+        }
+      }
+
+  jpv (or path)
+    JSON Path-Value format. Each path-value pair on its own line.
+    Useful for grepping and filtering specific parts of JSON.
+
+    JPV-specific options:
+      -jpv-quote-keys    Always quote keys, even if alphanumeric
+
+    Example output:
+      $["name"] = "Alice"
+      $["scores"][0] = 95
+      $["scores"][1] = 87
+      $["scores"][2] = 92
+      $["address"]["city"] = "Boston"
+      $["address"]["zip"] = "02101"
+
+    Workflow example:
+      # Convert to JPV, filter with grep, convert back to JSON
+      cat data.json | jp -out jpv | grep city | jp -in jpv
+
+COLOR OPTIONS:
+  --color MODE       Control color output (default: auto)
+
+                     auto    - Use colors when outputting to a terminal
+                     always  - Always use colors
+                     never   - Never use colors
+
+  Colors are applied to:
+    - Object keys (bright blue)
+    - String values (yellow)
+    - Numbers (white)
+    - Booleans and null (green)
+
+EXAMPLES:
+  # Compact JSON output
+  cat data.json | jp -json-indent -1
+
+  # No colors even in terminal
+  cat data.json | jp --color never
+
+  # Convert JSON to JPV and filter
+  cat users.json | jp -out jpv | grep email
+`)
+}
+
+func printTransformsHelp() {
+	fmt.Fprint(os.Stderr, `jp - Transform Help
+
+TRANSFORMS:
+  Transforms are applied sequentially to process the JSON stream.
+  Specify transforms as positional arguments after flags.
+
+AVAILABLE TRANSFORMS:
+
+  JSONPath Queries: '$...'
+    Execute a JSONPath query on the input. IMPORTANT: Use single quotes
+    to prevent shell interpretation of special characters like $ and *.
+
+    The full IETF JSONPath spec (RFC 9535) is implemented.
+
+    Examples:
+      '$.name'                    - Get the 'name' field
+      '$.items[0]'                - Get first item
+      '$.items[-1]'               - Get last item
+      '$.items[2:5]'              - Slice: items 2, 3, 4
+      '$.items[*]'                - All items in array
+      '$..name'                   - All 'name' fields at any depth
+      '$.items[?@.price < 100]'   - Filter: items where price < 100
+      '$.items[?@.name =~ /^A/]'  - Filter: names starting with A
+      '$[*].length'               - Get 'length' from all top-level objects
+
+    Use -strict flag for strict mode evaluation.
+
+  split
+    Splits an array into a stream of its individual values.
+    Non-array values pass through unchanged.
+
+    Example:
+      Input:  [1, 2, 3]
+      Output: 1
+              2
+              3
+
+  join
+    Joins a stream of values into a single array.
+
+    Example:
+      Input:  1
+              2
+              3
+      Output: [1, 2, 3]
+
+  depth=N
+    Truncates output at the specified depth level.
+    Collections deeper than N are replaced with '...'.
+
+    Example with depth=1:
+      Input:  {"a": 1, "b": {"c": 2, "d": 3}}
+      Output: {"a": 1, "b": {...}}
+
+  trace
+    Logs all stream tokens to stderr. Useful for debugging transforms.
+    Consumes the stream without producing output.
+
+COMBINING TRANSFORMS:
+  Transforms are applied left-to-right. Each transform processes the
+  output of the previous transform.
+
+  Examples:
+    # Split array, then filter with JSONPath
+    jp split '$[?@.age > 18]' < users.json
+
+    # Extract nested field from all items
+    jp '$.users[*]' split '$.address.city' < data.json
+
+    # Get all names at any depth and collect into array
+    jp '$..name' join < nested.json
+
+    # Limit depth and convert to JPV
+    jp depth=2 -out jpv < deep.json
+
+JSONPATH COOKBOOK:
+
+  Extract all email addresses:
+    jp '$..email' < data.json
+
+  Get last 10 items from array:
+    jp '$.items[-10:]' < data.json
+
+  Filter objects by field value:
+    jp '$.users[?@.active == true]' < users.json
+
+  Get all prices and format as array:
+    jp '$..price' join < products.json
+
+  Extract specific fields from each item:
+    jp '$.items[*].{name: name, id: id}' < data.json
+
+  Recursive descent with filter:
+    jp '$..[?@.type == "error"]' < logs.json
+
+NOTES:
+  - Always use single quotes around JSONPath expressions
+  - The $ refers to the root of the current value
+  - The @ in filters refers to the current node being filtered
+  - JSONPath queries preserve streaming where possible
+`)
 }
