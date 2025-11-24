@@ -43,7 +43,8 @@ func main() {
 
 	// Parse the command line arguments
 	var jsonIndent int
-	var jsonCompact int
+	var jsonCompact bool
+	var jsonCompactWidth int
 	var outputFormat string
 	var inputFormat string
 	var colorizer *format.Colorizer
@@ -67,8 +68,9 @@ func main() {
 	flag.BoolVar(&helpTransforms, "help-transforms", false, "show detailed help for transforms")
 
 	// New flags
-	flag.IntVar(&jsonIndent, "json-indent", 2, "JSON indentation (use -1 for compact)")
-	flag.IntVar(&jsonCompact, "json-compact", 60, "max width for compact JSON arrays/objects")
+	flag.IntVar(&jsonIndent, "json-indent", 2, "JSON indentation level (only used when -json-compact is false)")
+	flag.BoolVar(&jsonCompact, "json-compact", false, "output JSON on a single line")
+	flag.IntVar(&jsonCompactWidth, "json-compact-width", 60, "max width for compact JSON arrays/objects")
 	flag.BoolVar(&jpvQuoteKeys, "jpv-quote-keys", false, "always quote keys in JPV output")
 	flag.StringVar(&colorMode, "color", "auto", "colorize output: auto, always, never")
 	flag.StringVar(&outputFormat, "out", "json", "output format: json, jpv")
@@ -78,13 +80,13 @@ func main() {
 
 	// Deprecated flags (kept for backward compatibility)
 	flag.IntVar(&jsonIndent, "indent", 2, "DEPRECATED: use -json-indent")
-	flag.IntVar(&jsonCompact, "compactwidth", 60, "DEPRECATED: use -json-compact")
+	flag.IntVar(&jsonCompactWidth, "compactwidth", 60, "DEPRECATED: use -json-compact-width")
 	flag.BoolVar(&jpvQuoteKeys, "quotekeys", false, "DEPRECATED: use -jpv-quote-keys")
-	flag.BoolFunc("colors", "DEPRECATED: use --color=always", func(s string) error {
+	flag.BoolFunc("colors", "DEPRECATED: use -color=always", func(s string) error {
 		colorMode = "always"
 		return nil
 	})
-	flag.BoolFunc("nocolors", "DEPRECATED: use --color=never", func(s string) error {
+	flag.BoolFunc("nocolors", "DEPRECATED: use -color=never", func(s string) error {
 		colorMode = "never"
 		return nil
 	})
@@ -116,7 +118,7 @@ func main() {
 	case "auto":
 		// Already set based on isatty check above
 	default:
-		fatalError("invalid --color value: %q (use auto, always, or never)", colorMode)
+		fatalError("invalid -color value: %q (use auto, always, or never)", colorMode)
 	}
 
 	// Warn about deprecated -file flag
@@ -200,9 +202,15 @@ func main() {
 	out := bufio.NewWriter(stdout)
 	defer out.Flush()
 
+	// Set up printer with appropriate indentation
+	indentSize := jsonIndent
+	if jsonCompact {
+		indentSize = -1
+	}
+
 	printer := &format.DefaultPrinter{
 		Writer:     out,
-		IndentSize: jsonIndent,
+		IndentSize: indentSize,
 	}
 
 	// If we are writing to a terminal, flush after each line so user gets feedback early.
@@ -216,7 +224,7 @@ func main() {
 		encoder = &json.Encoder{
 			Printer:               printer,
 			Colorizer:             colorizer,
-			CompactWidthLimit:     jsonCompact,
+			CompactWidthLimit:     jsonCompactWidth,
 			CompactObjectMaxItems: 2,
 		}
 	case "jpv", "path":
@@ -375,9 +383,9 @@ INPUT/OUTPUT:
                     Only valid with '-in csv'
 
 JSON OUTPUT OPTIONS:
-  -json-indent N    Indentation level (default: 2)
-                    Use 0 for no indentation, -1 for single-line output
-  -json-compact N   Max width for compact arrays/objects (default: 60)
+  -json-compact         Output JSON on a single line
+  -json-indent N        Indentation level (default: 2, only used when not compact)
+  -json-compact-width N Max width for inline arrays/objects (default: 60)
 
 JPV OUTPUT OPTIONS:
   -jpv-quote-keys   Always quote keys in JPV output
@@ -413,7 +421,7 @@ EXAMPLES:
   cat data.csv | jp -in csv-with-header
 
   # Compact output
-  cat data.json | jp -json-indent -1
+  cat data.json | jp -json-compact
 
 For more information, visit: https://github.com/arnodel/jsonstream
 `)
@@ -497,13 +505,15 @@ AVAILABLE FORMATS:
     Standard JSON format with pretty-printing.
 
     JSON-specific options:
-      -json-indent N     Set indentation level (default: 2)
-                         Use 0 for no indentation
-                         Use -1 for compact single-line output
+      -json-compact          Output JSON on a single line
 
-      -json-compact N    Max width for compact arrays/objects (default: 60)
-                         Small arrays/objects fitting within this width
-                         are displayed on a single line
+      -json-indent N         Set indentation level (default: 2)
+                             Only used when -json-compact is not set
+                             Use 0 for no indentation
+
+      -json-compact-width N  Max width for inline arrays/objects (default: 60)
+                             Small arrays/objects fitting within this width
+                             are displayed on a single line for readability
 
     Example output:
       {
@@ -535,7 +545,7 @@ AVAILABLE FORMATS:
       cat data.json | jp -out jpv | grep city | jp -in jpv
 
 COLOR OPTIONS:
-  --color MODE       Control color output (default: auto)
+  -color MODE        Control color output (default: auto)
 
                      auto    - Use colors when outputting to a terminal
                      always  - Always use colors
@@ -549,10 +559,10 @@ COLOR OPTIONS:
 
 EXAMPLES:
   # Compact JSON output
-  cat data.json | jp -json-indent -1
+  cat data.json | jp -json-compact
 
   # No colors even in terminal
-  cat data.json | jp --color never
+  cat data.json | jp -color never
 
   # Convert JSON to JPV and filter
   cat users.json | jp -out jpv | grep email
@@ -633,7 +643,7 @@ COMBINING TRANSFORMS:
     jp '$..name' join < nested.json
 
     # Limit depth and convert to JPV
-    jp depth=2 -out jpv < deep.json
+    jp -out jpv depth=2 < deep.json
 
 JSONPATH COOKBOOK:
 

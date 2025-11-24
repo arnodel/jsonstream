@@ -82,9 +82,8 @@ You will get to see stuff straight away, regardless of the size of the file
 (same with e.g. `head`).
 
 The `jp` tool automatically handles JSON Lines input. You can change the indentation
-level with the `-json-indent` flag. Set to a positive number, 0 for no indentation, a
-negative number will cause `jp` to output everything on one line, saving you
-precious vertical space.
+level with the `-json-indent` flag. Use the `-json-compact` flag to output everything
+on a single line, saving you precious vertical space.
 
 But that's not it. You can select the _input format_ the _output format_ and
 there are a number of chainable _transforms_ that are available.  Read on for
@@ -155,14 +154,15 @@ are:
 ### Additional options
 
 **JSON output formatting:**
-- `-json-indent <n>`: Set indentation level (default 2). Use 0 for no indentation, or -1 for compact single-line output.
-- `-json-compact <n>`: Maximum width for compact arrays/objects (default 60). Small arrays and objects that fit within this width are displayed on a single line.
+- `-json-compact`: Output JSON on a single line.
+- `-json-indent <n>`: Set indentation level (default 2, only used when not compact). Use 0 for no indentation.
+- `-json-compact-width <n>`: Maximum width for inline arrays/objects (default 60). Small arrays and objects that fit within this width are displayed on a single line for readability.
 
 **JPV output formatting:**
 - `-jpv-quote-keys`: Always quote keys in JPV output, even when they are alphanumeric.
 
 **Color output:**
-- `--color <mode>`: Control color output. Modes: `auto` (default, colored if outputting to terminal), `always` (always use colors), `never` (never use colors).
+- `-color <mode>`: Control color output. Modes: `auto` (default, colored if outputting to terminal), `always` (always use colors), `never` (never use colors).
 
 **JSONPath queries:**
 - `-strict`: Execute JSONPath queries in strict mode (more restrictive evaluation).
@@ -260,7 +260,7 @@ This last example
 And yet it works!
 
 ```
-$ time yes "$(jp -json-indent -1 < sample.json)" | jp split depth=1 join | head -20
+$ time yes "$(jp -json-compact < sample.json)" | jp split depth=1 join | head -20
 [
   {
     "id": 3,
@@ -281,7 +281,7 @@ $ time yes "$(jp -json-indent -1 < sample.json)" | jp split depth=1 join | head 
   {
     "id": 7,
     "name": "Kim",
-yes "$(jp -json-indent -1 < sample.json)"  0.00s user 0.00s system 21% cpu 0.014 total
+yes "$(jp -json-compact < sample.json)"  0.00s user 0.00s system 21% cpu 0.014 total
 jp split depth=1 join  0.01s user 0.01s system 96% cpu 0.012 total
 head -20  0.00s user 0.00s system 26% cpu 0.010 total
 ```
