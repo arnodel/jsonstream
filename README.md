@@ -213,7 +213,7 @@ jp '$.users[*]' split '$.address.city' < data.json | sort | uniq
 jp -json-lines '$.items[*]' split < data.json | grep -i 'important' | wc -l
 
 # Chain multiple filters
-jp '$.logs[*]' split '[?@.level == "error"]' '[?@.timestamp > "2024-01-01"]' < logs.json
+jp '$.logs[*]' split '$[?@.level == "error"]' '$[?@.timestamp > "2024-01-01"]' < logs.json
 ```
 
 **Why chain transforms in a single `jp` call?**
@@ -390,12 +390,13 @@ diff -u old.jpv new.jpv
 
 ### The Subset Property
 
-JPV has a unique property: **any subset of JPV lines is still valid JPV** that can be converted back to JSON.
+JPV has a unique property: **any subset of JPV lines (preserving order) is still valid JPV** that can be converted back to JSON.
 
 This means you can:
 - Delete any lines (removes those fields from JSON)
-- Reorder lines (JSON structure is preserved)
 - Extract matching lines (creates JSON with only those fields)
+
+**Note:** You must preserve the original order of lines. Reordering JPV lines may produce invalid JSON structure.
 
 ```bash
 # Original JSON
