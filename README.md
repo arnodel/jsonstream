@@ -165,7 +165,7 @@ are:
 - `-color <mode>`: Control color output. Modes: `auto` (default, colored if outputting to terminal), `always` (always use colors), `never` (never use colors).
 
 **JSONPath queries:**
-- `-strict`: Execute JSONPath queries in strict mode (more restrictive evaluation).
+- `-strict`: Execute JSONPath queries in strict mode. Ensures RFC 9535 compliant ordering but less streaming-friendly for descendant queries (`$..`). Without this flag, `jp` optimizes for streaming performance by emitting results in document order.
 
 ### The `JPV` format
 

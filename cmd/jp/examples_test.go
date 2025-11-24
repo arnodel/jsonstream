@@ -400,3 +400,128 @@ func TestDeprecatedSyntax(t *testing.T) {
 		})
 	}
 }
+
+// TestCookbookHelp_Examples tests all examples from -help-cookbook
+func TestCookbookHelp_Examples(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		args  []string
+		want  string
+	}{
+		// HEAD-LIKE OPERATIONS
+		{
+			name:  "cookbook: first 10 items",
+			input: `{"items":[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]}`,
+			args:  []string{"-json-compact", "$.items[:10]"},
+			want:  "1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n",
+		},
+		{
+			name:  "cookbook: first 5 users",
+			input: `{"users":[{"id":1},{"id":2},{"id":3},{"id":4},{"id":5},{"id":6}]}`,
+			args:  []string{"-json-compact", "$.users[:5]"},
+			want:  `{"id": 1}` + "\n" + `{"id": 2}` + "\n" + `{"id": 3}` + "\n" + `{"id": 4}` + "\n" + `{"id": 5}` + "\n",
+		},
+
+		// TAIL-LIKE OPERATIONS
+		{
+			name:  "cookbook: last 10 items",
+			input: `{"items":[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]}`,
+			args:  []string{"-json-compact", "$.items[-10:]"},
+			want:  "6\n7\n8\n9\n10\n11\n12\n13\n14\n15\n",
+		},
+		{
+			name:  "cookbook: last 3 log entries",
+			input: `{"logs":["a","b","c","d","e"]}`,
+			args:  []string{"-json-compact", "$.logs[-3:]"},
+			want:  "\"c\"\n\"d\"\n\"e\"\n",
+		},
+
+		// GREP-LIKE OPERATIONS
+		{
+			name:  "cookbook: find users with gmail in email",
+			input: `{"users":[{"name":"Alice","email":"alice@gmail.com"},{"name":"Bob","email":"bob@yahoo.com"},{"name":"Charlie","email":"charlie@gmail.com"}]}`,
+			args:  []string{"-json-compact", "$.users[?@.email]"},
+			want:  `{"name": "Alice", "email": "alice@gmail.com"}` + "\n" + `{"name": "Bob", "email": "bob@yahoo.com"}` + "\n" + `{"name": "Charlie", "email": "charlie@gmail.com"}` + "\n",
+		},
+		{
+			name:  "cookbook: find expensive items",
+			input: `{"products":[{"name":"cheap","price":50},{"name":"expensive","price":150}]}`,
+			args:  []string{"-json-compact", "$.products[?@.price > 100]"},
+			want:  `{"name": "expensive", "price": 150}` + "\n",
+		},
+		{
+			name:  "cookbook: find error logs",
+			input: `{"logs":[{"level":"info","msg":"ok"},{"level":"error","msg":"bad"}]}`,
+			args:  []string{"-json-compact", "$..[?@.level == \"error\"]"},
+			want:  `{"level": "error", "msg": "bad"}` + "\n",
+		},
+
+		// COMBINING PATTERNS
+		{
+			name:  "cookbook: filter active users",
+			input: `{"users":[{"name":"Alice","active":true},{"name":"Bob","active":false},{"name":"Charlie","active":true}]}`,
+			args:  []string{"-json-compact", "$.users[?@.active == true]"},
+			want:  `{"name": "Alice", "active": true}` + "\n" + `{"name": "Charlie", "active": true}` + "\n",
+		},
+		{
+			name:  "cookbook: filter expensive items",
+			input: `{"products":[{"price":50},{"price":150},{"price":200},{"price":75},{"price":300}]}`,
+			args:  []string{"-json-compact", "$.products[?@.price > 100]"},
+			want:  `{"price": 150}` + "\n" + `{"price": 200}` + "\n" + `{"price": 300}` + "\n",
+		},
+		{
+			name:  "cookbook: extract emails to array",
+			input: `{"user":{"email":"alice@example.com"},"admin":{"email":"bob@example.com"}}`,
+			args:  []string{"-json-compact", "$..email", "join"},
+			want:  "[\"alice@example.com\", \"bob@example.com\"]\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			stdout, stderr, exitCode := runJP(t, tt.input, tt.args...)
+			if exitCode != 0 {
+				t.Fatalf("unexpected exit code %d, stderr: %s", exitCode, stderr)
+			}
+			if stdout != tt.want {
+				t.Errorf("got:\n%q\nwant:\n%q", stdout, tt.want)
+			}
+		})
+	}
+}
+
+// TestMainUsage_Examples tests examples from the main usage/help text
+func TestMainUsage_Examples(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		args  []string
+		want  string
+	}{
+		{
+			name:  "main: extract field from array items",
+			input: `{"users":[{"name":"Alice"},{"name":"Bob"}]}`,
+			args:  []string{"$.users[*].name"},
+			want:  "\"Alice\"\n\"Bob\"\n",
+		},
+		{
+			name:  "main: filter and transform",
+			input: `{"items":[{"name":"cheap","price":50},{"name":"expensive","price":150}]}`,
+			args:  []string{"-json-compact", "$.items[?@.price < 100]", "split"},
+			want:  `{"name": "cheap", "price": 50}` + "\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			stdout, stderr, exitCode := runJP(t, tt.input, tt.args...)
+			if exitCode != 0 {
+				t.Fatalf("unexpected exit code %d, stderr: %s", exitCode, stderr)
+			}
+			if stdout != tt.want {
+				t.Errorf("got:\n%q\nwant:\n%q", stdout, tt.want)
+			}
+		})
+	}
+}

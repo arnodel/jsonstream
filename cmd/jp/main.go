@@ -16,8 +16,8 @@ import (
 	"syscall"
 
 	"github.com/arnodel/jsonstream/encoding/csv"
-	"github.com/arnodel/jsonstream/encoding/json"
 	"github.com/arnodel/jsonstream/encoding/jpv"
+	"github.com/arnodel/jsonstream/encoding/json"
 	"github.com/arnodel/jsonstream/internal/format"
 	"github.com/arnodel/jsonstream/internal/jsonpath"
 	"github.com/arnodel/jsonstream/iterator"
@@ -54,6 +54,7 @@ func main() {
 	var helpInput bool
 	var helpOutput bool
 	var helpTransforms bool
+	var helpCookbook bool
 
 	if isatty.IsTerminal(os.Stdout.Fd()) {
 		colorizer = &defaultColorizer
@@ -66,6 +67,7 @@ func main() {
 	flag.BoolVar(&helpInput, "help-input", false, "show detailed help for input formats")
 	flag.BoolVar(&helpOutput, "help-output", false, "show detailed help for output formats")
 	flag.BoolVar(&helpTransforms, "help-transforms", false, "show detailed help for transforms")
+	flag.BoolVar(&helpCookbook, "help-cookbook", false, "show cookbook with common usage patterns")
 
 	// New flags
 	flag.IntVar(&jsonIndent, "json-indent", 2, "JSON indentation level (only used when -json-compact is false)")
@@ -76,7 +78,7 @@ func main() {
 	flag.StringVar(&outputFormat, "out", "json", "output format: json, jpv")
 	flag.StringVar(&inputFormat, "in", "auto", "input format: auto, json, csv, csv-with-header, csvh, jpv")
 	flag.StringVar(&csvHeader, "csv-header", "", "comma-separated field names for CSV (only with -in csv)")
-	flag.BoolVar(&strictMode, "strict", false, "execute JSONPath query in strict mode")
+	flag.BoolVar(&strictMode, "jsonpath-strict", false, "execute JSONPath queries in strict mode")
 
 	// Deprecated flags (kept for backward compatibility)
 	flag.IntVar(&jsonIndent, "indent", 2, "DEPRECATED: use -json-indent")
@@ -106,6 +108,10 @@ func main() {
 	}
 	if helpTransforms {
 		printTransformsHelp()
+		return
+	}
+	if helpCookbook {
+		printCookbookHelp()
 		return
 	}
 
@@ -373,6 +379,7 @@ HELP OPTIONS:
   -help-input       Show detailed help for input formats
   -help-output      Show detailed help for output formats and options
   -help-transforms  Show detailed help for transforms with examples
+  -help-cookbook    Show cookbook with Unix-like usage patterns (head/tail/grep)
 
 INPUT/OUTPUT:
   -in FORMAT        Input format (default: auto)
@@ -405,7 +412,8 @@ TRANSFORMS:
   trace             Log stream to stderr (for debugging)
 
 JSONPATH QUERIES:
-  -strict           Execute JSONPath queries in strict mode
+  -strict           Execute JSONPath queries in strict mode (RFC-compliant ordering,
+                    less streaming-friendly for descendant queries like $..))
 
 EXAMPLES:
   # Pretty-print JSON
@@ -423,6 +431,7 @@ EXAMPLES:
   # Compact output
   cat data.json | jp -json-compact
 
+For Unix-like usage patterns (head/tail/grep), see: jp -help-cookbook
 For more information, visit: https://github.com/arnodel/jsonstream
 `)
 }
@@ -610,7 +619,7 @@ AVAILABLE TRANSFORMS:
       '$.items[?@.name =~ /^A/]'  - Filter: names starting with A
       '$[*].length'               - Get 'length' from all top-level objects
 
-    Use -strict flag for strict mode evaluation.
+    Use -strict flag for strict mode (RFC-compliant ordering).
 
   split
     Splits an array into a stream of its individual values.
@@ -660,30 +669,204 @@ COMBINING TRANSFORMS:
     # Limit depth and convert to JPV
     jp -out jpv depth=2 < deep.json
 
-JSONPATH COOKBOOK:
+MORE EXAMPLES:
+  For Unix-like usage patterns (head/tail/grep), see:
+    jp -help-cookbook
 
-  Extract all email addresses:
-    jp '$..email' < data.json
+JSONPATH STRICT MODE vs DEFAULT MODE:
 
-  Get last 10 items from array:
-    jp '$.items[-10:]' < data.json
+  By default, jp optimizes for streaming performance. For descendant queries
+  (using ..), results are emitted in document order as items are encountered.
+  This allows constant memory usage and immediate output.
 
-  Filter objects by field value:
-    jp '$.users[?@.active == true]' < users.json
+  With -strict, jp follows RFC 9535 ordering exactly. For descendant queries,
+  all matches at the current level are emitted before descending into nested
+  values. This requires buffering collections and reduces streaming efficiency.
 
-  Get all prices and format as array:
-    jp '$..price' join < products.json
+  Example with '$..[*]' on {"a": {"b": 1}, "c": 2}:
+    Default: outputs in document order: {"b": 1}, 1, 2
+    Strict:  outputs per-level first: {"b": 1}, 2, 1
 
-  Extract specific fields from each item:
-    jp '$.items[*].{name: name, id: id}' < data.json
+  Use -strict when:
+  - You need RFC 9535 compliance for interoperability
+  - Output order matters for your use case
+  - You're processing small files where memory isn't a concern
 
-  Recursive descent with filter:
-    jp '$..[?@.type == "error"]' < logs.json
+  Use default (no -strict) when:
+  - You want maximum streaming performance
+  - You're processing large files or infinite streams
+  - Document order is acceptable
 
 NOTES:
   - Always use single quotes around JSONPath expressions
   - The $ refers to the root of the current value
   - The @ in filters refers to the current node being filtered
-  - JSONPath queries preserve streaming where possible
+  - JSONPath queries preserve streaming where possible (especially without -strict)
+`)
+}
+
+func printCookbookHelp() {
+	fmt.Fprint(os.Stderr, `jp - Cookbook: Unix-like JSON Processing
+
+OVERVIEW:
+  jp can be used like Unix text tools (head, tail, grep) but for JSON data.
+  Unlike tools that load entire files into memory, jp processes JSON as a
+  stream, providing constant memory usage and immediate output.
+
+  This means jp works efficiently with:
+  - Very large JSON files (gigabytes)
+  - Infinite streams (e.g., from 'yes' or streaming APIs)
+  - Pipes where you want immediate results (with 'less', 'head', etc.)
+
+APPROACH 1: JSONPath Queries
+  Use JSONPath expressions directly to filter and extract data.
+
+APPROACH 2: JPV + Unix Tools
+  Convert to JPV format (JSON Path-Value), use standard Unix tools like
+  grep/head/tail, then convert back to JSON.
+
+────────────────────────────────────────────────────────────────────────
+
+LIKE 'head' - GET FIRST N ITEMS
+
+  JSONPath approach:
+    # Get first 10 items from array
+    jp '$.items[:10]' < data.json
+
+    # Get first 5 users
+    jp '$.users[:5]' < users.json
+
+  split + head approach:
+    # Split array and use Unix head
+    jp split | head -5
+
+  Stream-friendly: Outputs immediately, stops reading after N items.
+  Works on infinite streams!
+
+────────────────────────────────────────────────────────────────────────
+
+LIKE 'tail' - GET LAST N ITEMS
+
+  JSONPath approach:
+    # Get last 10 items from array
+    jp '$.items[-10:]' < data.json
+
+    # Get last 3 log entries
+    jp '$.logs[-3:]' < logs.json
+
+  Memory efficient: Uses sliding window, doesn't load entire array.
+
+────────────────────────────────────────────────────────────────────────
+
+LIKE 'grep' - FILTER/SEARCH DATA
+
+  JSONPath approach:
+    # Find users who have an email field
+    jp '$.users[?@.email]' < users.json
+
+    # Find expensive items
+    jp '$.products[?@.price > 100]' < products.json
+
+    # Find all error logs
+    jp '$..[?@.level == "error"]' < logs.json
+
+  JPV + grep approach:
+    # Find all fields containing "gmail"
+    jp -out jpv < data.json | grep gmail | jp -in jpv
+
+    # Find all price fields
+    jp -out jpv < data.json | grep 'price' | jp -in jpv
+
+    # Case-insensitive search
+    jp -out jpv < logs.json | grep -i 'error' | jp -in jpv
+
+  Stream-friendly: Processes records one at a time, outputs matches
+  immediately without loading entire file.
+
+────────────────────────────────────────────────────────────────────────
+
+COMBINING PATTERNS
+
+  Filter active users:
+    jp '$.users[?@.active == true]' < users.json
+
+  Filter expensive items:
+    jp '$.products[?@.price > 100]' < products.json
+
+  Extract emails, collect to array:
+    jp '$..email' join < data.json
+
+  Split array, truncate depth, search:
+    jp split depth=1 | grep -i 'error'
+
+────────────────────────────────────────────────────────────────────────
+
+STREAMING EXAMPLES
+
+  Process infinite stream (Ctrl+C to stop):
+    yes '{"id": 1, "name": "test"}' | jp
+
+  Pretty-print streaming API response:
+    curl -N https://stream-api.example.com | jp
+
+  Process large file with 'less' (immediate output):
+    jp < huge.json | less
+
+  Get first 20 lines of pretty output from infinite stream:
+    yes '{"x": 1}' | jp | head -20
+
+  Stream logs through multiple filters:
+    tail -f app.log | jp '$..[?@.level == "error"]' | jp '$.message'
+
+────────────────────────────────────────────────────────────────────────
+
+JPV FORMAT WORKFLOW
+
+  JPV (JSON Path-Value) format is like 'gron' but uses JSONPath syntax.
+  It's perfect for grep-style workflows:
+
+  1. Convert to JPV:
+     jp -out jpv < data.json
+
+  2. Use Unix tools:
+     jp -out jpv < data.json | grep 'email'
+
+  3. Convert back to JSON:
+     jp -out jpv < data.json | grep 'email' | jp -in jpv
+
+  Example output (JPV format):
+    $.users[0].name = "Alice"
+    $.users[0].email = "alice@example.com"
+    $.users[1].name = "Bob"
+    $.users[1].email = "bob@example.com"
+
+  Grep for specific fields:
+    jp -out jpv < data.json | grep '\.email' | jp -in jpv
+    # Reconstructs JSON with only email fields
+
+  Remove lines (removes from JSON):
+    jp -out jpv < data.json | grep -v 'password' | jp -in jpv
+    # Removes all password fields
+
+────────────────────────────────────────────────────────────────────────
+
+MEMORY USAGE NOTES
+
+  jp uses constant memory for streaming operations:
+  - '$.items[*]' or '$.items[:N]': Streams items one by one
+  - '$.items[-N:]': Uses sliding window (only last N in memory)
+  - split: Converts array to stream (one item at a time)
+  - join: Wraps stream in array brackets without buffering
+  - Filters: Process one record at a time
+
+  Operations that may need more memory:
+  - Some JSONPath operations that require lookahead
+  - Sorting (not yet implemented)
+
+  This means you can safely run:
+    jp '$.items[:100]' < 10GB-file.json
+
+  And it will output the first 100 items almost instantly, using
+  constant memory regardless of file size!
 `)
 }
