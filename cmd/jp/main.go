@@ -504,18 +504,7 @@ AVAILABLE FORMATS:
   json (default)
     Standard JSON format with pretty-printing.
 
-    JSON-specific options:
-      -json-compact          Output JSON on a single line
-
-      -json-indent N         Set indentation level (default: 2)
-                             Only used when -json-compact is not set
-                             Use 0 for no indentation
-
-      -json-compact-width N  Max width for inline arrays/objects (default: 60)
-                             Small arrays/objects fitting within this width
-                             are displayed on a single line for readability
-
-    Example output:
+    Default output (with -json-indent 2):
       {
         "name": "Alice",
         "scores": [95, 87, 92],
@@ -525,20 +514,46 @@ AVAILABLE FORMATS:
         }
       }
 
+    JSON-SPECIFIC OPTIONS:
+
+    -json-compact
+      Output everything on a single line.
+      Example: {"name": "Alice", "scores": [95, 87, 92], ...}
+
+    -json-indent N
+      Set indentation level (default: 2, only applies when not compact).
+      With -json-indent 4:
+        {
+            "name": "Alice",
+            "scores": [95, 87, 92]
+        }
+
+    -json-compact-width N
+      Max width for inline arrays/objects (default: 60).
+      Small arrays and objects that fit are displayed inline for readability.
+      With default settings, [95, 87, 92] stays inline.
+      With -json-compact-width 10, it splits across lines.
+
   jpv (or path)
     JSON Path-Value format. Each path-value pair on its own line.
     Useful for grepping and filtering specific parts of JSON.
 
-    JPV-specific options:
-      -jpv-quote-keys    Always quote keys, even if alphanumeric
+    Default output:
+      $.name = "Alice"
+      $.scores[0] = 95
+      $.scores[1] = 87
+      $.scores[2] = 92
+      $.address.city = "Boston"
+      $.address.zip = "02101"
 
-    Example output:
-      $["name"] = "Alice"
-      $["scores"][0] = 95
-      $["scores"][1] = 87
-      $["scores"][2] = 92
-      $["address"]["city"] = "Boston"
-      $["address"]["zip"] = "02101"
+    JPV-SPECIFIC OPTIONS:
+
+    -jpv-quote-keys
+      Always quote keys in brackets, even if alphanumeric.
+      With -jpv-quote-keys:
+        $["name"] = "Alice"
+        $["scores"][0] = 95
+        $["address"]["city"] = "Boston"
 
     Workflow example:
       # Convert to JPV, filter with grep, convert back to JSON
