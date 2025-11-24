@@ -511,6 +511,53 @@ func TestMainUsage_Examples(t *testing.T) {
 			args:  []string{"-json-compact", "$.items[?@.price < 100]", "split"},
 			want:  `{"name": "cheap", "price": 50}` + "\n",
 		},
+		{
+			name:  "main: convert array to JSON Lines",
+			input: `[{"id":1},{"id":2},{"id":3}]`,
+			args:  []string{"-json-lines", "split"},
+			want:  `{"id": 1}` + "\n" + `{"id": 2}` + "\n" + `{"id": 3}` + "\n",
+		},
+		{
+			name:  "main: CSV to JSON Lines",
+			input: "name,age\nAlice,30\nBob,25\n",
+			args:  []string{"-in", "csvh", "-json-lines"},
+			want:  `{"name": "Alice", "age": 30}` + "\n" + `{"name": "Bob", "age": 25}` + "\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			stdout, stderr, exitCode := runJP(t, tt.input, tt.args...)
+			if exitCode != 0 {
+				t.Fatalf("unexpected exit code %d, stderr: %s", exitCode, stderr)
+			}
+			if stdout != tt.want {
+				t.Errorf("got:\n%q\nwant:\n%q", stdout, tt.want)
+			}
+		})
+	}
+}
+
+// TestJSONLinesFlag tests that -json-lines works as an alias for -json-compact
+func TestJSONLinesFlag(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		args  []string
+		want  string
+	}{
+		{
+			name:  "json-lines flag",
+			input: `[1,2,3]`,
+			args:  []string{"-json-lines", "split"},
+			want:  "1\n2\n3\n",
+		},
+		{
+			name:  "json-compact flag (same result)",
+			input: `[1,2,3]`,
+			args:  []string{"-json-compact", "split"},
+			want:  "1\n2\n3\n",
+		},
 	}
 
 	for _, tt := range tests {

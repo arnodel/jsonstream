@@ -71,7 +71,8 @@ func main() {
 
 	// New flags
 	flag.IntVar(&jsonIndent, "json-indent", 2, "JSON indentation level (only used when -json-compact is false)")
-	flag.BoolVar(&jsonCompact, "json-compact", false, "output JSON on a single line")
+	flag.BoolVar(&jsonCompact, "json-compact", false, "output JSON on a single line (JSON Lines format)")
+	flag.BoolVar(&jsonCompact, "json-lines", false, "output in JSON Lines format (alias for -json-compact)")
 	flag.IntVar(&jsonCompactWidth, "json-compact-width", 60, "max width for compact JSON arrays/objects")
 	flag.BoolVar(&jpvQuoteKeys, "jpv-quote-keys", false, "always quote keys in JPV output")
 	flag.StringVar(&colorMode, "color", "auto", "colorize output: auto, always, never")
@@ -390,7 +391,8 @@ INPUT/OUTPUT:
                     Only valid with '-in csv'
 
 JSON OUTPUT OPTIONS:
-  -json-compact         Output JSON on a single line
+  -json-compact         Output in JSON Lines format (one value per line)
+  -json-lines           Alias for -json-compact
   -json-indent N        Indentation level (default: 2, only used when not compact)
   -json-compact-width N Max width for inline arrays/objects (default: 60)
 
@@ -422,14 +424,14 @@ EXAMPLES:
   # Extract specific field from array items
   cat users.json | jp '$.users[*].name'
 
+  # Convert JSON array to JSON Lines (one item per line)
+  cat array.json | jp -json-lines split
+
   # Filter and transform
   cat data.json | jp '$.items[?@.price < 100]' split
 
-  # CSV to JSON
-  cat data.csv | jp -in csv-with-header
-
-  # Compact output
-  cat data.json | jp -json-compact
+  # CSV to JSON Lines
+  cat data.csv | jp -in csv-with-header -json-lines
 
 For Unix-like usage patterns (head/tail/grep), see: jp -help-cookbook
 For more information, visit: https://github.com/arnodel/jsonstream
@@ -446,12 +448,16 @@ INPUT FORMAT SELECTION:
 AVAILABLE FORMATS:
 
   json
-    Standard JSON format. Supports both single JSON values and JSON Lines
-    (newline-delimited JSON values).
+    Standard JSON format. Automatically handles both:
+    - Single JSON values: {"name": "Alice"}
+    - JSON Lines (JSONL): Multiple JSON values, one per line
 
-    Example:
+    JSON Lines input example:
       {"name": "Alice", "age": 30}
       {"name": "Bob", "age": 25}
+
+    Each value is streamed separately through the transform pipeline.
+    Use -json-lines or -json-compact to output in JSON Lines format.
 
   jpv (or path)
     JSON Path-Value format. Each line specifies a JSONPath and its value.
@@ -525,9 +531,15 @@ AVAILABLE FORMATS:
 
     JSON-SPECIFIC OPTIONS:
 
-    -json-compact
-      Output everything on a single line.
-      Example: {"name": "Alice", "scores": [95, 87, 92], ...}
+    -json-compact (or -json-lines)
+      Output in JSON Lines format - each value on a single line.
+      This is useful for streaming output or processing with line-based tools.
+      Example output:
+        {"name": "Alice", "scores": [95, 87, 92]}
+        {"name": "Bob", "scores": [88, 91, 95]}
+
+      Combine with 'split' to convert JSON arrays to JSON Lines:
+        cat array.json | jp -json-lines split
 
     -json-indent N
       Set indentation level (default: 2, only applies when not compact).
@@ -582,8 +594,11 @@ COLOR OPTIONS:
     - Booleans and null (green)
 
 EXAMPLES:
-  # Compact JSON output
-  cat data.json | jp -json-compact
+  # Convert JSON array to JSON Lines
+  cat array.json | jp -json-lines split
+
+  # JSON Lines output (compact)
+  cat data.json | jp -json-lines
 
   # No colors even in terminal
   cat data.json | jp -color never
@@ -798,6 +813,9 @@ COMBINING PATTERNS
 
   Split array, truncate depth, search:
     jp split depth=1 | grep -i 'error'
+
+  Convert JSON array to JSON Lines format:
+    jp -json-lines split < array.json
 
 ────────────────────────────────────────────────────────────────────────
 
