@@ -44,7 +44,7 @@ func TestEncoderSimpleValues(t *testing.T) {
 		{
 			name:     "float",
 			tokens:   []token.Token{token.Float64Scalar(3.14)},
-			expected: "3.14e+00", // Float64Scalar uses scientific notation
+			expected: "3.14",
 		},
 		{
 			name:     "string",

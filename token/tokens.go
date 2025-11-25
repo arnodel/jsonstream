@@ -242,7 +242,7 @@ func StringScalar(s string) *Scalar {
 }
 
 func Float64Scalar(x float64) *Scalar {
-	return NewScalar(Number, []byte(strconv.FormatFloat(x, 'e', -1, 64)))
+	return NewScalar(Number, []byte(strconv.FormatFloat(x, 'g', -1, 64)))
 }
 
 func Int64Scalar(n int64) *Scalar {
