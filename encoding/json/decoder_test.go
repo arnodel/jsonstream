@@ -511,6 +511,42 @@ func TestDecoderEOF(t *testing.T) {
 	}
 }
 
+// TestDecoderUnclosedStructures tests that the decoder properly handles EOF when it encounters
+// an unclosed structure. The decoder should return io.EOF when the input stream ends mid-parse.
+func TestDecoderUnclosedStructures(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{"unclosed string", `"hello`},
+		{"unclosed string in object", `{"key": "value`},
+		{"unclosed array", `[1, 2, 3`},
+		{"unclosed nested array", `[1, [2, 3]`},
+		{"unclosed object", `{"name": "Alice"`},
+		{"unclosed object missing brace", `{"a": 1, "b": 2`},
+		{"unclosed nested object", `{"user": {"name": "Alice"`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			decoder := NewDecoder(strings.NewReader(tt.input))
+			out := make(chan token.Token, 100)
+
+			err := decoder.Produce(out)
+			close(out)
+
+			// Should get io.EOF when the reader runs out of input while parsing
+			if err != io.EOF {
+				t.Errorf("expected io.EOF for unclosed structure, got %v", err)
+			}
+
+			// Drain the channel
+			for range out {
+			}
+		})
+	}
+}
+
 // Helper functions
 
 // decodeString decodes a JSON string and returns all tokens
