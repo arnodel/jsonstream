@@ -68,7 +68,7 @@ func (d *Decoder) parseLine(out chan<- token.Token) error {
 	if err != nil {
 		return err
 	}
-	b, err := d.scanr.SkipSpaceAndRead()
+	b, err := checkEOF(d.scanr.SkipSpaceAndRead())
 	if err != nil {
 		return err
 	}
@@ -152,17 +152,33 @@ func followPath(path []*token.Scalar, inCollection bool, out chan<- token.Token)
 	}
 }
 
+// checkEOF checks if there's an error or if the byte is scanner.EOF.
+// If err is not nil, it returns (b, err).
+// If b is scanner.EOF, it returns (0, io.EOF).
+// Otherwise it returns (b, nil).
+// This helper reduces the repetitive pattern of checking for scanner.EOF
+// throughout the decoder by combining error checking and EOF detection.
+func checkEOF(b byte, err error) (byte, error) {
+	if err != nil {
+		return b, err
+	}
+	if b == scanner.EOF {
+		return 0, io.EOF
+	}
+	return b, nil
+}
+
 func parsePath(scanr *scanner.Scanner) ([]*token.Scalar, error) {
 	var path []*token.Scalar
 	for {
-		b, err := scanr.Read()
+		b, err := checkEOF(scanr.Read())
 		if err != nil {
 			// That's ok because paths are followed by a value
 			return nil, err
 		}
 		switch {
 		case b == '[':
-			b, err = scanr.Peek()
+			b, err = checkEOF(scanr.Peek())
 			if err != nil {
 				return nil, err
 			}
@@ -173,7 +189,7 @@ func parsePath(scanr *scanner.Scanner) ([]*token.Scalar, error) {
 				}
 				s.TypeAndFlags |= token.KeyMask
 				path = append(path, s)
-				b, err = scanr.Read()
+				b, err = checkEOF(scanr.Read())
 				if err != nil {
 					return nil, err
 				}
@@ -195,7 +211,7 @@ func parsePath(scanr *scanner.Scanner) ([]*token.Scalar, error) {
 			}
 		case b == '.':
 			scanr.StartToken()
-			b, err = scanr.Read()
+			b, err = checkEOF(scanr.Read())
 			if err != nil {
 				return nil, err
 			}
@@ -204,7 +220,7 @@ func parsePath(scanr *scanner.Scanner) ([]*token.Scalar, error) {
 				return nil, json.UnexpectedByte(scanr, "expected a-z/A-Z/_, got")
 			}
 			for {
-				b, err = scanr.Read()
+				b, err = checkEOF(scanr.Read())
 				if err != nil {
 					return nil, err
 				}
