@@ -37,6 +37,21 @@ Unlike tools that load entire files into memory, `jp` starts outputting results 
 - **Format conversion**: JSON, JSON Lines, CSV, and JPV (JSON Path-Value)
 - **JPV format**: Makes JSON grep-able and sed-able like plain text
 
+## Table of Contents
+
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Key Features](#key-features)
+- [Common Use Cases](#common-use-cases)
+- [Pipeline Examples](#pipeline-examples)
+- [The JPV Format](#the-jpv-format)
+- [Advanced Features](#advanced-features)
+- [Input/Output Formats](#inputoutput-formats)
+- [Command Reference](#command-reference)
+- [JSONPath Compliance](#jsonpath-compliance)
+- [The jsonstream Package](#the-jsonstream-package)
+- [Development Status](#development-status)
+
 ## Installation
 
 ```bash
