@@ -6,6 +6,19 @@ import (
 	"github.com/arnodel/jsonstream/internal/debug"
 )
 
+const (
+	// windowCapacityThreshold is the capacity threshold for window memory management.
+	// Windows with capacity <= this threshold always reuse their underlying array
+	// when shrinking. Windows with larger capacity may allocate a new smaller array
+	// if utilization is poor (newLen*2 <= capacity).
+	windowCapacityThreshold = 1024
+
+	// catchupCountThreshold is the number of cursor advancements before triggering
+	// advanceWindow to reclaim memory. This prevents calling advanceWindow too
+	// frequently while ensuring timely garbage collection.
+	catchupCountThreshold = 100
+)
+
 type CursorPool struct {
 	stream       ReadStream
 	window       []Token
@@ -35,6 +48,31 @@ func NewCursorFromData(data []Token) *Cursor {
 	return cursor
 }
 
+// advanceWindow shrinks the token window by discarding tokens that no cursor needs anymore.
+//
+// The CursorPool maintains a sliding window of tokens over the stream to enable multiple
+// independent cursors to read the same stream efficiently. This method is called periodically
+// (via updateCatchupCount after catchupCountThreshold cursor advances) to free memory by removing
+// tokens that all cursors have already consumed.
+//
+// Algorithm:
+//  1. Find the minimum cursor position (the leftmost/earliest cursor in the stream)
+//  2. Calculate shiftRight = minPos - windowPos (number of tokens to discard from window start)
+//  3. Update windowPos to reflect the new window start position
+//  4. Either reuse the existing array (if small or well-utilized) or allocate a new smaller array
+//
+// Memory Optimization Strategy:
+// The method uses different strategies based on window size and utilization:
+//   - For small windows (cap ≤ windowCapacityThreshold): Always reuse the existing array for efficiency
+//   - For large windows with good utilization (newLen*2 > cap): Reuse existing array
+//   - For large windows with poor utilization (newLen*2 ≤ cap): Allocate new smaller array
+//     to allow the garbage collector to reclaim the old large array
+//
+// Invariants Maintained:
+//   - All cursor positions must be ≥ windowPos (enforced with panic if violated)
+//   - window[i] corresponds to stream position windowPos + i
+//   - Tokens are never modified after being added to the window
+//   - The window contains all tokens from minCursorPos onwards
 func (p *CursorPool) advanceWindow() {
 	p.checkWindowSize()
 	minPos := math.MaxInt
@@ -47,6 +85,7 @@ func (p *CursorPool) advanceWindow() {
 		// There are no valid cursors - it is safe to reset the window
 		p.windowPos += len(p.window)
 		p.window = nil
+		return
 	}
 	shiftRight := minPos - p.windowPos
 	if shiftRight < 0 {
@@ -61,7 +100,7 @@ func (p *CursorPool) advanceWindow() {
 	// If the reduced window is big enough, we reuse the same underlying array
 	// for the new window slice, otherwise we make a new slice so the current
 	// big slice can be GCed.
-	if cap(p.window) <= 1024 || newLen*2 > cap(p.window) {
+	if cap(p.window) <= windowCapacityThreshold || newLen*2 > cap(p.window) {
 		copy(p.window, p.window[shiftRight:])
 		p.window = p.window[:newLen]
 	} else {
@@ -75,7 +114,7 @@ func (p *CursorPool) advanceWindow() {
 // We want this inlined
 func (p *CursorPool) updateCatchupCount(n int) {
 	p.catchupCount += n
-	if p.catchupCount > 100 {
+	if p.catchupCount > catchupCountThreshold {
 		p.catchupCount = 0
 		p.advanceWindow()
 	}
