@@ -1,0 +1,102 @@
+# GoReleaser configuration for jp
+# See: https://goreleaser.com
+
+version: 2
+
+before:
+  hooks:
+    # Ensure dependencies are up to date
+    - go mod tidy
+    # Run tests before building
+    - go test ./...
+
+builds:
+  - id: jp
+    main: ./cmd/jp
+    binary: jp
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    # Exclude invalid combinations
+    ignore:
+      - goos: windows
+        goarch: arm64
+    ldflags:
+      # Strip debug info for smaller binaries
+      - -s -w
+      # Include version information
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+
+archives:
+  - id: jp-archive
+    formats:
+      - tar.gz
+      - zip
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- .Version }}_
+      {{- if eq .Os "darwin" }}macOS
+      {{- else }}{{ .Os }}{{ end }}_
+      {{- .Arch }}
+    rlcp: true
+    files:
+      - README.md
+      - LICENSE*
+
+checksum:
+  name_template: 'checksums.txt'
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^chore:'
+      - '^ci:'
+  groups:
+    - title: 'Features'
+      regexp: '^feat:'
+      order: 0
+    - title: 'Bug Fixes'
+      regexp: '^fix:'
+      order: 1
+    - title: 'Other Changes'
+      order: 999
+
+release:
+  github:
+    owner: arnodel
+    name: jsonstream
+  draft: false
+  prerelease: auto
+  name_template: "{{.ProjectName}} {{.Version}}"
+  header: |
+    ## jp {{.Version}}
+
+    Download pre-built binaries below or install using Go:
+    ```bash
+    go install github.com/arnodel/jsonstream/cmd/jp@{{.Tag}}
+    ```
+  footer: |
+    **Full Changelog**: https://github.com/arnodel/jsonstream/compare/{{ .PreviousTag }}...{{ .Tag }}
+
+# Homebrew tap (optional - can be added later)
+# brews:
+#   - repository:
+#       owner: arnodel
+#       name: homebrew-tap
+#     description: "JSON stream processor"
+#     homepage: "https://github.com/arnodel/jsonstream"
+#     license: "MIT"
