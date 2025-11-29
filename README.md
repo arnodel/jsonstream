@@ -65,12 +65,7 @@ brew install arnodel/tap/jp
 ### Nix (NixOS/Linux/macOS)
 
 ```bash
-nix-env -iA nur.repos.arnodel.jp
-```
-
-Or with flakes:
-```bash
-nix profile install github:arnodel/nur-packages#jp
+nix-env -f https://github.com/arnodel/nur-packages/archive/main.tar.gz -iA jp
 ```
 
 ### Pre-built Binaries
