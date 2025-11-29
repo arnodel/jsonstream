@@ -54,8 +54,26 @@ Unlike tools that load entire files into memory, `jp` starts outputting results 
 
 ## Installation
 
+### Pre-built Binaries
+
+Download pre-built binaries for Linux, macOS, or Windows from the [releases page](https://github.com/arnodel/jsonstream/releases/latest).
+
+Available platforms:
+- Linux (amd64, arm64)
+- macOS (amd64, arm64)
+- Windows (amd64)
+
+### Using Go
+
 ```bash
 go install github.com/arnodel/jsonstream/cmd/jp@latest
+```
+
+Note: This requires Go 1.23 or later. The `jp` binary will be installed to `$GOPATH/bin` (or `$HOME/go/bin` by default). Make sure this directory is in your `$PATH`:
+
+```bash
+# Add to ~/.bashrc, ~/.zshrc, or equivalent
+export PATH="$PATH:$(go env GOPATH)/bin"
 ```
 
 ## Quick Start
