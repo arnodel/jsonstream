@@ -123,7 +123,8 @@ release:
 # - On each release, GoReleaser automatically creates/updates Casks/jp.rb in homebrew-tap
 # - Users can then install with: brew install arnodel/tap/jp
 homebrew_casks:
-  - ids:
+  - name: jp
+    ids:
       - jp-targz
     repository:
       owner: arnodel

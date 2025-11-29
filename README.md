@@ -56,6 +56,8 @@ Unlike tools that load entire files into memory, `jp` starts outputting results 
 
 ### Homebrew (macOS/Linux)
 
+**Recommended for macOS users** - automatically handles code signing and removes quarantine attributes:
+
 ```bash
 brew install arnodel/tap/jp
 ```
@@ -68,6 +70,11 @@ Available platforms:
 - Linux (amd64, arm64)
 - macOS (amd64, arm64)
 - Windows (amd64)
+
+**Note for macOS users**: If you download a pre-built binary directly, macOS Gatekeeper may block it because the binary is not code-signed. You can either:
+- Use Homebrew installation (recommended - handles this automatically)
+- Remove the quarantine attribute: `xattr -d com.apple.quarantine jp`
+- Or allow it in System Preferences → Security & Privacy
 
 ### Using Go
 
