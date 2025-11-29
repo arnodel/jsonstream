@@ -46,7 +46,6 @@ archives:
       {{- if eq .Os "darwin" }}macOS
       {{- else }}{{ .Os }}{{ end }}_
       {{- .Arch }}
-    rlcp: true
     files:
       - README.md
       - LICENSE*
