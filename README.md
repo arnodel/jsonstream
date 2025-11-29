@@ -54,6 +54,12 @@ Unlike tools that load entire files into memory, `jp` starts outputting results 
 
 ## Installation
 
+### Homebrew (macOS/Linux)
+
+```bash
+brew install arnodel/tap/jp
+```
+
 ### Pre-built Binaries
 
 Download pre-built binaries for Linux, macOS, or Windows from the [releases page](https://github.com/arnodel/jsonstream/releases/latest).

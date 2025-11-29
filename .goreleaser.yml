@@ -91,11 +91,39 @@ release:
   footer: |
     **Full Changelog**: https://github.com/arnodel/jsonstream/compare/{{ .PreviousTag }}...{{ .Tag }}
 
-# Homebrew tap (optional - can be added later)
-# brews:
-#   - repository:
-#       owner: arnodel
-#       name: homebrew-tap
-#     description: "JSON stream processor"
-#     homepage: "https://github.com/arnodel/jsonstream"
-#     license: "MIT"
+# Homebrew tap configuration
+#
+# Setup required (one-time):
+# 1. Create a public GitHub repository: arnodel/homebrew-tap
+#    - Repository can be empty, GoReleaser will populate it
+# 2. Create a Personal Access Token (fine-grained tokens recommended):
+#    - Go to GitHub Settings → Developer settings → Personal access tokens → Fine-grained tokens
+#    - Generate new token with:
+#      * Repository access: Only select repositories → homebrew-tap
+#      * Repository permissions: Contents (Read and write), Metadata (Read)
+#    - Alternative: Classic token with 'repo' scope (less secure, grants broader access)
+# 3. Add token as repository secret to arnodel/jsonstream:
+#    - Go to jsonstream repo → Settings → Secrets and variables → Actions
+#    - Add secret named 'TAP_GITHUB_TOKEN' with the token value
+# 4. Update .github/workflows/release.yaml to pass token:
+#    - Add 'TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}' to env section
+#
+# How it works:
+# - On each release, GoReleaser automatically creates/updates Formula/jp.rb in homebrew-tap
+# - Users can then install with: brew install arnodel/tap/jp
+brews:
+  - repository:
+      owner: arnodel
+      name: homebrew-tap
+      token: "{{ .Env.TAP_GITHUB_TOKEN }}"
+    directory: Formula
+    description: "JSON stream processor and transformation tool"
+    homepage: "https://github.com/arnodel/jsonstream"
+    license: "Apache-2.0"
+    commit_author:
+      name: goreleaserbot
+      email: bot@goreleaser.com
+    install: |
+      bin.install "jp"
+    test: |
+      system "echo '{}' | #{bin}/jp"
