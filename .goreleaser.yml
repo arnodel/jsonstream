@@ -36,9 +36,20 @@ builds:
       - -X main.date={{.Date}}
 
 archives:
-  - id: jp-archive
+  - id: jp-targz
     formats:
       - tar.gz
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- .Version }}_
+      {{- if eq .Os "darwin" }}macOS
+      {{- else }}{{ .Os }}{{ end }}_
+      {{- .Arch }}
+    files:
+      - README.md
+      - LICENSE*
+  - id: jp-zip
+    formats:
       - zip
     name_template: >-
       {{ .ProjectName }}_
@@ -113,7 +124,7 @@ release:
 # - Users can then install with: brew install arnodel/tap/jp
 homebrew_casks:
   - ids:
-      - jp-brew
+      - jp-targz
     repository:
       owner: arnodel
       name: homebrew-tap
@@ -125,10 +136,8 @@ homebrew_casks:
     commit_author:
       name: goreleaserbot
       email: bot@goreleaser.com
-    install: |
-      bin.install "jp"
-    test: |
-      system "echo '{}' | #{bin}/jp"
+    binaries:
+      - jp
     hooks:
       post:
         install: |
