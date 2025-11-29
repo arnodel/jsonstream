@@ -145,3 +145,37 @@ homebrew_casks:
           if OS.mac?
             system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/jp"]
           end
+
+# Nix package configuration
+#
+# Setup required (one-time):
+# 1. Create a public GitHub repository: arnodel/nur-packages
+#    - Repository should follow NUR (Nix User Repository) structure
+#    - See: https://github.com/nix-community/NUR
+# 2. Create a Personal Access Token (fine-grained tokens recommended):
+#    - Go to GitHub Settings → Developer settings → Personal access tokens → Fine-grained tokens
+#    - Generate new token with:
+#      * Repository access: Only select repositories → nur-packages
+#      * Repository permissions: Contents (Read and write), Metadata (Read)
+# 3. Add token as repository secret to arnodel/jsonstream:
+#    - Go to jsonstream repo → Settings → Secrets and variables → Actions
+#    - Add secret named 'NUR_GITHUB_TOKEN' with the token value
+# 4. Update .github/workflows/release.yaml to pass token:
+#    - Add 'NUR_GITHUB_TOKEN: ${{ secrets.NUR_GITHUB_TOKEN }}' to env section
+#
+# How it works:
+# - On each release, GoReleaser automatically creates/updates default.nix in nur-packages
+# - Users can then install with: nix-env -iA nur.repos.arnodel.jp
+nix:
+  - name: jp
+    ids:
+      - jp-targz
+    repository:
+      owner: arnodel
+      name: nur-packages
+      token: "{{ .Env.NUR_GITHUB_TOKEN }}"
+    homepage: "https://github.com/arnodel/jsonstream"
+    description: "JSON stream processor and transformation tool"
+    commit_author:
+      name: goreleaserbot
+      email: bot@goreleaser.com

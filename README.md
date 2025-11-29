@@ -62,6 +62,17 @@ Unlike tools that load entire files into memory, `jp` starts outputting results 
 brew install arnodel/tap/jp
 ```
 
+### Nix (NixOS/Linux/macOS)
+
+```bash
+nix-env -iA nur.repos.arnodel.jp
+```
+
+Or with flakes:
+```bash
+nix profile install github:arnodel/nur-packages#jp
+```
+
 ### Pre-built Binaries
 
 Download pre-built binaries for Linux, macOS, or Windows from the [releases page](https://github.com/arnodel/jsonstream/releases/latest).
