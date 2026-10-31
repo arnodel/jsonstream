@@ -11,19 +11,25 @@ import (
 // A Decoder reads JSON input and streams it into a JSON stream.
 type Decoder struct {
 	scanr *scanner.Scanner
+	in    *token.FlushingReader // nil when created from a scanner
 }
 
 var _ token.StreamSource = &Decoder{}
 
 // NewDecoder sets up a new Decoder instance to read from the given input.
 func NewDecoder(in io.Reader) *Decoder {
-	return &Decoder{scanr: scanner.NewScanner(in)}
+	fr := &token.FlushingReader{Reader: in}
+	return &Decoder{scanr: scanner.NewScanner(fr), in: fr}
 }
 
 // Produce reads a stream of JSON values and streams them, until it runs
 // out of input or encounter invalid JSON, in which case it will return an
 // error.
-func (d *Decoder) Produce(out chan<- token.Token) error {
+func (d *Decoder) Produce(out token.WriteStream) error {
+	if d.in != nil {
+		// Send the tokens produced so far before blocking on input.
+		d.in.Flush = token.FlushFunc(out)
+	}
 	for {
 		b, err := d.scanr.SkipSpaceAndPeek()
 		if err != nil || b == scanner.EOF {
@@ -38,7 +44,7 @@ func (d *Decoder) Produce(out chan<- token.Token) error {
 
 // parseValue reads a single JSON value and streams it.  It can return a
 // non-nil error if the input is invalid JSON.
-func (d *Decoder) ParseValue(out chan<- token.Token) error {
+func (d *Decoder) ParseValue(out token.WriteStream) error {
 	b, err := d.scanr.SkipSpaceAndPeek()
 	if err != nil {
 		return err
@@ -52,7 +58,7 @@ func (d *Decoder) ParseValue(out chan<- token.Token) error {
 		if err != nil {
 			return err
 		}
-		out <- s
+		out.Put(s)
 		return nil
 	case '[':
 		return d.parseArray(out)
@@ -63,21 +69,21 @@ func (d *Decoder) ParseValue(out chan<- token.Token) error {
 		if err != nil {
 			return err
 		}
-		out <- trueInstance
+		out.Put(trueInstance)
 		return nil
 	case 'f':
 		err := checkBytes(d.scanr, falseBytes)
 		if err != nil {
 			return err
 		}
-		out <- falseInstance
+		out.Put(falseInstance)
 		return nil
 	case 'n':
 		err := checkBytes(d.scanr, nullBytes)
 		if err != nil {
 			return err
 		}
-		out <- nullInstance
+		out.Put(nullInstance)
 		return nil
 	default:
 		if b == '-' || b >= '0' && b <= '9' {
@@ -85,7 +91,7 @@ func (d *Decoder) ParseValue(out chan<- token.Token) error {
 			if err != nil {
 				return err
 			}
-			out <- n
+			out.Put(n)
 			return nil
 		}
 		return UnexpectedByte(d.scanr, "unexpected")
@@ -108,21 +114,21 @@ func checkEOF(b byte, err error) (byte, error) {
 	return b, nil
 }
 
-func (d *Decoder) parseArray(out chan<- token.Token) error {
+func (d *Decoder) parseArray(out token.WriteStream) error {
 	var b byte
 	var err error
 	err = ExpectByte(d.scanr, '[')
 	if err != nil {
 		return err
 	}
-	out <- &token.StartArray{}
+	out.Put(&token.StartArray{})
 	b, err = checkEOF(d.scanr.SkipSpaceAndPeek())
 	if err != nil {
 		return err
 	}
 	if b == ']' {
 		d.scanr.Read()
-		out <- &token.EndArray{}
+		out.Put(&token.EndArray{})
 		return nil
 	}
 	for {
@@ -137,7 +143,7 @@ func (d *Decoder) parseArray(out chan<- token.Token) error {
 		switch b {
 		case ']':
 			d.scanr.Read()
-			out <- &token.EndArray{}
+			out.Put(&token.EndArray{})
 			return nil
 		case ',':
 			d.scanr.Read()
@@ -147,20 +153,20 @@ func (d *Decoder) parseArray(out chan<- token.Token) error {
 	}
 }
 
-func (d *Decoder) parseObject(out chan<- token.Token) error {
+func (d *Decoder) parseObject(out token.WriteStream) error {
 	var b byte
 	err := ExpectByte(d.scanr, '{')
 	if err != nil {
 		return err
 	}
-	out <- &token.StartObject{}
+	out.Put(&token.StartObject{})
 	b, err = checkEOF(d.scanr.SkipSpaceAndPeek())
 	if err != nil {
 		return err
 	}
 	if b == '}' {
 		d.scanr.Read()
-		out <- &token.EndObject{}
+		out.Put(&token.EndObject{})
 		return nil
 	}
 	for {
@@ -169,7 +175,7 @@ func (d *Decoder) parseObject(out chan<- token.Token) error {
 			return err
 		}
 		key.TypeAndFlags |= token.KeyMask
-		out <- key
+		out.Put(key)
 		b, err = checkEOF(d.scanr.SkipSpaceAndPeek())
 		if err != nil {
 			return err
@@ -189,7 +195,7 @@ func (d *Decoder) parseObject(out chan<- token.Token) error {
 		switch b {
 		case '}':
 			d.scanr.Read()
-			out <- &token.EndObject{}
+			out.Put(&token.EndObject{})
 			return nil
 		case ',':
 			d.scanr.Read()

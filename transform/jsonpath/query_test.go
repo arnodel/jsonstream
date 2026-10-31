@@ -16,12 +16,12 @@ func runSimpleTest(t *testing.T, input, query, output string) {
 	if err != nil {
 		t.Fatalf("Invalid query: %s", err)
 	}
-	res := token.TransformStream(src, runner)
+	res := token.TransformStream(src, runner).Reader()
 
-	exp := streamJsonString(output)
+	exp := streamJsonString(output).Reader()
 
-	for expected := range exp {
-		got := <-res
+	for expected := exp.Next(); expected != nil; expected = exp.Next() {
+		got := res.Next()
 		if got == nil {
 			t.Fatalf("Expected %s, got nil", expected)
 		}
@@ -29,7 +29,9 @@ func runSimpleTest(t *testing.T, input, query, output string) {
 			t.Fatalf("Expected %s, got %s", expected, got)
 		}
 	}
-
+	if got := res.Next(); got != nil {
+		t.Fatalf("Expected end of results, got %s", got)
+	}
 }
 
 func compileQueryString(s string) (jsonpathtransformer.MainQueryRunner, error) {
@@ -48,7 +50,7 @@ func compileQueryStringStrict(s string) (jsonpathtransformer.MainQueryRunner, er
 	return jsonpathtransformer.CompileQuery(query, jsonpathtransformer.WithStrictMode(true))
 }
 
-func streamJsonString(s string) <-chan token.Token {
+func streamJsonString(s string) token.Stream {
 	decoder := json.NewDecoder(strings.NewReader(s))
 	return token.StartStream(decoder, nil)
 }

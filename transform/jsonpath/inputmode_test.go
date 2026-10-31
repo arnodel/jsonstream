@@ -12,14 +12,15 @@ import (
 
 // collectScalars runs the query over the input and returns the literal bytes
 // of the scalar tokens it outputs, joined by spaces.
-func collectScalars(t *testing.T, query string, in <-chan token.Token, opts ...jsonpathtransformer.CompileQueryOption) string {
+func collectScalars(t *testing.T, query string, in token.Stream, opts ...jsonpathtransformer.CompileQueryOption) string {
 	t.Helper()
 	runner, err := jsonpathtransformer.CompileQueryString(query, opts...)
 	if err != nil {
 		t.Fatal(err)
 	}
 	var got []string
-	for tok := range token.TransformStream(in, runner) {
+	r := token.TransformStream(in, runner).Reader()
+	for tok := r.Next(); tok != nil; tok = r.Next() {
 		if s, ok := tok.(*token.Scalar); ok {
 			got = append(got, string(s.Bytes))
 		}
@@ -27,7 +28,7 @@ func collectScalars(t *testing.T, query string, in <-chan token.Token, opts ...j
 	return strings.Join(got, " ")
 }
 
-func jsonInput(s string) <-chan token.Token {
+func jsonInput(s string) token.Stream {
 	return token.StartStream(json.NewDecoder(strings.NewReader(s)), nil)
 }
 
@@ -94,16 +95,17 @@ func TestIsSingular(t *testing.T) {
 	}
 }
 
-// infiniteSource returns a channel fed forever by produce on its own goroutine.
-func infiniteSource(produce func(chan<- token.Token)) <-chan token.Token {
-	ch := make(chan token.Token)
-	go produce(ch)
+// infiniteSource returns a stream fed forever by produce on its own goroutine.
+// Tokens are sent in small batches so that the consumer gets them promptly.
+func infiniteSource(produce func(token.WriteStream)) token.Stream {
+	ch := make(chan []token.Token)
+	go produce(token.NewBatchWriter(ch, 4))
 	return ch
 }
 
 // collectOrTimeout is collectScalars with a guard against the query never
 // returning, which is the failure mode these tests look for.
-func collectOrTimeout(t *testing.T, query string, in <-chan token.Token, opts ...jsonpathtransformer.CompileQueryOption) string {
+func collectOrTimeout(t *testing.T, query string, in token.Stream, opts ...jsonpathtransformer.CompileQueryOption) string {
 	t.Helper()
 	done := make(chan string, 1)
 	go func() { done <- collectScalars(t, query, in, opts...) }()
@@ -120,16 +122,16 @@ func TestInputMode_InfiniteInput(t *testing.T) {
 	cases := []struct {
 		name    string
 		query   string
-		produce func(chan<- token.Token)
+		produce func(token.WriteStream)
 		want    string
 	}{
 		{
 			name:  "slice of a root array that never ends",
 			query: "$[:3]",
-			produce: func(ch chan<- token.Token) {
-				ch <- &token.StartArray{}
+			produce: func(ch token.WriteStream) {
+				ch.Put(&token.StartArray{})
 				for n := 1; ; n++ {
-					ch <- token.Int64Scalar(int64(n))
+					ch.Put(token.Int64Scalar(int64(n)))
 				}
 			},
 			want: "1 2 3",
@@ -137,13 +139,13 @@ func TestInputMode_InfiniteInput(t *testing.T) {
 		{
 			name:  "name selector on an object that never ends",
 			query: "$.name",
-			produce: func(ch chan<- token.Token) {
-				ch <- &token.StartObject{}
-				ch <- token.NewKey(token.String, []byte(`"name"`))
-				ch <- token.StringScalar("Alice")
+			produce: func(ch token.WriteStream) {
+				ch.Put(&token.StartObject{})
+				ch.Put(token.NewKey(token.String, []byte(`"name"`)))
+				ch.Put(token.StringScalar("Alice"))
 				for {
-					ch <- token.NewKey(token.String, []byte(`"filler"`))
-					ch <- token.NullScalar
+					ch.Put(token.NewKey(token.String, []byte(`"filler"`)))
+					ch.Put(token.NullScalar)
 				}
 			},
 			want: `"Alice"`,
@@ -154,12 +156,12 @@ func TestInputMode_InfiniteInput(t *testing.T) {
 			// 3 items; neither must cause the rest of the array to be read.
 			name:  "slice of a nested array that never ends",
 			query: "$.items[:3]",
-			produce: func(ch chan<- token.Token) {
-				ch <- &token.StartObject{}
-				ch <- token.NewKey(token.String, []byte(`"items"`))
-				ch <- &token.StartArray{}
+			produce: func(ch token.WriteStream) {
+				ch.Put(&token.StartObject{})
+				ch.Put(token.NewKey(token.String, []byte(`"items"`)))
+				ch.Put(&token.StartArray{})
 				for n := 1; ; n++ {
-					ch <- token.Int64Scalar(int64(n))
+					ch.Put(token.Int64Scalar(int64(n)))
 				}
 			},
 			want: "1 2 3",
@@ -167,15 +169,15 @@ func TestInputMode_InfiniteInput(t *testing.T) {
 		{
 			name:  "index selector in a nested array that never ends",
 			query: "$.items[1].id",
-			produce: func(ch chan<- token.Token) {
-				ch <- &token.StartObject{}
-				ch <- token.NewKey(token.String, []byte(`"items"`))
-				ch <- &token.StartArray{}
+			produce: func(ch token.WriteStream) {
+				ch.Put(&token.StartObject{})
+				ch.Put(token.NewKey(token.String, []byte(`"items"`)))
+				ch.Put(&token.StartArray{})
 				for n := 0; ; n++ {
-					ch <- &token.StartObject{}
-					ch <- token.NewKey(token.String, []byte(`"id"`))
-					ch <- token.Int64Scalar(int64(n))
-					ch <- &token.EndObject{}
+					ch.Put(&token.StartObject{})
+					ch.Put(token.NewKey(token.String, []byte(`"id"`)))
+					ch.Put(token.Int64Scalar(int64(n)))
+					ch.Put(&token.EndObject{})
 				}
 			},
 			want: "1",

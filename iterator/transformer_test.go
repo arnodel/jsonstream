@@ -412,7 +412,7 @@ func TestAsStreamTransformer(t *testing.T) {
 	outStream := token.ChannelWriteStream(out)
 
 	// Run transformation
-	streamTransformer.Transform(in, outStream)
+	streamTransformer.Transform(token.ChannelReadStream(in), outStream)
 	close(out)
 
 	// Collect output

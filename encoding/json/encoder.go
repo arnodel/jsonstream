@@ -19,16 +19,16 @@ type Encoder struct {
 
 var _ token.StreamSink = &Encoder{}
 
-// Consume formats the JSON stream encoded in the given channel using the
+// Consume formats the JSON stream read from in using the
 // instance's Printer.  It assumes that the stream is well-formed, i.e.
 // is a valid encoding for a stream of JSON values and may panic if that is
 // not the case.
 //
 // And error can be returned if the Printer could not perform some writing
 // operation.  A typical example is if it attempt to write to a closed pipe.
-func (sw *Encoder) Consume(stream <-chan token.Token) (err error) {
+func (sw *Encoder) Consume(in token.ReadStream) (err error) {
 	defer format.CatchPrinterError(&err)
-	iterator := iterator.New(token.ChannelReadStream(stream))
+	iterator := iterator.New(in)
 	for iterator.Advance() {
 		sw.writeValue(iterator.CurrentValue())
 		sw.Printer.Reset()

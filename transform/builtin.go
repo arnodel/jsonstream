@@ -31,9 +31,9 @@ type MaxDepthFilter struct {
 }
 
 // Transform implements the MaxDepthFilter tansform.
-func (f *MaxDepthFilter) Transform(in <-chan token.Token, out token.WriteStream) {
+func (f *MaxDepthFilter) Transform(in token.ReadStream, out token.WriteStream) {
 	depth := 0
-	for item := range in {
+	for item := in.Next(); item != nil; item = in.Next() {
 		postIncr := 0
 		switch item.(type) {
 		case *token.StartArray, *token.StartObject:
@@ -82,9 +82,9 @@ func (f ExplodeArray) TransformValue(value iterator.Value, out token.WriteStream
 type JoinStream struct{}
 
 // Transform implements the JoinStream transform
-func (f JoinStream) Transform(in <-chan token.Token, out token.WriteStream) {
+func (f JoinStream) Transform(in token.ReadStream, out token.WriteStream) {
 	out.Put(&token.StartArray{})
-	for item := range in {
+	for item := in.Next(); item != nil; item = in.Next() {
 		out.Put(item)
 	}
 	out.Put(&token.EndArray{})
@@ -95,8 +95,8 @@ func (f JoinStream) Transform(in <-chan token.Token, out token.WriteStream) {
 type TraceStream struct{}
 
 // Transform implements the TraceStream transform
-func (t TraceStream) Transform(in <-chan token.Token, out token.WriteStream) {
-	for item := range in {
+func (t TraceStream) Transform(in token.ReadStream, out token.WriteStream) {
+	for item := in.Next(); item != nil; item = in.Next() {
 		log.Printf("%s", item)
 	}
 }

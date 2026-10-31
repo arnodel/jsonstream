@@ -399,7 +399,7 @@ func TestDecoderErrors(t *testing.T) {
 			// Run in goroutine with timeout detection
 			done := make(chan error, 1)
 			go func() {
-				done <- decoder.Produce(out)
+				done <- decoder.Produce(token.ChannelWriteStream(out))
 				close(out)
 			}()
 
@@ -493,7 +493,7 @@ func TestDecoderDeepNesting(t *testing.T) {
 func TestDecoderEOF(t *testing.T) {
 	decoder := NewDecoder(strings.NewReader(""))
 	out := make(chan token.Token, 10)
-	err := decoder.Produce(out)
+	err := decoder.Produce(token.ChannelWriteStream(out))
 	close(out)
 
 	// EOF on empty input should return nil error
@@ -532,7 +532,7 @@ func TestDecoderUnclosedStructures(t *testing.T) {
 			decoder := NewDecoder(strings.NewReader(tt.input))
 			out := make(chan token.Token, 100)
 
-			err := decoder.Produce(out)
+			err := decoder.Produce(token.ChannelWriteStream(out))
 			close(out)
 
 			// Should get io.EOF when the reader runs out of input while parsing
@@ -556,7 +556,7 @@ func decodeString(t *testing.T, input string) []token.Token {
 	out := make(chan token.Token, 100)
 
 	go func() {
-		err := decoder.Produce(out)
+		err := decoder.Produce(token.ChannelWriteStream(out))
 		if err != nil && err != io.EOF {
 			t.Errorf("decode error: %v", err)
 		}

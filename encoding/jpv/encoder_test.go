@@ -290,7 +290,7 @@ func encodeJPV(t *testing.T, tokens []token.Token) string {
 	}
 	close(tokenChan)
 
-	err := encoder.Consume(tokenChan)
+	err := encoder.Consume(token.ChannelReadStream(tokenChan))
 	if err != nil {
 		t.Fatalf("encode error: %v", err)
 	}

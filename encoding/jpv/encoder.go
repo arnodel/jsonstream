@@ -30,9 +30,9 @@ var _ token.StreamSink = &Encoder{}
 //
 // And error can be returned if the Printer could not perform some writing
 // operation.  A typical example is if it attempt to write to a closed pipe.
-func (e *Encoder) Consume(stream <-chan token.Token) (err error) {
+func (e *Encoder) Consume(in token.ReadStream) (err error) {
 	defer format.CatchPrinterError(&err)
-	iterator := iterator.New(token.ChannelReadStream(stream))
+	iterator := iterator.New(in)
 	for iterator.Advance() {
 		e.writeValue(iterator.CurrentValue())
 		e.path = e.path[:0]

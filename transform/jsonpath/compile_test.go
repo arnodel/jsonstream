@@ -31,7 +31,8 @@ func ExampleCompileQueryString() {
 	input := strings.NewReader(`{"users": [{"name": "Alice", "age": 35}, {"name": "Bob", "age": 25}]}`)
 	stream := token.StartStream(json.NewDecoder(input), nil)
 	stream = token.TransformStream(stream, runner)
-	for tok := range stream {
+	r := stream.Reader()
+	for tok := r.Next(); tok != nil; tok = r.Next() {
 		fmt.Println(tok)
 	}
 	// Output: Scalar("Alice")

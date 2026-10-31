@@ -17,7 +17,7 @@ func TestRunCTS(t *testing.T) {
 		t.Fatalf("Problem with CTS file: %s", err)
 	}
 	decoder := json.NewDecoder(ctsFile)
-	stream := token.ChannelReadStream(token.StartStream(decoder, nil))
+	stream := token.StartStream(decoder, nil).Reader()
 	iter := iterator.New(stream)
 	if !iter.Advance() {
 		t.Fatalf("Expected an item")
