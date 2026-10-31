@@ -660,6 +660,32 @@ stops after 10 values like `head` would.
 - `-json-compact-width N`: Max width for inline arrays/objects (default: 60)
 - `-color MODE`: Color output (`auto`, `always`, `never`)
 
+**Pretty-printing.** Arrays take one of three forms depending on what they
+hold and on `-json-compact-width`. Short arrays of scalars stay on one line.
+Long ones are *packed*: runs of scalars fill each line up to the width while
+nested arrays and objects get lines of their own, so a list of numbers reads
+like a table rather than a column, and a mixed array stays readable. With
+`-json-compact-width 0`, everything is expanded one item per line. Objects
+with a couple of short scalar members are kept on one line; others expand.
+
+```bash
+$ echo '{"scores":[95,87,92,78,88,91,85,90,79,83,94,88],"mixed":[1,2,3,{"k":"v"},4,5,6,[7,8],9]}' | jp -json-compact-width 20
+{
+  "scores": [
+    95, 87, 92, 78, 88,
+    91, 85, 90, 79, 83,
+    94, 88
+  ],
+  "mixed": [
+    1, 2, 3,
+    {"k": "v"},
+    4, 5, 6,
+    [7, 8],
+    9
+  ]
+}
+```
+
 **JPV output options:**
 - `-jpv-quote-keys`: Always quote keys in brackets
 

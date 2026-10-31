@@ -12,6 +12,23 @@ import (
 // An Encoder writes a stream of JSON values as JSON text, pretty-printed,
 // through a format.Printer.  NewEncoder sets one up with the defaults used by
 // jp; the fields can be adjusted before Consume is called.
+//
+// Arrays are laid out in one of three forms depending on their contents and
+// CompactWidthLimit: compact, with every item on one line when the scalars
+// fit; mixed, where runs of scalars are packed onto lines up to the width
+// limit while nested arrays and objects get lines of their own; and
+// expanded, one item per line.  For example, with a limit of 20:
+//
+//	[
+//	  1, 2, 3,
+//	  {"k": "v"},
+//	  4, 5, 6,
+//	  [7, 8],
+//	  9
+//	]
+//
+// Objects are kept on one line when they have few, short, scalar members
+// (CompactObjectMaxItems and CompactWidthLimit), and expanded otherwise.
 type Encoder struct {
 	// Printer receives the output.  A *format.DefaultPrinter with IndentSize
 	// -1 writes each value on a single line (JSON Lines).
@@ -20,13 +37,14 @@ type Encoder struct {
 	// Colorizer, if not nil, wraps scalars and keys in ANSI colour codes.
 	*format.Colorizer
 
-	// CompactWidthLimit is the width up to which an array of scalars is kept
-	// on one line; 0 puts every item on its own line.
+	// CompactWidthLimit is the width, in characters, up to which runs of
+	// scalar array items are packed onto one line.  0 puts every item on its
+	// own line.
 	CompactWidthLimit int
 
-	// CompactObjectMaxItems is the number of scalar members up to which an
-	// object is kept on one line (within CompactWidthLimit); 0 puts every
-	// member on its own line.
+	// CompactObjectMaxItems is the number of members up to which an object
+	// whose members are all scalars, and fit in CompactWidthLimit, is kept
+	// on one line.  0 expands every object.
 	CompactObjectMaxItems int
 }
 
