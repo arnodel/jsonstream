@@ -1,0 +1,78 @@
+# Nightly fuzzing.
+#
+# Runs each fuzz target for a while (10 minutes by default), one job per
+# target so that they run in parallel and one failure does not hide another.
+# The corpus of interesting inputs each fuzzer builds up lives in Go's build
+# cache; it is saved to the Actions cache at the end of every run and restored
+# at the start of the next, so each night starts where the last one stopped
+# instead of rediscovering the same inputs.
+#
+# When a target fails, the job fails (GitHub emails the repository owner about
+# failed scheduled runs), the log shows the failing input, and the testdata
+# directory holding it is uploaded as an artifact, ready to be committed as a
+# regression test alongside the fix.
+#
+# Note that GitHub disables scheduled workflows on repositories with no commits
+# for 60 days; a manual run from the Actions tab re-enables it.
+name: Fuzz
+
+on:
+  schedule:
+    - cron: "17 3 * * *" # nightly at 03:17 UTC
+  workflow_dispatch:
+    inputs:
+      fuzztime:
+        description: How long to run each target (a Go duration such as 10m or 1h)
+        default: 10m
+
+jobs:
+  fuzz:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - { name: FuzzDecoder, pkg: ./encoding/json }
+          - { name: FuzzJPVDecoder, pkg: ./encoding/jpv }
+          - { name: FuzzJPVRoundTrip, pkg: ./encoding/jpv }
+          - { name: FuzzParseQueryString, pkg: ./internal/jsonpath }
+          - { name: FuzzQuery, pkg: ./transform/jsonpath }
+    name: ${{ matrix.target.name }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+
+      - name: Restore the corpus from the previous run
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.cache/go-build/fuzz
+          # The key is unique per run so that the save step below always
+          # stores a new, larger corpus; restore-keys picks the latest.
+          key: fuzz-corpus-${{ matrix.target.name }}-${{ github.run_id }}
+          restore-keys: fuzz-corpus-${{ matrix.target.name }}-
+
+      - name: Fuzz
+        run: >-
+          go test -run='^$'
+          -fuzz='^${{ matrix.target.name }}$'
+          -fuzztime=${{ inputs.fuzztime || '10m' }}
+          ${{ matrix.target.pkg }}
+
+      - name: Save the corpus for the next run
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.cache/go-build/fuzz
+          key: fuzz-corpus-${{ matrix.target.name }}-${{ github.run_id }}
+
+      - name: Upload the failing input
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: failing-input-${{ matrix.target.name }}
+          path: "**/testdata/fuzz/**"
+          if-no-files-found: ignore
