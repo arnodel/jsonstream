@@ -83,7 +83,7 @@ func (r SegmentRunner) transformObjectRelaxed(ctx *RunContext, obj *iterator.Obj
 			if !result {
 				return
 			}
-		} else if len(dispatcher.selectorStates) == 0 {
+		} else if dispatcher.exhausted() {
 			return
 		}
 	}
@@ -145,7 +145,7 @@ func (r SegmentRunner) transformArrayRelaxed(ctx *RunContext, arr *iterator.Arra
 			if !result {
 				return
 			}
-		} else if len(dispatcher.selectorStates) == 0 {
+		} else if dispatcher.exhausted() {
 			return
 		}
 	}
@@ -174,7 +174,7 @@ func (r SegmentRunner) transformObjectStrict(ctx *RunContext, obj *iterator.Obje
 			return
 		}
 
-		if len(dispatcher.selectorStates) == 0 {
+		if dispatcher.exhausted() {
 			break
 		}
 	}
@@ -243,7 +243,7 @@ func (r SegmentRunner) transformArrayStrict(ctx *RunContext, arr *iterator.Array
 			negIndex++
 		}
 
-		if len(dispatcher.selectorStates) == 0 {
+		if dispatcher.exhausted() {
 			break
 		}
 	}
@@ -302,6 +302,24 @@ func newItemDispatcher(selectors []SelectorRunner, next valueProcessor) *itemDis
 		selectorStates: selectorStates,
 		next:           next,
 	}
+}
+
+// exhausted returns true when no selector in the segment can select any
+// further item of the collection, so the caller can stop iterating over it.
+// Pending items of selectors that are done are emitted by flush.
+//
+// Note that a selector that is done may still be in selectorStates: a
+// selector that made a Yes|NoMoreAfter decision stays until the next item is
+// dispatched so that its selected value can be processed.  Checking that the
+// list is empty would therefore require advancing past (and so discarding)
+// the item following the last selected one, which may be arbitrarily large.
+func (d *itemDispatcher) exhausted() bool {
+	for i := range d.selectorStates {
+		if !d.selectorStates[i].done {
+			return false
+		}
+	}
+	return true
 }
 
 // Flush the dispatcher and dispatch to d.next the pending items as long as result is true.

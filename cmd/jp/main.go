@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"regexp"
 	"runtime/debug"
 	"strconv"
@@ -92,8 +93,8 @@ func main() {
 		colorMode = "never"
 		return nil
 	})
-	var deprecatedFile string
-	flag.StringVar(&deprecatedFile, "file", "", "DEPRECATED: use shell redirection (< file)")
+	var inputFile string
+	flag.StringVar(&inputFile, "file", "", "read input from FILE (same as passing FILE as an argument)")
 
 	flag.Parse()
 
@@ -127,22 +128,47 @@ func main() {
 		fatalError("invalid -color value: %q (use auto, always, or never)", colorMode)
 	}
 
-	// Warn about deprecated -file flag
-	if deprecatedFile != "" {
-		fatalError("-file flag removed. Use shell redirection instead: jp [options] [transforms] < %s", deprecatedFile)
-	}
-
 	// Set up stdout for handling colors
 	var stdout io.Writer = os.Stdout
 	if colorizer != nil {
 		stdout = colorable.NewColorableStdout()
 	}
 
-	// Read from stdin
+	// Positional arguments are transforms, except those naming input files.
+	var transformArgs, inputFiles []string
+	for _, arg := range flag.Args() {
+		if isTransformArg(arg) {
+			transformArgs = append(transformArgs, arg)
+		} else {
+			inputFiles = append(inputFiles, arg)
+		}
+	}
+	if inputFile != "" {
+		inputFiles = append([]string{inputFile}, inputFiles...)
+	}
+
+	// Read from the input files, or from stdin if there are none.  The input
+	// mode (single value or stream of values) is inferred from the file names
+	// when possible; -in json or -in json-stream override it below.
 	var input io.Reader = os.Stdin
+	inputMode := jsonpathtransformer.AutoDetectInput
+	if len(inputFiles) > 0 {
+		readers := make([]io.Reader, 0, len(inputFiles))
+		for _, name := range inputFiles {
+			f, err := os.Open(name)
+			if err != nil {
+				fatalError("%s", err)
+			}
+			defer f.Close()
+			readers = append(readers, f)
+		}
+		input = io.MultiReader(readers...)
+		inputMode = inputModeFromFiles(inputFiles)
+	}
 
 	// Choose the input decoder
-	if inputFormat == "auto" {
+	explicitFormat := inputFormat != "auto"
+	if !explicitFormat {
 		var start = make([]byte, 40)
 		n, err := input.Read(start)
 		if err == io.EOF {
@@ -171,6 +197,14 @@ func main() {
 	switch inputFormat {
 	case "json":
 		decoder = json.NewDecoder(input)
+		if explicitFormat {
+			inputMode = jsonpathtransformer.SingleValueInput
+		}
+	case "json-stream", "jsonl", "ndjson":
+		decoder = json.NewDecoder(input)
+		if explicitFormat {
+			inputMode = jsonpathtransformer.ValueStreamInput
+		}
 	case "jpv", "path":
 		decoder = jpv.NewDecoder(input)
 	case "csv":
@@ -186,7 +220,7 @@ func main() {
 		csvDecoder.RecordsProduceObjects = true
 		decoder = csvDecoder
 	default:
-		fatalError("invalid input format: %q", inputFormat)
+		fatalError("invalid input format: %q (use json, json-stream, jpv, csv or csv-with-header)", inputFormat)
 	}
 
 	// Start parsing the input file
@@ -197,13 +231,17 @@ func main() {
 		},
 	)
 
-	// Parse transforms and apply them sequentially
-	for _, arg := range flag.Args() {
-		transformer, err := parseTransformer(arg)
+	// Parse transforms and apply them sequentially.  Each transform is told
+	// whether its input is a single value or a stream, and says the same about
+	// its output for the next one.
+	mode := inputMode
+	for _, arg := range transformArgs {
+		transformer, outMode, err := parseTransformer(arg, mode)
 		if err != nil {
 			fatalError("error: %s", err)
 		}
 		stream = token.TransformStream(stream, transformer)
+		mode = outMode
 	}
 
 	// Write the output stream to stdout
@@ -256,35 +294,81 @@ func main() {
 	}
 }
 
-func parseTransformer(arg string) (token.StreamTransformer, error) {
+// isTransformArg tells whether a positional argument is a transform (as
+// opposed to an input file name).
+func isTransformArg(arg string) bool {
+	switch {
+	case arg == "split", arg == "join", arg == "trace":
+		return true
+	case strings.HasPrefix(arg, "depth="), strings.HasPrefix(arg, "$"), strings.HasPrefix(arg, "."):
+		return true
+	}
+	return false
+}
+
+// inputModeFromFiles infers whether the input is a single JSON value or a
+// stream of values from the names of the input files.
+func inputModeFromFiles(files []string) jsonpathtransformer.InputMode {
+	if len(files) > 1 {
+		// Several files, so several values.
+		return jsonpathtransformer.ValueStreamInput
+	}
+	switch strings.ToLower(filepath.Ext(files[0])) {
+	case ".json":
+		return jsonpathtransformer.SingleValueInput
+	case ".jsonl", ".ndjson":
+		return jsonpathtransformer.ValueStreamInput
+	default:
+		return jsonpathtransformer.AutoDetectInput
+	}
+}
+
+// parseTransformer turns a command line argument into a transformer.  It is
+// given the input mode of the transformer (whether it will receive a single
+// value or a stream of values) and returns the input mode of the next one.
+func parseTransformer(arg string, mode jsonpathtransformer.InputMode) (token.StreamTransformer, jsonpathtransformer.InputMode, error) {
 	if arg == "split" {
-		return iterator.AsStreamTransformer(transform.ExplodeArray{}), nil
+		return iterator.AsStreamTransformer(transform.ExplodeArray{}), jsonpathtransformer.ValueStreamInput, nil
 	}
 	if arg == "join" {
-		return transform.JoinStream{}, nil
+		// join always outputs exactly one value, so a following query can stop
+		// as soon as it has its results.
+		return transform.JoinStream{}, jsonpathtransformer.SingleValueInput, nil
 	}
 	if arg == "trace" {
-		return transform.TraceStream{}, nil
+		return transform.TraceStream{}, mode, nil
 	}
 	if strings.HasPrefix(arg, "...") {
 		key := strings.TrimPrefix(arg, "...")
-		return nil, fmt.Errorf("'%s' syntax removed. Use JSONPath instead: '$..%s'", arg, key)
+		return nil, mode, fmt.Errorf("'%s' syntax removed. Use JSONPath instead: '$..%s'", arg, key)
 	}
 	if strings.HasPrefix(arg, ".") {
 		key := strings.TrimPrefix(arg, ".")
-		return nil, fmt.Errorf("'%s' syntax removed. Use JSONPath instead: '$.%s'", arg, key)
+		return nil, mode, fmt.Errorf("'%s' syntax removed. Use JSONPath instead: '$.%s'", arg, key)
 	}
 	if strings.HasPrefix(arg, "depth=") {
 		depth, err := strconv.ParseInt(strings.TrimPrefix(arg, "depth="), 10, 64)
 		if err != nil {
-			return nil, err
+			return nil, mode, err
 		}
-		return &transform.MaxDepthFilter{MaxDepth: int(depth)}, nil
+		return &transform.MaxDepthFilter{MaxDepth: int(depth)}, mode, nil
 	}
 	if strings.HasPrefix(arg, "$") {
-		return jsonpathtransformer.CompileQueryString(arg, jsonpathtransformer.WithStrictMode(strictMode))
+		runner, err := jsonpathtransformer.CompileQueryString(arg,
+			jsonpathtransformer.WithStrictMode(strictMode),
+			jsonpathtransformer.WithInputMode(mode),
+		)
+		if err != nil {
+			return nil, mode, err
+		}
+		// A singular query on a single value gives at most one value.
+		outMode := jsonpathtransformer.ValueStreamInput
+		if runner.IsSingular() && mode == jsonpathtransformer.SingleValueInput {
+			outMode = jsonpathtransformer.SingleValueInput
+		}
+		return runner, outMode, nil
 	}
-	return nil, errors.New("invalid transform")
+	return nil, mode, errors.New("invalid transform")
 }
 
 type FormatGuesser struct {
@@ -363,14 +447,15 @@ func printUsage() {
 	fmt.Fprint(os.Stderr, `jp - JSON stream processor
 
 USAGE:
-  jp [options] [transforms...] < input.json
+  jp [options] [transforms...] [files...]
 
 DESCRIPTION:
   jp processes JSON input in a streaming manner, allowing you to transform,
   filter, and format JSON data with constant memory usage.
 
-  Input is read from stdin. Use shell redirection to read from files:
-    jp < file.json
+  Input is read from the files given as arguments, or from stdin:
+    jp file.json
+    jp '$.items[*]' file.json
     cat file.json | jp
 
 HELP OPTIONS:
@@ -381,7 +466,8 @@ HELP OPTIONS:
 
 INPUT/OUTPUT:
   -in FORMAT        Input format (default: auto)
-                    Formats: json, jpv, csv, csv-with-header (or csvh)
+                    Formats: json (a single value), json-stream (or jsonl),
+                    jpv, csv, csv-with-header (or csvh)
   -out FORMAT       Output format (default: json)
                     Formats: json, jpv
   -csv-header NAMES Comma-separated field names for CSV input
@@ -414,6 +500,11 @@ JSONPATH QUERIES:
   -jsonpath-strict  Execute JSONPath queries in strict mode (RFC-compliant ordering,
                     less streaming-friendly for descendant queries like $..)
 
+  A query stops reading as soon as it cannot produce more results if the
+  input is a single JSON value ('-in json', or a .json file argument), and
+  skips to the next value if it is a stream ('-in json-stream', a .jsonl
+  file). Otherwise jp works it out from the input: see 'jp -help-input'.
+
 EXAMPLES:
   # Pretty-print JSON
   cat data.json | jp
@@ -445,15 +536,22 @@ INPUT FORMAT SELECTION:
 AVAILABLE FORMATS:
 
   json
-    Standard JSON format. Automatically handles both:
-    - Single JSON values: {"name": "Alice"}
-    - JSON Lines (JSONL): Multiple JSON values, one per line
+    A single JSON value, e.g. {"name": "Alice"} or a whole document.
 
-    JSON Lines input example:
+    Knowing that there is only one value lets a JSONPath query stop reading
+    as soon as it cannot produce more results. For example with '-in json',
+    '$.items[:10]' returns right after the 10th item, however big the
+    document, and even if it never ends.
+
+  json-stream (or jsonl, ndjson)
+    A sequence of JSON values separated by whitespace. JSON Lines (one value
+    per line) is the usual shape, but values may span several lines, as in
+    jp's own pretty-printed output. Each value goes separately through the
+    transform pipeline:
       {"name": "Alice", "age": 30}
       {"name": "Bob", "age": 25}
 
-    Each value is streamed separately through the transform pipeline.
+    A query always reads to the end of each value, since more may follow.
     Use -json-lines or -json-compact to output in JSON Lines format.
 
   jpv (or path)
@@ -493,14 +591,28 @@ AVAILABLE FORMATS:
               {"name": "Jane", "surname": "Smith", "age": 25}
 
   auto (default)
-    Attempts to automatically detect the format based on the first few
-    bytes of input. Falls back to JSON if detection fails.
+    Detects the format from the first few bytes of input, falling back to
+    JSON. For JSON input, decides between json and json-stream as follows:
+    - A single file argument named *.json is a single value; *.jsonl or
+      *.ndjson is a stream; several files are a stream.
+    - Otherwise (stdin, or another extension), the first time a query is
+      done with a value before its end, jp skips ahead up to about 1MB. If
+      the value ends by then, the input is a stream; if not, it is one big
+      value and jp stops reading.
+    Values over 1MB in a stream are therefore mistaken for a single value;
+    pass '-in json-stream' in that case.
+
+INPUT FILES:
+  Files can be given as arguments, in any position relative to transforms:
+    jp '$.items[*]' data.json
+    jp a.json b.json
+  Several files are read one after the other as a stream of values.
 
 NOTES:
   - Empty fields in CSV are converted to null
   - CSV values 'true' and 'false' are converted to booleans
   - CSV numeric values are parsed as JSON numbers
-  - Use shell redirection to read from files: jp -in csv < data.csv
+  - Files can also be read with shell redirection: jp -in csv < data.csv
 `)
 }
 
@@ -644,7 +756,9 @@ AVAILABLE TRANSFORMS:
               3
 
   join
-    Joins a stream of values into a single array.
+    Joins a stream of values into a single array. Since the result is one
+    value, a following query can stop reading as soon as it has its
+    results: 'jp join '$[:10]'' is 'head' for a stream of values.
 
     Example:
       Input:  1
@@ -753,8 +867,11 @@ LIKE 'head' - GET FIRST N ITEMS
     jp split | head -5
 
   Stream-friendly: outputs the first N items immediately, using constant
-  memory. Note that jp still reads (and skips) the rest of the input, since
-  more JSON values may follow. To stop reading early, use 'split | head'.
+  memory. When jp knows the input is a single value (a .json file argument,
+  or -in json) it stops reading right after the Nth item, even on an
+  infinite stream. For a stream of values it skips to the next value.
+    jp '$.items[:10]' huge.json
+    curl https://api.example.com/items | jp -in json '$.items[:10]'
 
 ────────────────────────────────────────────────────────────────────────
 
@@ -884,7 +1001,9 @@ MEMORY USAGE NOTES
     jp '$.items[:100]' < 10GB-file.json
 
   And it will output the first 100 items almost instantly, using
-  constant memory regardless of file size. (It still reads to the end of
-  the file afterwards; pipe into 'head' if you want it to stop early.)
+  constant memory regardless of file size. Pass the file as an argument
+  (or use -in json) and it exits as soon as it has them instead of reading
+  to the end of the file:
+    jp '$.items[:100]' 10GB-file.json
 `)
 }
