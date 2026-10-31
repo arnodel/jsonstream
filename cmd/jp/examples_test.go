@@ -585,3 +585,58 @@ func TestReadme_LogFiltering(t *testing.T) {
 		t.Errorf("got %q, want %q", stdout, want)
 	}
 }
+
+// TestAutoDetect_Formats checks that input format auto-detection handles the
+// formats documented in the README, including the JPV round trip and top-level
+// scalars.
+func TestAutoDetect_Formats(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		args  []string
+		want  string
+	}{
+		{
+			name:  "jpv input is detected (README round trip)",
+			input: "$.email = \"a@x.com\"\n",
+			args:  []string{"-json-compact"},
+			want:  "{\"email\": \"a@x.com\"}\n",
+		},
+		{
+			name:  "jpv input with quoted key is detected",
+			input: "$[\"a b\"] = 1\n",
+			args:  []string{"-json-compact"},
+			want:  "{\"a b\": 1}\n",
+		},
+		{
+			name:  "top-level number falls back to json",
+			input: "42\n",
+			args:  []string{"-json-compact"},
+			want:  "42\n",
+		},
+		{
+			name:  "top-level string falls back to json",
+			input: "\"hello\"\n",
+			args:  []string{"-json-compact"},
+			want:  "\"hello\"\n",
+		},
+		{
+			name:  "csv with header is still detected",
+			input: "name,age\nAlice,30\n",
+			args:  []string{"-json-compact"},
+			want:  "{\"name\": \"Alice\", \"age\": 30}\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			stdout, stderr, exitCode := runJP(t, tt.input, tt.args...)
+			if exitCode != 0 {
+				t.Fatalf("exit code %d, stderr: %s", exitCode, stderr)
+			}
+			if stdout != tt.want {
+				t.Errorf("got %q, want %q", stdout, tt.want)
+			}
+		})
+	}
+}

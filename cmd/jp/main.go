@@ -19,7 +19,6 @@ import (
 	"github.com/arnodel/jsonstream/encoding/jpv"
 	"github.com/arnodel/jsonstream/encoding/json"
 	"github.com/arnodel/jsonstream/internal/format"
-	"github.com/arnodel/jsonstream/internal/jsonpath"
 	"github.com/arnodel/jsonstream/iterator"
 	"github.com/arnodel/jsonstream/token"
 	"github.com/arnodel/jsonstream/transform"
@@ -155,7 +154,9 @@ func main() {
 		start = start[:n]
 		inputFormat = guessFormat(start)
 		if inputFormat == "" {
-			fatalError("unable to guess input format, please specify -in FORMAT")
+			// Nothing matched (e.g. a top-level scalar such as 42 or "hello"),
+			// fall back to JSON and let the decoder report any syntax error.
+			inputFormat = "json"
 		}
 		input = io.MultiReader(bytes.NewReader(start[:n]), input)
 	}
@@ -281,11 +282,7 @@ func parseTransformer(arg string) (token.StreamTransformer, error) {
 		return &transform.MaxDepthFilter{MaxDepth: int(depth)}, nil
 	}
 	if strings.HasPrefix(arg, "$") {
-		query, err := jsonpath.ParseQueryString(arg)
-		if err != nil {
-			return nil, err
-		}
-		return jsonpathtransformer.CompileQuery(query, jsonpathtransformer.WithStrictMode(strictMode))
+		return jsonpathtransformer.CompileQueryString(arg, jsonpathtransformer.WithStrictMode(strictMode))
 	}
 	return nil, errors.New("invalid transform")
 }
@@ -303,7 +300,7 @@ func formatGuesser(format string, pattern string) FormatGuesser {
 }
 
 var formatGuessers = []FormatGuesser{
-	formatGuesser("jpv", `^$`),
+	formatGuesser("jpv", `^\$`),
 	formatGuesser("json", `^[{[]`),
 	formatGuesser("csv-with-header", `^[a-zA-Z][a-zA-Z_0-9-]*(,[a-zA-Z][a-zA-Z_0-9-]*)+(\n|,?$)`),
 	formatGuesser("csv", `^([^,"\n]*|("[^"]*"))(,[^,"\n]*|,("[^"]*"))+(\n|,?$)`),
