@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/arnodel/jsonstream/internal/scanner"
 	"github.com/arnodel/jsonstream/token"
 )
 
@@ -340,4 +341,25 @@ func decodeJPV(t *testing.T, input string) []token.Token {
 		tokens = append(tokens, tok)
 	}
 	return tokens
+}
+
+// TestIndexScalarBytes checks that array indices in paths are parsed as exact
+// number literals, without the closing bracket.  (This used to go unnoticed
+// because the literal parser stopped at the first token.)
+func TestIndexScalarBytes(t *testing.T) {
+	path, err := parsePath(scanner.NewScanner(strings.NewReader(`.a[10][2] = 1`)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(path) != 3 {
+		t.Fatalf("got %d path elements, want 3", len(path))
+	}
+	for i, want := range []string{`"a"`, "10", "2"} {
+		if got := string(path[i].Bytes); got != want {
+			t.Errorf("path[%d] = %q, want %q", i, got, want)
+		}
+	}
+	if path[1].ToFloat64() != 10 || path[2].ToFloat64() != 2 {
+		t.Error("index scalars do not parse as the expected numbers")
+	}
 }

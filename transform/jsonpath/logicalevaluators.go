@@ -1,7 +1,6 @@
 package jsonpath
 
 import (
-	"github.com/arnodel/jsonstream/internal/jsonpath/parser"
 	"github.com/arnodel/jsonstream/iterator"
 	"github.com/arnodel/jsonstream/token"
 )
@@ -129,13 +128,9 @@ func checkLessThan(left iterator.Value, right iterator.Value) bool {
 	}
 	switch xs.Type() {
 	case token.Number:
-		xx := parser.ParseJsonLiteralBytes(xs.Bytes).(float64)
-		yy := parser.ParseJsonLiteralBytes(ys.Bytes).(float64)
-		return xx < yy
+		return xs.ToFloat64() < ys.ToFloat64()
 	case token.String:
-		xx := parser.ParseJsonLiteralBytes(xs.Bytes).(string)
-		yy := parser.ParseJsonLiteralBytes(ys.Bytes).(string)
-		return xx < yy
+		return xs.ToString() < ys.ToString()
 	default:
 		return false
 	}

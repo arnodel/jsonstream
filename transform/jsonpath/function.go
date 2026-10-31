@@ -4,7 +4,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/arnodel/jsonstream/internal/jsonpath/iregexp"
-	"github.com/arnodel/jsonstream/internal/jsonpath/parser"
 	"github.com/arnodel/jsonstream/iterator"
 	"github.com/arnodel/jsonstream/token"
 )
@@ -152,7 +151,7 @@ func matchIndex(args []any) (loc []int) {
 	if arg1.Scalar().Type() != token.String || arg2.Scalar().Type() != token.String {
 		return nil
 	}
-	ptnString := parser.ParseJsonLiteralBytes(arg2.Bytes).(string)
+	ptnString := arg2.Scalar().ToString()
 	ptn, err := iregexp.Compile(ptnString)
 	if err != nil {
 		return nil
@@ -163,7 +162,7 @@ func matchIndex(args []any) (loc []int) {
 			loc[1] -= len(arg1.Bytes) - 2
 		}
 	} else {
-		arg1String := parser.ParseJsonLiteralBytes(arg1.Bytes).(string)
+		arg1String := arg1.Scalar().ToString()
 		loc = ptn.FindStringIndex(arg1String)
 		if loc != nil {
 			loc[1] -= len(arg1String)
