@@ -3,7 +3,9 @@ package main
 import (
 	"bytes"
 	"context"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -659,20 +661,112 @@ func (r *infiniteArrayReader) Read(p []byte) (int, error) {
 	return n, nil
 }
 
-// TestSingleFlag_StopsReading checks that with -single, a slice query exits as
-// soon as it has its results, even if the input never ends.
-func TestSingleFlag_StopsReading(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, "go", "run", ".", "-single", "-json-compact", "$[:3]")
-	cmd.Stdin = &infiniteArrayReader{}
-	var outBuf, errBuf bytes.Buffer
-	cmd.Stdout = &outBuf
-	cmd.Stderr = &errBuf
-	if err := cmd.Run(); err != nil {
-		t.Fatalf("jp did not exit cleanly: %v (stderr: %s)", err, errBuf.String())
+// TestInputMode_StopsReading checks that a slice query exits as soon as it has
+// its results on input that never ends, both when told the input is a single
+// value and when left to work it out.
+func TestInputMode_StopsReading(t *testing.T) {
+	for _, args := range [][]string{
+		{"-in", "json", "-json-compact", "$[:3]"},
+		{"-json-compact", "$[:3]"},
+	} {
+		t.Run(strings.Join(args, " "), func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+			defer cancel()
+			cmd := exec.CommandContext(ctx, "go", append([]string{"run", "."}, args...)...)
+			cmd.Stdin = &infiniteArrayReader{}
+			var outBuf, errBuf bytes.Buffer
+			cmd.Stdout = &outBuf
+			cmd.Stderr = &errBuf
+			if err := cmd.Run(); err != nil {
+				t.Fatalf("jp did not exit cleanly: %v (stderr: %s)", err, errBuf.String())
+			}
+			if want := "1\n1\n1\n"; outBuf.String() != want {
+				t.Errorf("got %q, want %q", outBuf.String(), want)
+			}
+		})
 	}
-	if want := "1\n1\n1\n"; outBuf.String() != want {
-		t.Errorf("got %q, want %q", outBuf.String(), want)
+}
+
+// TestInputMode_Streams checks that streams of values are processed in full
+// unless the input is declared to be a single value.  The query $.a is done
+// with each value as soon as it finds the key, so it is where the modes differ.
+func TestInputMode_Streams(t *testing.T) {
+	const jsonLines = "{\"a\": 1, \"b\": 0}\n{\"a\": 2, \"b\": 0}\n"
+	// The shape of jp's own pretty-printed output: not JSON Lines.
+	const prettyStream = "{\n  \"a\": 1,\n  \"b\": 0\n}\n{\n  \"a\": 2,\n  \"b\": 0\n}\n"
+	tests := []struct {
+		name  string
+		input string
+		args  []string
+		want  string
+	}{
+		{"json lines, auto", jsonLines, []string{"-json-compact", "$.a"}, "1\n2\n"},
+		{"pretty stream, auto", prettyStream, []string{"-json-compact", "$.a"}, "1\n2\n"},
+		{"json lines, -in json-stream", jsonLines, []string{"-in", "json-stream", "-json-compact", "$.a"}, "1\n2\n"},
+		{"json lines, -in jsonl alias", jsonLines, []string{"-in", "jsonl", "-json-compact", "$.a"}, "1\n2\n"},
+		{"json lines, -in json stops after the first value", jsonLines, []string{"-in", "json", "-json-compact", "$.a"}, "1\n"},
+		{"query consuming each value fully still sees all values", jsonLines, []string{"-in", "json", "-json-compact", "$..a"}, "1\n2\n"},
+		// join makes one value of the stream, so the slice can stop early.
+		{"join then slice", jsonLines, []string{"-json-compact", "join", "$[:1].a"}, "1\n"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			stdout, stderr, exitCode := runJP(t, tt.input, tt.args...)
+			if exitCode != 0 {
+				t.Fatalf("exit code %d, stderr: %s", exitCode, stderr)
+			}
+			if stdout != tt.want {
+				t.Errorf("got %q, want %q", stdout, tt.want)
+			}
+		})
+	}
+}
+
+// TestInputFiles checks reading from file arguments and the input mode
+// inferred from their extension.
+func TestInputFiles(t *testing.T) {
+	dir := t.TempDir()
+	write := func(name, content string) string {
+		path := filepath.Join(dir, name)
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return path
+	}
+	twoValues := "{\"a\": 1, \"b\": 0}\n{\"a\": 2, \"b\": 0}\n"
+	single := write("single.json", twoValues)
+	stream := write("stream.jsonl", twoValues)
+	other := write("other.txt", twoValues)
+	one := write("one.json", "{\"a\": 1, \"b\": 0}\n")
+	two := write("two.json", "{\"a\": 2, \"b\": 0}\n")
+
+	tests := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{".json is a single value", []string{"-json-compact", "$.a", single}, "1\n"},
+		{".jsonl is a stream", []string{"-json-compact", "$.a", stream}, "1\n2\n"},
+		{"other extension is worked out", []string{"-json-compact", "$.a", other}, "1\n2\n"},
+		{"-in json-stream overrides .json", []string{"-in", "json-stream", "-json-compact", "$.a", single}, "1\n2\n"},
+		{"file before transform", []string{"-json-compact", stream, "$.a"}, "1\n2\n"},
+		{"several files are a stream", []string{"-json-compact", "$.a", one, two}, "1\n2\n"},
+		{"-file flag", []string{"-json-compact", "-file", stream, "$.a"}, "1\n2\n"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			stdout, stderr, exitCode := runJP(t, "", tt.args...)
+			if exitCode != 0 {
+				t.Fatalf("exit code %d, stderr: %s", exitCode, stderr)
+			}
+			if stdout != tt.want {
+				t.Errorf("got %q, want %q", stdout, tt.want)
+			}
+		})
+	}
+
+	stdout, stderr, exitCode := runJP(t, "", "$.a", filepath.Join(dir, "missing.json"))
+	if exitCode == 0 || !strings.Contains(stderr, "missing.json") {
+		t.Errorf("missing file: exit %d, stdout %q, stderr %q", exitCode, stdout, stderr)
 	}
 }

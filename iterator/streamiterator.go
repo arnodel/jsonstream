@@ -2,6 +2,7 @@ package iterator
 
 import (
 	"fmt"
+	"math"
 	"slices"
 
 	"github.com/arnodel/jsonstream/token"
@@ -98,6 +99,17 @@ type Collection interface {
 	Done() bool
 	Elided() bool
 	CurrentValue() Value
+	DiscardN(maxTokens int) (consumed int, done bool)
+}
+
+// DiscardN discards up to maxTokens tokens from the rest of v and reports how
+// many tokens were read and whether the end of v was reached.  Scalars have
+// nothing left to discard.  See Collection.DiscardN for details.
+func DiscardN(v Value, maxTokens int) (consumed int, done bool) {
+	if c, ok := v.(Collection); ok {
+		return c.DiscardN(maxTokens)
+	}
+	return 0, true
 }
 
 type collectionBase struct {
@@ -109,6 +121,11 @@ type collectionBase struct {
 	elided  bool
 
 	currentValue Value
+
+	// State of a discard in progress, see DiscardN.
+	discarding      bool
+	discardingChild Collection
+	discardDepth    int
 }
 
 func (c *collectionBase) clone() (collectionBase, func()) {
@@ -122,30 +139,58 @@ func (c *collectionBase) clone() (collectionBase, func()) {
 	return clone, cloneStream.Detach
 }
 
+// Discard reads the rest of the collection from the stream so that the value
+// following it can be read.
 func (c *collectionBase) Discard() {
+	c.DiscardN(math.MaxInt)
+}
+
+// DiscardN reads at most maxTokens tokens from the rest of the collection.  It
+// returns the number of tokens read and whether the end of the collection was
+// reached.
+//
+// Once DiscardN has been called the collection counts as finished: Advance
+// discards whatever is left and returns false, and CurrentValue must not be
+// called.  A partial discard can be resumed with further calls to DiscardN, or
+// completed with Discard.
+func (c *collectionBase) DiscardN(maxTokens int) (consumed int, done bool) {
 	if c.done {
-		return
+		return 0, true
 	}
-	if c.started {
-		c.currentValue.Discard()
+	if !c.discarding {
+		c.discarding = true
+		c.started = true // Copy must not be called from now on
+		if child, ok := c.currentValue.(Collection); ok && !child.Done() {
+			c.discardingChild = child
+		}
 	}
-	c.done = true
-	depth := 0
-	for {
+	if c.discardingChild != nil {
+		n, childDone := c.discardingChild.DiscardN(maxTokens)
+		consumed += n
+		if !childDone {
+			return consumed, false
+		}
+		c.discardingChild = nil
+	}
+	for consumed < maxTokens {
 		item := c.stream.Next()
 		if item == nil {
-			return
+			c.done = true
+			return consumed, true
 		}
+		consumed++
 		switch item.(type) {
 		case *token.StartArray, *token.StartObject:
-			depth++
+			c.discardDepth++
 		case *token.EndArray, *token.EndObject:
-			depth--
+			c.discardDepth--
 		}
-		if depth < 0 {
-			return
+		if c.discardDepth < 0 {
+			c.done = true
+			return consumed, true
 		}
 	}
+	return consumed, false
 }
 
 func (c *collectionBase) Copy(w token.WriteStream) {
@@ -184,7 +229,7 @@ func (c *collectionBase) Done() bool {
 }
 
 func (c *collectionBase) CurrentValue() Value {
-	if c.done {
+	if c.done || c.discarding {
 		panic("iterator done")
 	}
 	return c.currentValue
@@ -230,6 +275,10 @@ func (o *Object) CurrentKeyVal() (*token.Scalar, Value) {
 
 func (o *Object) Advance() bool {
 	if o.done {
+		return false
+	}
+	if o.discarding {
+		o.Discard()
 		return false
 	}
 	if o.started {
@@ -350,6 +399,10 @@ func (a *Array) Clone() (Value, func()) {
 
 func (a *Array) Advance() bool {
 	if a.done {
+		return false
+	}
+	if a.discarding {
+		a.Discard()
 		return false
 	}
 	if a.started {

@@ -128,8 +128,8 @@ echo '[{"price":50},{"price":150}]' | jp '$[?@.price > 100]'
 # Get first 10 items (immediate output, constant memory)
 jp '$.items[:10]' < data.json
 
-# Same, but stop reading the file as soon as the 10 items are out
-jp -single '$.items[:10]' < data.json
+# Same, and stop reading the file as soon as the 10 items are out
+jp '$.items[:10]' data.json
 
 # Get last 5 items (memory-efficient sliding window)
 jp '$.items[-5:]' < data.json
@@ -197,15 +197,24 @@ jp -out jpv < data.json | grep email | jp       # grep approach (see JPV below)
 Most common operations stream efficiently with constant or limited memory.
 
 **Note on early termination**: a query like `$.items[:10]` emits its results
-immediately, but by default `jp` still reads (and skips) the rest of the input,
-because more JSON values may follow (JSON Lines). If your input is a single
-JSON value, add `-single` and `jp` stops reading as soon as the query cannot
-produce more results:
+immediately. Whether `jp` then stops reading depends on whether the input is a
+single JSON value or a stream of values (such as JSON Lines), since in a stream
+the query must also be applied to the following values:
 
 ```bash
-# Exits right after the 10th item, even if the file is 10GB or the stream is infinite
-jp -single '$.items[:10]' < huge.json
+# A .json file argument is a single value: exits right after the 10th item,
+# even if the file is 10GB
+jp '$.items[:10]' huge.json
+
+# Same for piped input, when you know it is a single value
+curl https://api.example.com/items | jp -in json '$.items[:10]'
+
+# Otherwise jp works it out: it skips ahead up to about 1MB, and if the value
+# has not ended by then it treats the input as a single value and stops
+cat huge.json | jp '$.items[:10]'
 ```
+
+See [Input/Output Formats](#inputoutput-formats) for the details.
 
 ### Format Conversion
 
@@ -237,7 +246,7 @@ jp '$.users[*]' < data.json | jp -json-lines
 cat 10GB-file.json | jp | less
 
 # Get first 100 items from huge file and stop reading as soon as they are out
-jp -single '$.items[:100]' < 10GB-file.json
+jp '$.items[:100]' 10GB-file.json
 
 # Extract specific data from large file
 jp '$.transactions[?@.amount > 1000].id' < huge-file.json | less
@@ -514,7 +523,7 @@ jp depth=1 split '$.summary' < data.json
 
 ```bash
 # Get first 100 items from huge file and stop reading as soon as they are out
-jp -single '$.items[:100]' < 10GB-file.json
+jp '$.items[:100]' 10GB-file.json
 
 # Process infinite input (Ctrl+C to stop)
 yes '{"x": 1}' | jp | head -20
@@ -525,7 +534,7 @@ cat huge.json | jp | less
 
 **Memory-efficient operations:**
 - `$.items[*]`: Streams one item at a time (constant memory)
-- `$.items[:N]`: Emits the first N items immediately, then skips the rest (constant memory); with `-single`, stops reading there
+- `$.items[:N]`: Emits the first N items immediately, then stops reading if the input is a single value, or skips to the next value if it is a stream (constant memory)
 - `$.items[-N:]`: Sliding window (N items in memory)
 - `split`: Converts array to stream (constant memory)
 - `join`: Wraps stream in brackets (no buffering)
@@ -575,11 +584,30 @@ Use default (no `-jsonpath-strict`) when:
 
 | Format | Description | Example |
 |--------|-------------|---------|
-| `auto` (default) | Auto-detect format | `jp < data.json` |
-| `json` | Standard JSON, supports JSON Lines | `jp -in json < data.json` |
+| `auto` (default) | Auto-detect format, see below | `jp data.json` |
+| `json` | A single JSON value | `jp -in json < data.json` |
+| `json-stream` (or `jsonl`, `ndjson`) | A sequence of JSON values, e.g. JSON Lines | `jp -in jsonl < log.jsonl` |
 | `jpv` | JSON Path-Value format | `jp -in jpv < data.jpv` |
 | `csv` | CSV records as JSON arrays | `jp -in csv < data.csv` |
 | `csvh` or `csv-with-header` | CSV with header row | `jp -in csvh < data.csv` |
+
+**Single value or stream?** The difference between `json` and `json-stream`
+only matters when a query is done with a value before having read it to the
+end, e.g. `$.items[:10]` after the 10th item. With a single value, `jp` stops
+reading there. With a stream, it skips to the next value, because the query
+must be applied to it too. In `auto` mode:
+
+- A single file argument named `*.json` is a single value; `*.jsonl` or
+  `*.ndjson` is a stream; several files are a stream.
+- Otherwise (stdin, other extensions), the first time a query is done with a
+  value early, `jp` skips ahead up to about 1MB. If the value ends by then,
+  the input is a stream; if not, it is one big value and `jp` stops reading.
+  Streams whose values exceed 1MB are therefore mistaken for a single value:
+  pass `-in json-stream` for those.
+
+Within a pipeline, the mode follows the data: a JSONPath query or `split`
+produces a stream, and `join` produces a single value, so `jp join '$[:10]'`
+stops after 10 values like `head` would.
 
 **CSV options:**
 - `-csv-header NAMES`: Specify field names for CSV (comma-separated)
@@ -616,18 +644,21 @@ jp -help-cookbook        # Unix-like usage patterns (head/tail/grep)
 
 **Common flags:**
 ```bash
--in FORMAT               # Input format: json, jpv, csv, csvh, auto (default: auto)
+-in FORMAT               # Input format: json, json-stream (jsonl), jpv, csv, csvh, auto (default: auto)
 -out FORMAT              # Output format: json, jpv (default: json)
 -json-lines              # Output JSON Lines format
 -json-indent N           # Indentation level (default: 2)
 -jsonpath-strict         # Strict RFC 9535 mode
--single                  # Input is one JSON value: stop reading once the query is complete
 -color MODE              # Color output: auto, always, never
 ```
 
 **Example usage:**
 ```bash
-jp [options] [transforms...] < input.json
+jp [options] [transforms...] [files...]
+
+# Input from a file argument, or from stdin
+jp '$.users[*]' data.json
+jp '$.users[*]' < data.json
 
 # Multiple transforms
 jp '$.users[*]' split '$.email' < data.json
