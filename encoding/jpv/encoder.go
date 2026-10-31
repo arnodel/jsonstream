@@ -3,6 +3,7 @@ package jpv
 import (
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/arnodel/jsonstream/internal/format"
 	"github.com/arnodel/jsonstream/iterator"
@@ -19,6 +20,12 @@ type Encoder struct {
 	AlwaysQuoteKeys bool
 
 	path []*token.Scalar // keeps track of the current path
+
+	// If IdleFlusher is not nil, it is flushed whenever no input has arrived
+	// for IdleFlushInterval, so that output already produced is not held back
+	// by buffering while waiting for more input.
+	IdleFlusher       format.Flusher
+	IdleFlushInterval time.Duration
 }
 
 var _ token.StreamSink = &Encoder{}
@@ -32,7 +39,9 @@ var _ token.StreamSink = &Encoder{}
 // operation.  A typical example is if it attempt to write to a closed pipe.
 func (e *Encoder) Consume(stream <-chan token.Token) (err error) {
 	defer format.CatchPrinterError(&err)
-	iterator := iterator.New(token.ChannelReadStream(stream))
+	in, stop := format.IdleFlushReadStream(stream, e.IdleFlusher, e.IdleFlushInterval)
+	defer stop()
+	iterator := iterator.New(in)
 	for iterator.Advance() {
 		e.writeValue(iterator.CurrentValue())
 		e.path = e.path[:0]

@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/arnodel/jsonstream/encoding/csv"
 	"github.com/arnodel/jsonstream/encoding/jpv"
@@ -29,6 +30,12 @@ import (
 )
 
 var strictMode bool
+
+// idleFlushInterval is how long the output can stay buffered while waiting for
+// more input.  When the input stalls (e.g. 'tail -f app.log | jp | less'),
+// results already produced are flushed after this delay instead of sitting in
+// the buffer until more input arrives.
+const idleFlushInterval = 100 * time.Millisecond
 
 func main() {
 	// Do not handle SIGPIPE, we'll do it ourselves (see error handling at the bottom of main).
@@ -233,10 +240,17 @@ func main() {
 			Colorizer:             colorizer,
 			CompactWidthLimit:     jsonCompactWidth,
 			CompactObjectMaxItems: 2,
+			IdleFlusher:           out,
+			IdleFlushInterval:     idleFlushInterval,
 		}
 	case "jpv", "path":
 		{
-			jpvEncoder := &jpv.Encoder{Printer: printer, Colorizer: colorizer}
+			jpvEncoder := &jpv.Encoder{
+				Printer:           printer,
+				Colorizer:         colorizer,
+				IdleFlusher:       out,
+				IdleFlushInterval: idleFlushInterval,
+			}
 			jpvEncoder.AlwaysQuoteKeys = jpvQuoteKeys
 			encoder = jpvEncoder
 		}
