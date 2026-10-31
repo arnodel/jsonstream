@@ -414,8 +414,8 @@ TRANSFORMS:
   trace             Log stream to stderr (for debugging)
 
 JSONPATH QUERIES:
-  -strict           Execute JSONPath queries in strict mode (RFC-compliant ordering,
-                    less streaming-friendly for descendant queries like $..))
+  -jsonpath-strict  Execute JSONPath queries in strict mode (RFC-compliant ordering,
+                    less streaming-friendly for descendant queries like $..)
 
 EXAMPLES:
   # Pretty-print JSON
@@ -634,7 +634,7 @@ AVAILABLE TRANSFORMS:
       '$.items[?@.name =~ /^A/]'  - Filter: names starting with A
       '$[*].length'               - Get 'length' from all top-level objects
 
-    Use -strict flag for strict mode (RFC-compliant ordering).
+    Use the -jsonpath-strict flag for strict mode (RFC-compliant ordering).
 
   split
     Splits an array into a stream of its individual values.
@@ -694,7 +694,7 @@ JSONPATH STRICT MODE vs DEFAULT MODE:
   (using ..), results are emitted in document order as items are encountered.
   This allows constant memory usage and immediate output.
 
-  With -strict, jp follows RFC 9535 ordering exactly. For descendant queries,
+  With -jsonpath-strict, jp follows RFC 9535 ordering exactly. For descendant queries,
   all matches at the current level are emitted before descending into nested
   values. This requires buffering collections and reduces streaming efficiency.
 
@@ -702,12 +702,12 @@ JSONPATH STRICT MODE vs DEFAULT MODE:
     Default: outputs in document order: {"b": 1}, 1, 2
     Strict:  outputs per-level first: {"b": 1}, 2, 1
 
-  Use -strict when:
+  Use -jsonpath-strict when:
   - You need RFC 9535 compliance for interoperability
   - Output order matters for your use case
   - You're processing small files where memory isn't a concern
 
-  Use default (no -strict) when:
+  Use default (no -jsonpath-strict) when:
   - You want maximum streaming performance
   - You're processing large files or infinite streams
   - Document order is acceptable
@@ -716,7 +716,7 @@ NOTES:
   - Always use single quotes around JSONPath expressions
   - The $ refers to the root of the current value
   - The @ in filters refers to the current node being filtered
-  - JSONPath queries preserve streaming where possible (especially without -strict)
+  - JSONPath queries preserve streaming where possible (especially without -jsonpath-strict)
 `)
 }
 
