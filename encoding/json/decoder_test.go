@@ -655,3 +655,20 @@ func assertScalarValue(t *testing.T, tok token.Token, typ token.ScalarType, valu
 		t.Errorf("expected value %q, got %q", value, string(scalar.Bytes))
 	}
 }
+
+// TestInvalidEscapes checks that unknown escape sequences are rejected rather
+// than let through (found by FuzzJPVRoundTrip: "\0" was accepted and then
+// crashed Scalar.ToString).
+func TestInvalidEscapes(t *testing.T) {
+	for _, input := range []string{`"\0"`, `"\x41"`, `"\a"`, `"\U0041"`, `{"\0": 1}`} {
+		_, err := decodeAll(input)
+		if err == nil {
+			t.Errorf("%s: expected an error", input)
+		}
+	}
+	for _, input := range []string{`"\""`, `"\\"`, `"\/"`, `"\b\f\n\r\t"`, `"Aé"`} {
+		if _, err := decodeAll(input); err != nil {
+			t.Errorf("%s: unexpected error %v", input, err)
+		}
+	}
+}

@@ -297,3 +297,19 @@ func encodeJPV(t *testing.T, tokens []token.Token) string {
 
 	return buf.String()
 }
+
+// TestKeysNeedingBrackets checks that keys that are not plain identifiers are
+// written in bracket form, so that the decoder can read them back (found by
+// FuzzJPVRoundTrip: the empty key came out as "$." and a key made of an
+// escaped quote as "$.\"").
+func TestKeysNeedingBrackets(t *testing.T) {
+	toks, err := fuzzDecodeJSON(`{"": 1, "\"": 2, "a": 3, "a b": 4, "1a": 5, "a1": 6}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := strings.TrimSpace(encodeJPV(t, toks))
+	want := strings.TrimSpace("$[\"\"] = 1\n$[\"\\\"\"] = 2\n$.a = 3\n$[\"a b\"] = 4\n$[\"1a\"] = 5\n$.a1 = 6\n")
+	if got != want {
+		t.Errorf("got:\n%s\nwant:\n%s", got, want)
+	}
+}

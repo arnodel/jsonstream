@@ -10,6 +10,15 @@ debug:
 test:
 	go test ./...
 
+# Run each fuzz target for a short while. Pass FUZZTIME=5m for a longer run.
+FUZZTIME ?= 30s
+fuzz:
+	go test -run=^$$ -fuzz=FuzzDecoder -fuzztime=$(FUZZTIME) ./encoding/json
+	go test -run=^$$ -fuzz=FuzzJPVDecoder -fuzztime=$(FUZZTIME) ./encoding/jpv
+	go test -run=^$$ -fuzz=FuzzJPVRoundTrip -fuzztime=$(FUZZTIME) ./encoding/jpv
+	go test -run=^$$ -fuzz=FuzzParseQueryString -fuzztime=$(FUZZTIME) ./internal/jsonpath
+	go test -run=^$$ -fuzz=FuzzQuery -fuzztime=$(FUZZTIME) ./transform/jsonpath
+
 bench:
 	go run ./bench gen 500000 > /tmp/jp-bench.json
 	go run ./bench run /tmp/jp-bench.json -svg docs/benchmark.svg
