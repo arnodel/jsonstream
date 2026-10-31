@@ -611,7 +611,7 @@ func TestAutoDetect_Formats(t *testing.T) {
 			name:  "csv with header is still detected",
 			input: "name,age\nAlice,30\n",
 			args:  []string{"-json-compact"},
-			want:  "{\"name\": \"Alice\",\"age\": 30}\n",
+			want:  "{\"name\": \"Alice\", \"age\": 30}\n",
 		},
 	}
 
