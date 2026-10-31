@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"context"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -768,5 +770,72 @@ func TestInputFiles(t *testing.T) {
 	stdout, stderr, exitCode := runJP(t, "", "$.a", filepath.Join(dir, "missing.json"))
 	if exitCode == 0 || !strings.Contains(stderr, "missing.json") {
 		t.Errorf("missing file: exit %d, stdout %q, stderr %q", exitCode, stdout, stderr)
+	}
+}
+
+// pausingReader yields its first chunk, then blocks until released, then EOF.
+type pausingReader struct {
+	first   string
+	release chan struct{}
+	state   int
+}
+
+func (r *pausingReader) Read(p []byte) (int, error) {
+	switch r.state {
+	case 0:
+		r.state = 1
+		return copy(p, r.first), nil
+	case 1:
+		<-r.release
+		r.state = 2
+		return copy(p, "{\"a\": 2}\n"), nil
+	default:
+		return 0, io.EOF
+	}
+}
+
+// TestOutputFlushedWhenInputStalls checks that a result reaches a pipe while
+// the input is still open and paused, rather than sitting in the output buffer
+// until the input ends.
+func TestOutputFlushedWhenInputStalls(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "go", "run", ".", "-json-compact", "$.a")
+	in := &pausingReader{first: "{\"a\": 1}\n", release: make(chan struct{})}
+	cmd.Stdin = in
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var errBuf bytes.Buffer
+	cmd.Stderr = &errBuf
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+
+	// The first result must come out while the input is paused.
+	lines := make(chan string, 2)
+	go func() {
+		sc := bufio.NewScanner(stdout)
+		for sc.Scan() {
+			lines <- sc.Text()
+		}
+		close(lines)
+	}()
+	select {
+	case line := <-lines:
+		if line != "1" {
+			t.Errorf("first line: got %q, want %q", line, "1")
+		}
+	case <-time.After(30 * time.Second):
+		t.Fatal("no output while the input was paused: output is being held back")
+	}
+
+	close(in.release)
+	if line, ok := <-lines; !ok || line != "2" {
+		t.Errorf("second line: got %q (ok=%v), want %q", line, ok, "2")
+	}
+	if err := cmd.Wait(); err != nil {
+		t.Fatalf("jp failed: %v (stderr: %s)", err, errBuf.String())
 	}
 }

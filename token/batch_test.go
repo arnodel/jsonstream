@@ -1,6 +1,9 @@
 package token
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestBatchWriterReader(t *testing.T) {
 	ch := make(chan []Token, 10)
@@ -72,5 +75,46 @@ func TestFlushFunc(t *testing.T) {
 	flush()
 	if len(ch) != 1 {
 		t.Error("flush did not send the pending batch")
+	}
+}
+
+func TestBatchReaderOnIdle(t *testing.T) {
+	ch := make(chan []Token, 1)
+	r := NewBatchReader(ch)
+	calls := 0
+	r.IdleTimeout = 10 * time.Millisecond
+	r.OnIdle = func() { calls++ }
+
+	// A batch is already available: no wait, no OnIdle.
+	ch <- []Token{TrueScalar}
+	if got := r.Next(); got != TrueScalar || calls != 0 {
+		t.Fatalf("got %v, calls=%d; want TrueScalar, 0", got, calls)
+	}
+
+	// A long wait: OnIdle is called exactly once, then the token arrives.
+	go func() {
+		time.Sleep(150 * time.Millisecond)
+		ch <- []Token{NullScalar}
+	}()
+	if got := r.Next(); got != NullScalar || calls != 1 {
+		t.Fatalf("got %v, calls=%d; want NullScalar, 1", got, calls)
+	}
+
+	// A short wait (under the timeout): OnIdle is not called again.
+	go func() {
+		time.Sleep(time.Millisecond)
+		ch <- []Token{FalseScalar}
+	}()
+	if got := r.Next(); got != FalseScalar || calls != 1 {
+		t.Fatalf("got %v, calls=%d; want FalseScalar, 1", got, calls)
+	}
+
+	// Closing during a long wait: OnIdle is called, then Next returns nil.
+	go func() {
+		time.Sleep(150 * time.Millisecond)
+		close(ch)
+	}()
+	if got := r.Next(); got != nil || calls != 2 {
+		t.Fatalf("got %v, calls=%d; want nil, 2", got, calls)
 	}
 }
