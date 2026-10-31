@@ -28,6 +28,7 @@ import (
 )
 
 var strictMode bool
+var singleValue bool
 
 func main() {
 	// Do not handle SIGPIPE, we'll do it ourselves (see error handling at the bottom of main).
@@ -79,6 +80,7 @@ func main() {
 	flag.StringVar(&inputFormat, "in", "auto", "input format: auto, json, csv, csv-with-header, csvh, jpv")
 	flag.StringVar(&csvHeader, "csv-header", "", "comma-separated field names for CSV (only with -in csv)")
 	flag.BoolVar(&strictMode, "jsonpath-strict", false, "execute JSONPath queries in strict mode")
+	flag.BoolVar(&singleValue, "single", false, "input is a single JSON value: stop reading as soon as the query cannot produce more results")
 
 	// Deprecated flags (kept for backward compatibility)
 	flag.IntVar(&jsonIndent, "indent", 2, "DEPRECATED: use -json-indent")
@@ -282,7 +284,10 @@ func parseTransformer(arg string) (token.StreamTransformer, error) {
 		return &transform.MaxDepthFilter{MaxDepth: int(depth)}, nil
 	}
 	if strings.HasPrefix(arg, "$") {
-		return jsonpathtransformer.CompileQueryString(arg, jsonpathtransformer.WithStrictMode(strictMode))
+		return jsonpathtransformer.CompileQueryString(arg,
+			jsonpathtransformer.WithStrictMode(strictMode),
+			jsonpathtransformer.WithSingleValue(singleValue),
+		)
 	}
 	return nil, errors.New("invalid transform")
 }
@@ -413,6 +418,9 @@ TRANSFORMS:
 JSONPATH QUERIES:
   -jsonpath-strict  Execute JSONPath queries in strict mode (RFC-compliant ordering,
                     less streaming-friendly for descendant queries like $..)
+  -single           Input is a single JSON value (not JSON Lines): stop reading
+                    as soon as the query cannot produce more results, e.g.
+                    '$.items[:10]' returns right after the 10th item
 
 EXAMPLES:
   # Pretty-print JSON
@@ -753,8 +761,11 @@ LIKE 'head' - GET FIRST N ITEMS
     jp split | head -5
 
   Stream-friendly: outputs the first N items immediately, using constant
-  memory. Note that jp still reads (and skips) the rest of the input, since
-  more JSON values may follow. To stop reading early, use 'split | head'.
+  memory. By default jp still reads (and skips) the rest of the input, since
+  more JSON values may follow (JSON Lines). If the input is a single value,
+  add -single to stop reading as soon as the results are complete:
+    jp -single '$.items[:10]' < huge.json
+  This exits right after the 10th item, even on an infinite stream.
 
 ────────────────────────────────────────────────────────────────────────
 
@@ -884,7 +895,8 @@ MEMORY USAGE NOTES
     jp '$.items[:100]' < 10GB-file.json
 
   And it will output the first 100 items almost instantly, using
-  constant memory regardless of file size. (It still reads to the end of
-  the file afterwards; pipe into 'head' if you want it to stop early.)
+  constant memory regardless of file size. Add -single to make it exit
+  as soon as it has them instead of reading to the end of the file:
+    jp -single '$.items[:100]' < 10GB-file.json
 `)
 }

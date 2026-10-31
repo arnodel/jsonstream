@@ -2,9 +2,11 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"os/exec"
 	"strings"
 	"testing"
+	"time"
 )
 
 // runJP executes the jp program using 'go run' with the given args and input
@@ -638,5 +640,39 @@ func TestAutoDetect_Formats(t *testing.T) {
 				t.Errorf("got %q, want %q", stdout, tt.want)
 			}
 		})
+	}
+}
+
+// infiniteArrayReader produces "[1,1,1,..." forever.
+type infiniteArrayReader struct{ started bool }
+
+func (r *infiniteArrayReader) Read(p []byte) (int, error) {
+	n := 0
+	if !r.started {
+		p[0] = '['
+		n = 1
+		r.started = true
+	}
+	for ; n+1 < len(p); n += 2 {
+		p[n], p[n+1] = '1', ','
+	}
+	return n, nil
+}
+
+// TestSingleFlag_StopsReading checks that with -single, a slice query exits as
+// soon as it has its results, even if the input never ends.
+func TestSingleFlag_StopsReading(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "go", "run", ".", "-single", "-json-compact", "$[:3]")
+	cmd.Stdin = &infiniteArrayReader{}
+	var outBuf, errBuf bytes.Buffer
+	cmd.Stdout = &outBuf
+	cmd.Stderr = &errBuf
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("jp did not exit cleanly: %v (stderr: %s)", err, errBuf.String())
+	}
+	if want := "1\n1\n1\n"; outBuf.String() != want {
+		t.Errorf("got %q, want %q", outBuf.String(), want)
 	}
 }

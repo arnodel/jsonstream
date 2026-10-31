@@ -22,6 +22,20 @@ func WithStrictMode(strictMode bool) CompileQueryOption {
 	}
 }
 
+// WithSingleValue makes the compiled query assume that its input is a single
+// JSON value rather than a stream of values.  With this option the query stops
+// consuming its input as soon as it can produce no more results, so for example
+// $.items[:10] on a huge document returns as soon as the 10 items have been
+// emitted instead of reading to the end of the document.
+//
+// Without this option, the rest of the current value is skipped and the query
+// is applied to any following values (e.g. JSON Lines input).
+func WithSingleValue(singleValue bool) CompileQueryOption {
+	return func(c *compiler) {
+		c.singleValue = singleValue
+	}
+}
+
 // CompileQueryString parses a JSONPath query string (RFC 9535) and compiles it
 // to a MainQueryRunner, which implements token.StreamTransformer.  This is the
 // entry point for using JSONPath queries from Go code.
@@ -50,6 +64,7 @@ func CompileQuery(query ast.Query, options ...CompileQueryOption) (MainQueryRunn
 		mainRunner:           runner,
 		innerSingularQueries: singularQueries,
 		innerQueries:         queries,
+		singleValue:          c.singleValue,
 	}, nil
 }
 
@@ -70,7 +85,8 @@ type compiler struct {
 
 	functionRegistry FunctionRegistry
 
-	strictMode bool
+	strictMode  bool
+	singleValue bool
 }
 
 func (c *compiler) getInnerQueries() ([]SingularQueryRunner, []QueryEvaluator) {

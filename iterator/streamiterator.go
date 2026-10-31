@@ -177,6 +177,12 @@ func (c *collectionBase) Elided() bool {
 	return c.elided
 }
 
+// Done returns true once the end of the collection has been reached, either
+// by advancing through all its items or by discarding or copying it.
+func (c *collectionBase) Done() bool {
+	return c.done
+}
+
 func (c *collectionBase) CurrentValue() Value {
 	if c.done {
 		panic("iterator done")
@@ -195,6 +201,9 @@ func (c *collectionBase) AsArray() (*Array, bool) {
 func (c *collectionBase) AsObject() (*Object, bool) {
 	return nil, false
 }
+
+var _ Collection = &Object{}
+var _ Collection = &Array{}
 
 type Object struct {
 	collectionBase

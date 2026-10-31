@@ -128,6 +128,9 @@ echo '[{"price":50},{"price":150}]' | jp '$[?@.price > 100]'
 # Get first 10 items (immediate output, constant memory)
 jp '$.items[:10]' < data.json
 
+# Same, but stop reading the file as soon as the 10 items are out
+jp -single '$.items[:10]' < data.json
+
 # Get last 5 items (memory-efficient sliding window)
 jp '$.items[-5:]' < data.json
 
@@ -194,9 +197,15 @@ jp -out jpv < data.json | grep email | jp       # grep approach (see JPV below)
 Most common operations stream efficiently with constant or limited memory.
 
 **Note on early termination**: a query like `$.items[:10]` emits its results
-immediately, but `jp` still reads (and skips) the rest of the input, because
-more JSON values may follow. To stop reading as soon as you have enough, pipe
-into `head`: `jp split < array.json | head -10` exits once `head` closes the pipe.
+immediately, but by default `jp` still reads (and skips) the rest of the input,
+because more JSON values may follow (JSON Lines). If your input is a single
+JSON value, add `-single` and `jp` stops reading as soon as the query cannot
+produce more results:
+
+```bash
+# Exits right after the 10th item, even if the file is 10GB or the stream is infinite
+jp -single '$.items[:10]' < huge.json
+```
 
 ### Format Conversion
 
@@ -227,8 +236,8 @@ jp '$.users[*]' < data.json | jp -json-lines
 # Browse huge file with immediate output (works with any size file)
 cat 10GB-file.json | jp | less
 
-# Get first 100 items from huge file (immediate output, constant memory)
-jp '$.items[:100]' < 10GB-file.json
+# Get first 100 items from huge file and stop reading as soon as they are out
+jp -single '$.items[:100]' < 10GB-file.json
 
 # Extract specific data from large file
 jp '$.transactions[?@.amount > 1000].id' < huge-file.json | less
@@ -504,8 +513,8 @@ jp depth=1 split '$.summary' < data.json
 **Streaming examples:**
 
 ```bash
-# Get first 100 items from huge file (immediate output, constant memory)
-jp '$.items[:100]' < 10GB-file.json
+# Get first 100 items from huge file and stop reading as soon as they are out
+jp -single '$.items[:100]' < 10GB-file.json
 
 # Process infinite input (Ctrl+C to stop)
 yes '{"x": 1}' | jp | head -20
@@ -516,7 +525,7 @@ cat huge.json | jp | less
 
 **Memory-efficient operations:**
 - `$.items[*]`: Streams one item at a time (constant memory)
-- `$.items[:N]`: Emits the first N items immediately, then skips the rest (constant memory)
+- `$.items[:N]`: Emits the first N items immediately, then skips the rest (constant memory); with `-single`, stops reading there
 - `$.items[-N:]`: Sliding window (N items in memory)
 - `split`: Converts array to stream (constant memory)
 - `join`: Wraps stream in brackets (no buffering)
@@ -612,6 +621,7 @@ jp -help-cookbook        # Unix-like usage patterns (head/tail/grep)
 -json-lines              # Output JSON Lines format
 -json-indent N           # Indentation level (default: 2)
 -jsonpath-strict         # Strict RFC 9535 mode
+-single                  # Input is one JSON value: stop reading once the query is complete
 -color MODE              # Color output: auto, always, never
 ```
 

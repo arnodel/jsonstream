@@ -9,15 +9,39 @@ type MainQueryRunner struct {
 	mainRunner           QueryEvaluator
 	innerSingularQueries []SingularQueryRunner
 	innerQueries         []QueryEvaluator
+
+	// See WithSingleValue.
+	singleValue bool
 }
 
+// Transform applies the query to each value in the input stream, writing the
+// results to out.
+//
+// If the runner was compiled with WithSingleValue(true) and the query stops
+// before reaching the end of a value (because no selector can match anything
+// further), Transform returns without consuming the rest of the input.  The
+// upstream producer is then left blocked on its send, which is fine for a
+// process that is about to exit; library users who need the producer to
+// terminate should use a cancellable source.
 func (r MainQueryRunner) Transform(in <-chan token.Token, out token.WriteStream) {
 	next := streamWritingProcessor{out: out}
 	iter := iterator.New(token.ChannelReadStream(in))
 	for iter.Advance() {
 		value := iter.CurrentValue()
 		r.mainRunner.MapValue(r.computeRunContext(value), value, next)
+		if r.singleValue && !fullyConsumed(value) {
+			return
+		}
 	}
+}
+
+// fullyConsumed returns true if the value has been read to its end.  A query
+// that finished before that point has nothing more to find in it.
+func fullyConsumed(value iterator.Value) bool {
+	if c, ok := value.(iterator.Collection); ok {
+		return c.Done()
+	}
+	return true
 }
 
 func (r MainQueryRunner) computeRunContext(value iterator.Value) *RunContext {
