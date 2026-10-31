@@ -1,5 +1,5 @@
-// Command bench generates a large JSON file and times jp (and jq, if
-// installed) on a few typical workloads.
+// Command bench generates a large JSON file and times jp, and whichever of jq,
+// jaq and gojq are installed, on a few typical workloads.
 //
 //	go run ./bench gen 500000 > /tmp/big.json
 //	go run ./bench run /tmp/big.json
@@ -42,7 +42,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage:\n  bench gen N > file.json   generate a file with N items\n  bench run file.json       time jp and jq on it")
+	fmt.Fprintln(os.Stderr, "usage:\n  bench gen N > file.json   generate a file with N items\n  bench run file.json       time jp, jq, jaq and gojq on it")
 	os.Exit(2)
 }
 
@@ -76,11 +76,16 @@ func gen(n int) {
 	out.WriteString("]}\n")
 }
 
+// A workload is a query in jp's syntax and the equivalent in jq's, which jaq
+// and gojq share.
 type workload struct {
 	name string
 	jp   []string
 	jq   []string
 }
+
+// jqLikeTools are jq implementations with the same command line.
+var jqLikeTools = []string{"jq", "jaq", "gojq"}
 
 var workloads = []workload{
 	{"pretty-print", []string{}, []string{"."}},
@@ -92,19 +97,31 @@ var workloads = []workload{
 
 func run(file string) {
 	jp := buildJP()
-	jq, _ := exec.LookPath("jq")
-	fmt.Printf("%-28s %12s %12s\n", "workload", "jp", "jq")
+	var tools []string
+	for _, name := range jqLikeTools {
+		if path, err := exec.LookPath(name); err == nil {
+			tools = append(tools, path)
+		} else {
+			fmt.Fprintf(os.Stderr, "%s not found, skipping\n", name)
+		}
+	}
+	fmt.Printf("%-28s %13s", "workload", "jp")
+	for _, tool := range tools {
+		fmt.Printf(" %13s", filepath.Base(tool))
+	}
+	fmt.Println()
 	for _, w := range workloads {
 		jpArgs := append([]string{"-color", "never"}, w.jp...)
 		jpArgs = append(jpArgs, file)
-		jpRes := measure(jp, jpArgs, "")
-		jqRes := "n/a"
-		if jq != "" && w.jq != nil {
-			jqRes = measure(jq, append(w.jq, file), "")
-		} else if jq == "" {
-			jqRes = "not found"
+		fmt.Printf("%-28s %13s", w.name, measure(jp, jpArgs))
+		for _, tool := range tools {
+			res := "n/a"
+			if w.jq != nil {
+				res = measure(tool, append(append([]string{}, w.jq...), file))
+			}
+			fmt.Printf(" %13s", res)
 		}
-		fmt.Printf("%-28s %12s %12s\n", w.name, jpRes, jqRes)
+		fmt.Println()
 	}
 }
 
@@ -120,7 +137,7 @@ func buildJP() string {
 }
 
 // measure runs the command with output to /dev/null and returns "time memory".
-func measure(name string, args []string, stdin string) string {
+func measure(name string, args []string) string {
 	cmd := exec.Command(name, args...)
 	devnull, _ := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
 	defer devnull.Close()
