@@ -1,10 +1,12 @@
 # jp
 
-A fast, streaming JSON processor for the command line. JSONPath queries, a
-pretty-printer worth having, and **JPV**, a line-based form of JSON that
-`grep`, `sed` and `diff` understand. Uses about 12 MB of memory whatever the
-size of the input, and on typical workloads it is faster than `jq`, `jaq` and
-`gojq`.
+A fast, streaming JSON processor for the command line.
+
+- **JSONPath queries**, the full [RFC 9535](https://datatracker.ietf.org/doc/rfc9535/)
+- **JPV**, a line-based form of JSON that `grep`, `sed` and `diff` understand
+- **A pretty-printer worth having**
+- **About 12 MB of memory** whatever the size of the input
+- **Faster than `jq`, `jaq` and `gojq`** on typical workloads
 
 ![Time and peak memory by workload for jp, jq, jaq and gojq. jp takes under a second on every workload at 12 MB; the others take 1 to 4.6 seconds at 600 to 1016 MB.](docs/benchmark.svg)
 
@@ -130,15 +132,21 @@ which can need buffering; the set of results is the same either way.
 ## Pretty-printing
 
 The default output is pretty-printed with some care. Arrays take one of three
-forms depending on what they hold: short arrays of scalars stay on one line;
-long ones are *packed*, with runs of scalars filling each line up to a width
-while nested arrays and objects get lines of their own; with
-`-json-compact-width 0` everything expands to one item per line. Objects with
-a couple of short scalar members stay on one line. A long list of numbers
-reads like a table rather than a column, and a mixed array stays readable:
+forms depending on what they hold:
+
+- **Compact**: short arrays of scalars stay on one line.
+- **Packed**: in longer arrays, runs of scalars fill each line up to a width,
+  while nested arrays and objects get lines of their own. A long list of
+  numbers reads like a table rather than a column, and a mixed array stays
+  readable.
+- **Expanded**: one item per line, which is what `-json-compact-width 0` gives.
+
+Objects with a couple of short scalar members stay on one line; others expand.
 
 ```bash
-$ echo '{"scores":[95,87,92,78,88,91,85,90,79,83,94,88],"mixed":[1,2,3,{"k":"v"},4,5,6,[7,8],9]}' | jp -json-compact-width 20
+$ echo '{"scores": [95, 87, 92, 78, 88, 91, 85, 90, 79, 83, 94, 88],
+         "mixed": [1, 2, 3, {"k": "v"}, 4, 5, 6, [7, 8], 9]}' \
+    | jp -json-compact-width 20
 {
   "scores": [
     95, 87, 92, 78, 88,
