@@ -1,6 +1,7 @@
 package jsonpath
 
 import (
+	"regexp"
 	"unicode/utf8"
 
 	"github.com/arnodel/jsonstream/internal/jsonpath/iregexp"
@@ -130,45 +131,42 @@ func run_count(args []any) any {
 }
 
 func run_match(args []any) any {
-	loc := matchIndex(args)
-	return loc != nil && loc[0] == 0 && loc[1] == 0
+	return regexMatches(args, true)
 }
 
 func run_search(args []any) any {
-	loc := matchIndex(args)
-	return loc != nil
+	return regexMatches(args, false)
 }
 
-func matchIndex(args []any) (loc []int) {
+// regexMatches implements match() (fullMatch) and search() for arguments
+// evaluated at run time.  When the pattern is a literal the compiler uses a
+// regexFunctionRunner instead, which compiles it once.
+func regexMatches(args []any, fullMatch bool) bool {
 	arg1, ok := args[0].(*iterator.Scalar)
 	if !ok {
-		return nil
+		return false
 	}
 	arg2, ok := args[1].(*iterator.Scalar)
 	if !ok {
-		return nil
+		return false
 	}
 	if arg1.Scalar().Type() != token.String || arg2.Scalar().Type() != token.String {
-		return nil
+		return false
 	}
-	ptnString := arg2.Scalar().ToString()
-	ptn, err := iregexp.Compile(ptnString)
+	var re *regexp.Regexp
+	var err error
+	if fullMatch {
+		re, err = iregexp.CompileAnchored(arg2.Scalar().ToString())
+	} else {
+		re, err = iregexp.Compile(arg2.Scalar().ToString())
+	}
 	if err != nil {
-		return nil
+		return false
 	}
 	if arg1.Scalar().IsUnescaped() {
-		loc = ptn.FindIndex(arg1.Bytes[1 : len(arg1.Bytes)-1])
-		if loc != nil {
-			loc[1] -= len(arg1.Bytes) - 2
-		}
-	} else {
-		arg1String := arg1.Scalar().ToString()
-		loc = ptn.FindStringIndex(arg1String)
-		if loc != nil {
-			loc[1] -= len(arg1String)
-		}
+		return re.Match(arg1.Bytes[1 : len(arg1.Bytes)-1])
 	}
-	return loc
+	return re.MatchString(arg1.Scalar().ToString())
 }
 
 func run_value(args []any) any {

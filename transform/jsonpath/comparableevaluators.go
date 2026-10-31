@@ -4,6 +4,7 @@ import (
 	"math"
 
 	"github.com/arnodel/jsonstream/iterator"
+	"github.com/arnodel/jsonstream/token"
 )
 
 type ComparableEvaluator interface {
@@ -24,6 +25,11 @@ type LiteralEvaluator struct {
 
 func (e LiteralEvaluator) Evaluate(ctx *RunContext, value iterator.Value) iterator.Value {
 	return e.value
+}
+
+// scalar returns the literal as a token.Scalar (literals are always scalars).
+func (e LiteralEvaluator) scalar() *token.Scalar {
+	return e.value.(*iterator.Scalar).Scalar()
 }
 
 //

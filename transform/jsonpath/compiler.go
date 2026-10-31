@@ -332,7 +332,7 @@ func (c *compiler) compileSliceSelector(slice ast.SliceSelector) (r SelectorRunn
 	return
 }
 
-func (c *compiler) compileComparison(comparison ast.ComparisonExpr) (e ComparisonEvaluator, err error) {
+func (c *compiler) compileComparison(comparison ast.ComparisonExpr) (e LogicalEvaluator, err error) {
 	var flags ComparisonFlags
 	var left, right ComparableEvaluator
 	left, err = c.compileComparable(comparison.Left)
@@ -361,10 +361,21 @@ func (c *compiler) compileComparison(comparison ast.ComparisonExpr) (e Compariso
 	default:
 		panic("invalid comparison operator")
 	}
-	e = ComparisonEvaluator{
-		left:  left,
-		flags: flags,
-		right: right,
+	// When exactly one operand is a literal, parse it now rather than on every
+	// comparison.
+	leftLit, leftIsLit := left.(LiteralEvaluator)
+	rightLit, rightIsLit := right.(LiteralEvaluator)
+	switch {
+	case rightIsLit && !leftIsLit:
+		e = LiteralComparisonEvaluator{query: left, lit: newLiteralOperand(rightLit.scalar()), flags: flags}
+	case leftIsLit && !rightIsLit:
+		e = LiteralComparisonEvaluator{query: right, lit: newLiteralOperand(leftLit.scalar()), flags: flags, literalOnLeft: true}
+	default:
+		e = ComparisonEvaluator{
+			left:  left,
+			flags: flags,
+			right: right,
+		}
 	}
 	return
 }
@@ -422,25 +433,34 @@ func (c *compiler) compileSingularQuerySegment(segment ast.SingularQuerySegment)
 	}
 }
 
-func (c *compiler) compileFunctionExpr(f ast.FunctionExpr, returnType Type) (FunctionRunner, error) {
+func (c *compiler) compileFunctionExpr(f ast.FunctionExpr, returnType Type) (FunctionArgumentRunner, error) {
 	def := c.functionRegistry.GetFunctionDef(f.FunctionName)
 	if def == nil {
-		return FunctionRunner{}, fmt.Errorf("unknown function %q", f.FunctionName)
+		return nil, fmt.Errorf("unknown function %q", f.FunctionName)
 	}
 	// Check the function expr is well-typed
 	if !def.OutputType.ConvertsTo(returnType) {
-		return FunctionRunner{}, fmt.Errorf("expected type %s, got %s", returnType, def.OutputType)
+		return nil, fmt.Errorf("expected type %s, got %s", returnType, def.OutputType)
 	}
 	if len(f.Arguments) != len(def.InputTypes) {
-		return FunctionRunner{}, fmt.Errorf("expected %d arguments, got %d", len(def.InputTypes), len(f.Arguments))
+		return nil, fmt.Errorf("expected %d arguments, got %d", len(def.InputTypes), len(f.Arguments))
 	}
 	args := make([]FunctionArgumentRunner, len(def.InputTypes))
 	for i, expectedType := range def.InputTypes {
 		arg, err := c.compileFunctionArg(f.Arguments[i], expectedType)
 		if err != nil {
-			return FunctionRunner{}, fmt.Errorf("argument %d: %w", i, err)
+			return nil, fmt.Errorf("argument %d: %w", i, err)
 		}
 		args[i] = arg
+	}
+	// match() and search() with a literal pattern: compile the regular
+	// expression once instead of once per node.
+	if (f.FunctionName == "match" || f.FunctionName == "search") && def == c.functionRegistry.GetFunctionDef(f.FunctionName) {
+		if lit, ok := f.Arguments[1].(ast.Literal); ok {
+			if pattern, ok := lit.Value.(string); ok {
+				return newRegexFunctionRunner(args[0], pattern, f.FunctionName == "match"), nil
+			}
+		}
 	}
 	return FunctionRunner{
 		FunctionDef: def,
