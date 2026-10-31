@@ -22,6 +22,54 @@ func WithStrictMode(strictMode bool) CompileQueryOption {
 	}
 }
 
+// InputMode describes the input of a compiled query: a single JSON value or
+// a stream of values.  It determines what the query does when it is done with
+// a value before having read it to the end, for example $.items[:10] after the
+// 10th item.
+type InputMode uint8
+
+const (
+	// ValueStreamInput: the input is a stream of JSON values (e.g. JSON
+	// Lines).  When the query is done with a value, the rest of the value is
+	// skipped and the query is applied to the next one.  This is the default.
+	ValueStreamInput InputMode = iota
+
+	// SingleValueInput: the input is a single JSON value.  When the query is
+	// done with it, Transform returns without reading any more input, so a
+	// query like $.items[:10] on a huge document returns as soon as the 10
+	// items have been emitted.
+	SingleValueInput
+
+	// AutoDetectInput: unknown.  The first time the query is done with a
+	// value early, the rest of the value is skipped up to a budget of tokens
+	// (see WithAutoDetectBudget).  If the value ends within the budget, more
+	// values may follow and the input is treated as a stream from then on.
+	// Otherwise the value is large and the input is treated as a single
+	// value: Transform returns.
+	AutoDetectInput
+)
+
+// DefaultAutoDetectBudget is the number of tokens AutoDetectInput reads before
+// deciding the input is a single value.  It is about 1MB of typical JSON.
+const DefaultAutoDetectBudget = 128 * 1024
+
+// WithInputMode sets the InputMode of the compiled query.
+func WithInputMode(mode InputMode) CompileQueryOption {
+	return func(c *compiler) {
+		c.inputMode = mode
+	}
+}
+
+// WithAutoDetectBudget sets the number of tokens AutoDetectInput skips before
+// treating the input as a single value.  Values of a stream larger than this
+// are mistaken for a single value, so the budget should be large enough to
+// cover any value a stream may contain.
+func WithAutoDetectBudget(tokens int) CompileQueryOption {
+	return func(c *compiler) {
+		c.autoDetectBudget = tokens
+	}
+}
+
 // CompileQueryString parses a JSONPath query string (RFC 9535) and compiles it
 // to a MainQueryRunner, which implements token.StreamTransformer.  This is the
 // entry point for using JSONPath queries from Go code.
@@ -46,10 +94,14 @@ func CompileQuery(query ast.Query, options ...CompileQueryOption) (MainQueryRunn
 		return MainQueryRunner{}, err
 	}
 	singularQueries, queries := c.getInnerQueries()
+	_, singular := query.AsSingularQuery()
 	return MainQueryRunner{
 		mainRunner:           runner,
 		innerSingularQueries: singularQueries,
 		innerQueries:         queries,
+		singular:             singular,
+		inputMode:            c.inputMode,
+		autoDetectBudget:     c.autoDetectBudget,
 	}, nil
 }
 
@@ -70,7 +122,9 @@ type compiler struct {
 
 	functionRegistry FunctionRegistry
 
-	strictMode bool
+	strictMode       bool
+	inputMode        InputMode
+	autoDetectBudget int
 }
 
 func (c *compiler) getInnerQueries() ([]SingularQueryRunner, []QueryEvaluator) {

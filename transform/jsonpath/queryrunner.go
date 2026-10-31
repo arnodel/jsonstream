@@ -9,15 +9,65 @@ type MainQueryRunner struct {
 	mainRunner           QueryEvaluator
 	innerSingularQueries []SingularQueryRunner
 	innerQueries         []QueryEvaluator
+
+	// True if the query is singular (RFC 9535 section 2.3.5.1), i.e. it
+	// produces at most one result per input value.
+	singular bool
+
+	// See InputMode and WithAutoDetectBudget.
+	inputMode        InputMode
+	autoDetectBudget int
 }
 
+// IsSingular returns true if the query produces at most one result per input
+// value, e.g. $.a.b[0] but not $.a[*] or $..b.
+func (r MainQueryRunner) IsSingular() bool {
+	return r.singular
+}
+
+// Transform applies the query to each value in the input stream, writing the
+// results to out.
+//
+// Depending on the runner's InputMode, Transform may return before the input
+// is exhausted (see SingleValueInput and AutoDetectInput).  The upstream
+// producer is then left blocked on its send, which is fine for a process that
+// is about to exit; library users who need the producer to terminate should
+// use a cancellable source.
 func (r MainQueryRunner) Transform(in <-chan token.Token, out token.WriteStream) {
 	next := streamWritingProcessor{out: out}
 	iter := iterator.New(token.ChannelReadStream(in))
+	mode := r.inputMode
 	for iter.Advance() {
 		value := iter.CurrentValue()
 		r.mainRunner.MapValue(r.computeRunContext(value), value, next)
+		if mode == ValueStreamInput || fullyConsumed(value) {
+			continue
+		}
+		if mode == SingleValueInput {
+			return
+		}
+		// AutoDetectInput: the query is done with this value early.  If the
+		// value ends within the budget, it was a small value and more may
+		// follow; otherwise it is a large one and we assume it is the only
+		// one.
+		budget := r.autoDetectBudget
+		if budget <= 0 {
+			budget = DefaultAutoDetectBudget
+		}
+		if _, done := iterator.DiscardN(value, budget); !done {
+			return
+		}
+		mode = ValueStreamInput
 	}
+}
+
+// fullyConsumed returns true if the value has been read to its end.  A query
+// that finished before that point has nothing more to find in it.
+func fullyConsumed(value iterator.Value) bool {
+	if c, ok := value.(iterator.Collection); ok {
+		return c.Done()
+	}
+	return true
 }
 
 func (r MainQueryRunner) computeRunContext(value iterator.Value) *RunContext {
