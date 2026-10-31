@@ -1,6 +1,6 @@
 module github.com/arnodel/jsonstream
 
-go 1.20
+go 1.25
 
 require (
 	github.com/arnodel/grammar v0.0.0-20211030100909-fff725e3d446

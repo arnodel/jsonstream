@@ -88,7 +88,7 @@ Available platforms:
 go install github.com/arnodel/jsonstream/cmd/jp@latest
 ```
 
-Note: This requires Go 1.23 or later. The `jp` binary will be installed to `$GOPATH/bin` (or `$HOME/go/bin` by default). Make sure this directory is in your `$PATH`:
+Note: This requires Go 1.25 or later. The `jp` binary will be installed to `$GOPATH/bin` (or `$HOME/go/bin` by default). Make sure this directory is in your `$PATH`:
 
 ```bash
 # Add to ~/.bashrc, ~/.zshrc, or equivalent
