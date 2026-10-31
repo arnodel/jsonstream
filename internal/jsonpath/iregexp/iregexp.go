@@ -39,17 +39,46 @@ func iregexpString(ptn string) string {
 	return builder.String()
 }
 
+// Compile compiles an I-Regexp (RFC 9485) pattern into a Go regular
+// expression suitable for the JSONPath search() function: it matches anywhere
+// in the subject.
 func Compile(ptn string) (*regexp.Regexp, error) {
-	re, ok := knownIRegexps[ptn]
-	if ok {
-		return re, nil
-	}
-	ptn = iregexpString(ptn)
-	re, err := regexp.Compile(ptn)
-	if err != nil {
-		knownIRegexps[ptn] = re
-	}
-	return re, err
+	return compileCached(ptn, false)
 }
 
-var knownIRegexps = map[string](*regexp.Regexp){}
+// CompileAnchored compiles an I-Regexp pattern so that it only matches the
+// whole subject, as the JSONPath match() function requires.  Anchoring the
+// pattern is the only reliable way to do this: finding the leftmost match and
+// checking its extent fails for patterns such as a|ab on "ab".
+func CompileAnchored(ptn string) (*regexp.Regexp, error) {
+	return compileCached(ptn, true)
+}
+
+type cacheKey struct {
+	ptn      string
+	anchored bool
+}
+
+type cacheEntry struct {
+	re  *regexp.Regexp
+	err error
+}
+
+// Compiled patterns are cached because the generic function path compiles
+// the pattern for every node.  Failures are cached too, so an invalid pattern
+// is not recompiled for every node either.
+var cache = map[cacheKey]cacheEntry{}
+
+func compileCached(ptn string, anchored bool) (*regexp.Regexp, error) {
+	key := cacheKey{ptn, anchored}
+	if entry, ok := cache[key]; ok {
+		return entry.re, entry.err
+	}
+	goPtn := iregexpString(ptn)
+	if anchored {
+		goPtn = "^(?:" + goPtn + ")$"
+	}
+	re, err := regexp.Compile(goPtn)
+	cache[key] = cacheEntry{re, err}
+	return re, err
+}
