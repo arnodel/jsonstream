@@ -69,7 +69,7 @@ laptop:
 | `$.items[:10]` (file argument) | < 0.01s, 5 MB | 1.5s, 830 MB |
 | JPV output | 0.8s, 12 MB | n/a |
 
-The last row is not a measurement error: when `jp` knows the input is a single
+The `$.items[:10]` row is not a measurement error: when `jp` knows the input is a single
 document, it stops reading as soon as the query cannot produce more results
 (see [Streaming Behavior](#streaming-behavior)).
 
