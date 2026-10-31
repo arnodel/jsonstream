@@ -33,9 +33,9 @@ func (r MainQueryRunner) IsSingular() bool {
 // producer is then left blocked on its send, which is fine for a process that
 // is about to exit; library users who need the producer to terminate should
 // use a cancellable source.
-func (r MainQueryRunner) Transform(in <-chan token.Token, out token.WriteStream) {
+func (r MainQueryRunner) Transform(in token.ReadStream, out token.WriteStream) {
 	next := streamWritingProcessor{out: out}
-	iter := iterator.New(token.ChannelReadStream(in))
+	iter := iterator.New(in)
 	mode := r.inputMode
 	for iter.Advance() {
 		value := iter.CurrentValue()

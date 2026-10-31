@@ -213,7 +213,7 @@ func TestRoundtripWithCompactFormat(t *testing.T) {
 	tokenChan := make(chan token.Token, 100)
 
 	go func() {
-		decoder.Produce(tokenChan)
+		decoder.Produce(token.ChannelWriteStream(tokenChan))
 		close(tokenChan)
 	}()
 
@@ -224,7 +224,7 @@ func TestRoundtripWithCompactFormat(t *testing.T) {
 		CompactWidthLimit: 50,
 	}
 
-	err := encoder.Consume(tokenChan)
+	err := encoder.Consume(token.ChannelReadStream(tokenChan))
 	if err != nil {
 		t.Fatalf("encode error: %v", err)
 	}
@@ -279,7 +279,7 @@ func roundtrip(t *testing.T, input string) string {
 	tokenChan := make(chan token.Token, 100)
 
 	go func() {
-		err := decoder.Produce(tokenChan)
+		err := decoder.Produce(token.ChannelWriteStream(tokenChan))
 		if err != nil {
 			t.Errorf("decode error: %v", err)
 		}
@@ -292,7 +292,7 @@ func roundtrip(t *testing.T, input string) string {
 		Printer: &format.DefaultPrinter{Writer: &buf, IndentSize: 2},
 	}
 
-	err := encoder.Consume(tokenChan)
+	err := encoder.Consume(token.ChannelReadStream(tokenChan))
 	if err != nil {
 		t.Fatalf("encode error: %v", err)
 	}

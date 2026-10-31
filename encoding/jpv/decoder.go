@@ -30,6 +30,7 @@ import (
 // other unix utilites to be filtered / transformed, then turned back into JSON.
 type Decoder struct {
 	scanr    *scanner.Scanner
+	in       *token.FlushingReader
 	lastPath []*token.Scalar
 }
 
@@ -38,12 +39,15 @@ var _ token.StreamSource = &Decoder{}
 // NewDecoder sets up a new Decoder instance to read from the given
 // input.
 func NewDecoder(in io.Reader) *Decoder {
-	return &Decoder{scanr: scanner.NewScanner(in)}
+	fr := &token.FlushingReader{Reader: in}
+	return &Decoder{scanr: scanner.NewScanner(fr), in: fr}
 }
 
 // Produce reads a stream of JPV values and streams them, until it runs out of
 // input or encounters invalid JPV, in which case it will return an error.
-func (d *Decoder) Produce(out chan<- token.Token) error {
+func (d *Decoder) Produce(out token.WriteStream) error {
+	// Send the tokens produced so far before blocking on input.
+	d.in.Flush = token.FlushFunc(out)
 	defer func() {
 		unwindPath(d.lastPath, false, out)
 	}()
@@ -59,7 +63,7 @@ func (d *Decoder) Produce(out chan<- token.Token) error {
 	}
 }
 
-func (d *Decoder) parseLine(out chan<- token.Token) error {
+func (d *Decoder) parseLine(out token.WriteStream) error {
 	err := json.ExpectByte(d.scanr, '$')
 	if err != nil {
 		return err
@@ -85,7 +89,7 @@ func (d *Decoder) parseLine(out chan<- token.Token) error {
 	return jsonDecoder.ParseValue(out)
 }
 
-func (d *Decoder) updatePath(newPath []*token.Scalar, out chan<- token.Token) error {
+func (d *Decoder) updatePath(newPath []*token.Scalar, out token.WriteStream) error {
 	if len(d.lastPath) == 0 {
 		followPath(newPath, false, out)
 		d.lastPath = newPath
@@ -118,14 +122,14 @@ func (d *Decoder) updatePath(newPath []*token.Scalar, out chan<- token.Token) er
 	return nil
 }
 
-func unwindPath(path []*token.Scalar, inCollection bool, out chan<- token.Token) {
+func unwindPath(path []*token.Scalar, inCollection bool, out token.WriteStream) {
 	for i := len(path) - 1; i >= 0; i-- {
 		if i > 0 || !inCollection {
 			switch path[i].Type() {
 			case token.String:
-				out <- &token.EndObject{}
+				out.Put(&token.EndObject{})
 			case token.Number:
-				out <- &token.EndArray{}
+				out.Put(&token.EndArray{})
 			default:
 				panic("invalid key type (must be string or number)")
 			}
@@ -133,17 +137,17 @@ func unwindPath(path []*token.Scalar, inCollection bool, out chan<- token.Token)
 	}
 }
 
-func followPath(path []*token.Scalar, inCollection bool, out chan<- token.Token) {
+func followPath(path []*token.Scalar, inCollection bool, out token.WriteStream) {
 	for _, key := range path {
 		switch key.Type() {
 		case token.String:
 			if !inCollection {
-				out <- &token.StartObject{}
+				out.Put(&token.StartObject{})
 			}
-			out <- key
+			out.Put(key)
 		case token.Number:
 			if !inCollection {
-				out <- &token.StartArray{}
+				out.Put(&token.StartArray{})
 			}
 		default:
 			panic("invalid key type (must be string or number)")

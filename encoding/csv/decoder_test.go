@@ -431,7 +431,7 @@ func TestDecoderMalformedCSV(t *testing.T) {
 			decoder := NewDecoder(strings.NewReader(tt.input))
 			out := make(chan token.Token, 100)
 
-			err := decoder.Produce(out)
+			err := decoder.Produce(token.ChannelWriteStream(out))
 			close(out)
 
 			// For unclosed quote, expect an error
@@ -537,7 +537,7 @@ func decodeCSV(t *testing.T, decoder *Decoder) []token.Token {
 	out := make(chan token.Token, 100)
 
 	go func() {
-		err := decoder.Produce(out)
+		err := decoder.Produce(token.ChannelWriteStream(out))
 		if err != nil && err != io.EOF {
 			t.Errorf("decode error: %v", err)
 		}

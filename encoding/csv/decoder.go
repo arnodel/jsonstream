@@ -14,6 +14,7 @@ import (
 // A Decoder reads CSV input and streams it into a JSON stream.
 type Decoder struct {
 	reader                *csv.Reader
+	in                    *token.FlushingReader
 	HasHeader             bool // When true, treat the first record as a header
 	RecordsProduceObjects bool // When false, produce an array for each record, else an object
 	fieldNames            []*token.Scalar
@@ -23,12 +24,15 @@ var _ token.StreamSource = &Decoder{}
 
 // NewDecoder sets up a new Decoder instance to read from the given input.
 func NewDecoder(in io.Reader) *Decoder {
-	return &Decoder{reader: csv.NewReader(in)}
+	fr := &token.FlushingReader{Reader: in}
+	return &Decoder{reader: csv.NewReader(fr), in: fr}
 }
 
 // Produce reads a stream of CSV records, until it runs out of input or
 // encounters invalid CSV, in which case it will return an error
-func (d *Decoder) Produce(out chan<- token.Token) error {
+func (d *Decoder) Produce(out token.WriteStream) error {
+	// Send the tokens produced so far before blocking on input.
+	d.in.Flush = token.FlushFunc(out)
 	recordCount := 0
 	for {
 		record, err := d.reader.Read()
@@ -55,20 +59,20 @@ func (d *Decoder) SetFieldNames(record []string) {
 	}
 }
 
-func (d *Decoder) produceRecord(record []string, out chan<- token.Token) {
+func (d *Decoder) produceRecord(record []string, out token.WriteStream) {
 	if d.RecordsProduceObjects {
-		out <- &token.StartObject{}
+		out.Put(&token.StartObject{})
 		for i, field := range record {
-			out <- d.getFieldName(i)
-			out <- fieldToScalar(field, false)
+			out.Put(d.getFieldName(i))
+			out.Put(fieldToScalar(field, false))
 		}
-		out <- &token.EndObject{}
+		out.Put(&token.EndObject{})
 	} else {
-		out <- &token.StartArray{}
+		out.Put(&token.StartArray{})
 		for _, field := range record {
-			out <- fieldToScalar(field, false)
+			out.Put(fieldToScalar(field, false))
 		}
-		out <- &token.EndArray{}
+		out.Put(&token.EndArray{})
 	}
 }
 

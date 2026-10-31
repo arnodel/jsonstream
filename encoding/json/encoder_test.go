@@ -364,7 +364,7 @@ func encodeWithEncoder(t *testing.T, encoder *Encoder, tokens []token.Token) str
 	close(tokenChan)
 
 	// Consume the tokens
-	err := encoder.Consume(tokenChan)
+	err := encoder.Consume(token.ChannelReadStream(tokenChan))
 	if err != nil {
 		t.Fatalf("encode error: %v", err)
 	}

@@ -236,7 +236,7 @@ func TestDecoderEOF(t *testing.T) {
 	decoder := NewDecoder(strings.NewReader(""))
 	out := make(chan token.Token, 100)
 
-	err := decoder.Produce(out)
+	err := decoder.Produce(token.ChannelWriteStream(out))
 	close(out)
 
 	if err != nil {
@@ -274,7 +274,7 @@ func TestDecoderUnclosedStructures(t *testing.T) {
 			decoder := NewDecoder(strings.NewReader(tt.input))
 			out := make(chan token.Token, 100)
 
-			err := decoder.Produce(out)
+			err := decoder.Produce(token.ChannelWriteStream(out))
 			close(out)
 
 			// Should get an error (io.EOF or syntax error) when the reader runs out of input while parsing
@@ -305,7 +305,7 @@ func TestDecoderErrors(t *testing.T) {
 			decoder := NewDecoder(strings.NewReader(tt.input))
 			out := make(chan token.Token, 100)
 
-			err := decoder.Produce(out)
+			err := decoder.Produce(token.ChannelWriteStream(out))
 			close(out)
 
 			if err == nil {
@@ -328,7 +328,7 @@ func decodeJPV(t *testing.T, input string) []token.Token {
 	out := make(chan token.Token, 100)
 
 	go func() {
-		err := decoder.Produce(out)
+		err := decoder.Produce(token.ChannelWriteStream(out))
 		if err != nil && err != io.EOF {
 			t.Errorf("decode error: %v", err)
 		}
