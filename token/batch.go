@@ -1,6 +1,9 @@
 package token
 
-import "io"
+import (
+	"io"
+	"time"
+)
 
 // A BatchWriter is a WriteStream that collects tokens into batches and sends
 // each batch on a channel when it is full or when Flush is called.
@@ -53,6 +56,17 @@ type BatchReader struct {
 	// batch to arrive on the channel.  TransformStream uses it to flush the
 	// output of the transformer before it blocks on its input.
 	BeforeBlock func()
+
+	// OnIdle, if not nil, is called when Next has been waiting for the next
+	// batch for IdleTimeout.  It is called at most once per wait: its purpose
+	// is to flush output buffered downstream (e.g. the bufio.Writer behind a
+	// pipe) when the input stalls, and once that is done there is nothing
+	// more to flush until input arrives.  It runs on the goroutine calling
+	// Next.
+	OnIdle      func()
+	IdleTimeout time.Duration
+
+	idleTimer *time.Timer
 }
 
 var _ ReadStream = &BatchReader{}
@@ -82,7 +96,7 @@ func (r *BatchReader) Next() Token {
 		if r.BeforeBlock != nil {
 			r.BeforeBlock()
 		}
-		batch, ok = <-r.ch
+		batch, ok = r.waitForBatch()
 	}
 	if !ok {
 		r.closed = true
@@ -94,6 +108,29 @@ func (r *BatchReader) Next() Token {
 	r.batch = batch
 	r.pos = 1
 	return batch[0]
+}
+
+// waitForBatch blocks until a batch arrives (or the channel is closed), calling
+// OnIdle if the wait exceeds IdleTimeout.
+func (r *BatchReader) waitForBatch() ([]Token, bool) {
+	if r.OnIdle == nil || r.IdleTimeout <= 0 {
+		batch, ok := <-r.ch
+		return batch, ok
+	}
+	if r.idleTimer == nil {
+		r.idleTimer = time.NewTimer(r.IdleTimeout)
+	} else {
+		r.idleTimer.Reset(r.IdleTimeout)
+	}
+	select {
+	case batch, ok := <-r.ch:
+		r.idleTimer.Stop()
+		return batch, ok
+	case <-r.idleTimer.C:
+		r.OnIdle()
+		batch, ok := <-r.ch
+		return batch, ok
+	}
 }
 
 // A FlushingReader is an io.Reader that calls Flush, if set, before each Read

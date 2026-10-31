@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/arnodel/jsonstream/encoding/csv"
 	"github.com/arnodel/jsonstream/encoding/jpv"
@@ -29,6 +30,12 @@ import (
 )
 
 var strictMode bool
+
+// idleFlushTimeout is how long output may sit in the stdout buffer while
+// waiting for more input.  When the input stalls (e.g. 'tail -f app.log | jp |
+// less'), results already produced are flushed after this delay instead of
+// waiting in the buffer until more input arrives or the buffer fills up.
+const idleFlushTimeout = 100 * time.Millisecond
 
 func main() {
 	// Do not handle SIGPIPE, we'll do it ourselves (see error handling at the bottom of main).
@@ -283,7 +290,16 @@ func main() {
 		fatalError("invalid output format: %q", outputFormat)
 	}
 
-	err := token.ConsumeStream(stream, encoder)
+	// Feed the encoder, flushing the output when the input stalls.
+	reader := stream.Reader()
+	reader.IdleTimeout = idleFlushTimeout
+	reader.OnIdle = func() {
+		if err := out.Flush(); err != nil {
+			// Reported the same way as any other output error.
+			panic(&format.PrinterError{Err: err})
+		}
+	}
+	err := encoder.Consume(reader)
 	if err != nil {
 		if errors.Is(err, syscall.EPIPE) {
 			// stdout is a pipe and something closed it (e.g. 'head' or 'less').
