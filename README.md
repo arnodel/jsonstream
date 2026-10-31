@@ -17,7 +17,7 @@ jp -out jpv < data.json | grep -v password | sed 's/test/prod/' | jp
 
 `jp` is a command-line JSON processor designed for **Unix pipelines**. It processes JSON as a **stream** with **immediate output**, making it ideal for large files, infinite streams, and real-time data processing.
 
-Unlike tools that load entire files into memory, `jp` starts outputting results immediately and works seamlessly with other Unix tools like `less`, `grep`, `head`, and `tail`. It runs in about 10 MB of memory whatever the size of the input, and it is faster than `jq`, and than the `jaq` and `gojq` reimplementations on most workloads (see [Performance](#performance)).
+Unlike tools that load entire files into memory, `jp` starts outputting results immediately and works seamlessly with other Unix tools like `less`, `grep`, `head`, and `tail`. It runs in about 10 MB of memory whatever the size of the input, and it is faster than `jq` and than the `jaq` and `gojq` reimplementations on every workload we measure (see [Performance](#performance)).
 
 ## Why jp?
 
@@ -27,7 +27,7 @@ Unlike tools that load entire files into memory, `jp` starts outputting results 
 
 - **Immediate output**: Start seeing results right away, don't wait for the full file. When the input pauses, whatever is ready is flushed within 100ms, so `tail -f log | jp | less` shows each line as it arrives
 - **Constant memory**: About 10 MB whatever the input size; `jq`, `jaq` and `gojq` need roughly ten times the size of the file
-- **Fast**: Faster than `jq` on every workload we measure, and than `jaq` and `gojq` on most
+- **Fast**: Faster than `jq`, `jaq` and `gojq` on every workload we measure
 - **Streaming architecture**: Perfect for `| less`, `| head`, `| grep` and other pipelines
 - **Composable**: Chain multiple transforms in a single `jp` call, or mix with standard Unix tools
 
@@ -62,21 +62,23 @@ items (`go run ./bench gen 500000`), on an Apple M-series laptop, against `jq`
 1.7.1 and its faster reimplementations [`jaq`](https://github.com/01mf02/jaq)
 3.1 (Rust) and [`gojq`](https://github.com/itchyny/gojq) 0.12 (Go):
 
+![Time and peak memory by workload for jp, jq, jaq and gojq. jp takes under a second on every workload at 12 MB; the others take 1 to 4.6 seconds at 600 to 1016 MB.](docs/benchmark.svg)
+
 | Workload | jp | jq | jaq | gojq |
 |---|---|---|---|---|
-| Pretty-print | **0.8s**, 12 MB | 4.5s, 860 MB | 1.5s, 1015 MB | 1.2s, 837 MB |
-| `$.items[*].name` | **0.8s**, 12 MB | 1.7s, 829 MB | 1.0s, 1015 MB | 1.3s, 617 MB |
-| `$.items[?@.price > 190]` | 1.2s, 13 MB | 1.7s, 830 MB | **1.0s**, 1015 MB | **1.0s**, 668 MB |
-| `$.items[:10]` (file argument) | **< 0.01s**, 5 MB | 1.4s, 829 MB | 0.7s, 1015 MB | 0.8s, 585 MB |
-| JPV output | 0.8s, 12 MB | n/a | n/a | n/a |
+| Pretty-print | **0.8s**, 12 MB | 4.6s, 860 MB | 1.6s, 1016 MB | 1.3s, 843 MB |
+| `$.items[*].name` | **0.8s**, 12 MB | 1.7s, 829 MB | 1.0s, 1016 MB | 1.3s, 618 MB |
+| `$.items[?@.price > 190]` | **0.8s**, 12 MB | 1.7s, 831 MB | 1.1s, 1016 MB | 1.1s, 676 MB |
+| `$.items[?match(@.email, "user1.*@example\\.com")]` | **0.8s**, 12 MB | 3.2s, 837 MB | 2.6s, 1016 MB | 1.4s, 720 MB |
+| `$.items[:10]` (file argument) | **< 0.01s**, 5 MB | 1.5s, 829 MB | 0.7s, 1016 MB | 0.8s, 586 MB |
+| JPV output | 0.7s, 12 MB | n/a | n/a | n/a |
 
 The `$.items[:10]` row is not a measurement error: when `jp` knows the input is a single
 document, it stops reading as soon as the query cannot produce more results
-(see [Streaming Behavior](#streaming-behavior)). The filter row is where the
-others catch up: there the time goes into evaluating the condition on each
-item rather than into decoding.
+(see [Streaming Behavior](#streaming-behavior)).
 
-Reproduce it with `make bench`, or `go run ./bench gen 500000 > big.json && go run ./bench run big.json`;
+Reproduce it with `make bench`, which also redraws the chart, or
+`go run ./bench gen 500000 > big.json && go run ./bench run big.json -svg chart.svg`;
 it uses whichever of `jq`, `jaq` and `gojq` are installed. This is one synthetic
 file and one machine, so treat the ratios as indicative. The memory difference
 is structural: the others load the whole document.
@@ -739,7 +741,7 @@ See the [package documentation](https://pkg.go.dev/github.com/arnodel/jsonstream
 **Current status:**
 - ✅ Full RFC 9535 JSONPath implementation
 - ✅ Streaming architecture (constant memory, output flushed as soon as it is ready)
-- ✅ Faster than `jq`, `jaq` and `gojq` on most workloads, with a fraction of the memory
+- ✅ Faster than `jq`, `jaq` and `gojq` on every workload we measure, with a fraction of the memory
 - ✅ JSON, JSON Lines, CSV, and JPV formats
 - ✅ Unix-like operations (head/tail/grep patterns)
 - ✅ Transform chaining

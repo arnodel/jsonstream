@@ -2,16 +2,18 @@
 // jaq and gojq are installed, on a few typical workloads.
 //
 //	go run ./bench gen 500000 > /tmp/big.json
-//	go run ./bench run /tmp/big.json
+//	go run ./bench run /tmp/big.json [-svg docs/benchmark.svg]
 //
 // It reports wall-clock time and peak memory of each command, with output sent
-// to /dev/null.  It is deliberately simple: one file shape, one run per
-// workload, no statistics.  Run it a few times and look at the trend.
+// to /dev/null, and can draw the comparison as an SVG chart.  It is
+// deliberately simple: one file shape, one run per workload, no statistics.
+// Run it a few times and look at the trend.
 package main
 
 import (
 	"bufio"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"math/rand"
 	"os"
@@ -35,14 +37,17 @@ func main() {
 		}
 		gen(n)
 	case "run":
-		run(os.Args[2])
+		fs := flag.NewFlagSet("run", flag.ExitOnError)
+		svgPath := fs.String("svg", "", "write the results as an SVG chart to this file")
+		fs.Parse(os.Args[3:])
+		run(os.Args[2], *svgPath)
 	default:
 		usage()
 	}
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage:\n  bench gen N > file.json   generate a file with N items\n  bench run file.json       time jp, jq, jaq and gojq on it")
+	fmt.Fprintln(os.Stderr, "usage:\n  bench gen N > file.json              generate a file with N items\n  bench run file.json [-svg out.svg]   time jp, jq, jaq and gojq on it")
 	os.Exit(2)
 }
 
@@ -92,36 +97,65 @@ var workloads = []workload{
 	{"JPV output", []string{"-out", "jpv"}, nil},
 	{"$.items[*].name", []string{"$.items[*].name"}, []string{".items[].name"}},
 	{"filter price > 190", []string{"-json-lines", "$.items[?@.price > 190]"}, []string{"-c", ".items[] | select(.price > 190)"}},
+	{"regex filter on email", []string{"-json-lines", `$.items[?match(@.email, "user1.*@example\\.com")]`}, []string{"-c", `.items[] | select(.email | test("^user1.*@example\\.com$"))`}},
 	{"first 10 items (file arg)", []string{"$.items[:10]"}, []string{".items[:10]"}},
 }
 
-func run(file string) {
+// A result is one measurement: wall time and peak memory, or ok=false if the
+// tool was not run on this workload.
+type result struct {
+	seconds float64
+	mb      float64
+	ok      bool
+}
+
+func (r result) String() string {
+	if !r.ok {
+		return "n/a"
+	}
+	return fmt.Sprintf("%5.2fs %4.0fMB", r.seconds, r.mb)
+}
+
+func run(file string, svgPath string) {
 	jp := buildJP()
-	var tools []string
+	tools := []string{"jp"}
+	paths := []string{jp}
 	for _, name := range jqLikeTools {
 		if path, err := exec.LookPath(name); err == nil {
-			tools = append(tools, path)
+			tools = append(tools, name)
+			paths = append(paths, path)
 		} else {
 			fmt.Fprintf(os.Stderr, "%s not found, skipping\n", name)
 		}
 	}
-	fmt.Printf("%-28s %13s", "workload", "jp")
+	// results[w][t] is the result of tool t on workload w.
+	results := make([][]result, len(workloads))
+	fmt.Printf("%-28s", "workload")
 	for _, tool := range tools {
-		fmt.Printf(" %13s", filepath.Base(tool))
+		fmt.Printf(" %13s", tool)
 	}
 	fmt.Println()
-	for _, w := range workloads {
+	for i, w := range workloads {
+		results[i] = make([]result, len(tools))
 		jpArgs := append([]string{"-color", "never"}, w.jp...)
-		jpArgs = append(jpArgs, file)
-		fmt.Printf("%-28s %13s", w.name, measure(jp, jpArgs))
-		for _, tool := range tools {
-			res := "n/a"
+		results[i][0] = measure(jp, append(jpArgs, file))
+		for t := 1; t < len(tools); t++ {
 			if w.jq != nil {
-				res = measure(tool, append(append([]string{}, w.jq...), file))
+				results[i][t] = measure(paths[t], append(append([]string{}, w.jq...), file))
 			}
-			fmt.Printf(" %13s", res)
+		}
+		fmt.Printf("%-28s", w.name)
+		for _, r := range results[i] {
+			fmt.Printf(" %13s", r)
 		}
 		fmt.Println()
+	}
+	if svgPath != "" {
+		if err := os.WriteFile(svgPath, []byte(chartSVG(tools, results, file)), 0o644); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		fmt.Fprintln(os.Stderr, "chart written to", svgPath)
 	}
 }
 
@@ -136,8 +170,8 @@ func buildJP() string {
 	return path
 }
 
-// measure runs the command with output to /dev/null and returns "time memory".
-func measure(name string, args []string) string {
+// measure runs the command with output to /dev/null.
+func measure(name string, args []string) result {
 	cmd := exec.Command(name, args...)
 	devnull, _ := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
 	defer devnull.Close()
@@ -147,11 +181,11 @@ func measure(name string, args []string) string {
 	err := cmd.Run()
 	elapsed := time.Since(start)
 	if err != nil {
-		return "error"
+		return result{}
 	}
 	rss := cmd.ProcessState.SysUsage().(*syscall.Rusage).Maxrss
 	if runtime.GOOS != "darwin" {
 		rss *= 1024 // Linux reports KB, macOS bytes
 	}
-	return fmt.Sprintf("%5.2fs %4dMB", elapsed.Seconds(), rss/(1<<20))
+	return result{seconds: elapsed.Seconds(), mb: float64(rss) / (1 << 20), ok: true}
 }

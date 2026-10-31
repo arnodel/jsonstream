@@ -1,0 +1,89 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="866" height="560" viewBox="0 0 866 560" font-family='system-ui, -apple-system, "Segoe UI", sans-serif' font-size="12">
+<title>Benchmark: jp against jq, jaq, gojq on a bench.json file</title>
+<rect width="100%" height="100%" fill="#fcfcfb"/>
+<text x="20" y="28" fill="#0b0b0b" font-size="15" font-weight="600">Time and peak memory by workload, lower is better</text>
+<text x="20" y="48" fill="#52514e">bench.json, output to /dev/null, one run each</text>
+<rect x="20" y="62" width="10" height="10" rx="2" fill="#2a78d6"/>
+<text x="35" y="71" fill="#0b0b0b">jp</text>
+<rect x="72" y="62" width="10" height="10" rx="2" fill="#eb6834"/>
+<text x="87" y="71" fill="#0b0b0b">jq</text>
+<rect x="124" y="62" width="10" height="10" rx="2" fill="#1baf7a"/>
+<text x="139" y="71" fill="#0b0b0b">jaq</text>
+<rect x="184" y="62" width="10" height="10" rx="2" fill="#eda100"/>
+<text x="198" y="71" fill="#0b0b0b">gojq</text>
+<text x="210" y="92" fill="#52514e" font-weight="600">Time (seconds)</text>
+<line x1="210.0" y1="104" x2="210.0" y2="524" stroke="#e1e0d9" stroke-width="1"/>
+<text x="210.0" y="542" fill="#898781" font-size="11" text-anchor="middle">0</text>
+<line x1="306.7" y1="104" x2="306.7" y2="524" stroke="#e1e0d9" stroke-width="1"/>
+<text x="306.7" y="542" fill="#898781" font-size="11" text-anchor="middle">2</text>
+<line x1="403.3" y1="104" x2="403.3" y2="524" stroke="#e1e0d9" stroke-width="1"/>
+<text x="403.3" y="542" fill="#898781" font-size="11" text-anchor="middle">4</text>
+<line x1="500.0" y1="104" x2="500.0" y2="524" stroke="#e1e0d9" stroke-width="1"/>
+<text x="500.0" y="542" fill="#898781" font-size="11" text-anchor="middle">6</text>
+<line x1="210.0" y1="104" x2="210.0" y2="524" stroke="#c3c2b7" stroke-width="1"/>
+<path d="M210.0,115.0 h34.8 a4.0,4.0 0 0 1 4.0,4.0 v6.0 a4.0,4.0 0 0 1 -4.0,4.0 h-34.8 z" fill="#2a78d6"/>
+<text x="254.8" y="125.5" fill="#52514e" font-size="11">0.80s</text>
+<path d="M210.0,131.0 h217.6 a4.0,4.0 0 0 1 4.0,4.0 v6.0 a4.0,4.0 0 0 1 -4.0,4.0 h-217.6 z" fill="#eb6834"/>
+<path d="M210.0,147.0 h69.9 a4.0,4.0 0 0 1 4.0,4.0 v6.0 a4.0,4.0 0 0 1 -4.0,4.0 h-69.9 z" fill="#1baf7a"/>
+<path d="M210.0,163.0 h56.1 a4.0,4.0 0 0 1 4.0,4.0 v6.0 a4.0,4.0 0 0 1 -4.0,4.0 h-56.1 z" fill="#eda100"/>
+<path d="M210.0,199.0 h34.0 a4.0,4.0 0 0 1 4.0,4.0 v6.0 a4.0,4.0 0 0 1 -4.0,4.0 h-34.0 z" fill="#2a78d6"/>
+<text x="254.0" y="209.5" fill="#52514e" font-size="11">0.79s</text>
+<path d="M210.0,215.0 h82.8 a4.0,4.0 0 0 1 4.0,4.0 v6.0 a4.0,4.0 0 0 1 -4.0,4.0 h-82.8 z" fill="#eb6834"/>
+<path d="M210.0,231.0 h44.7 a4.0,4.0 0 0 1 4.0,4.0 v6.0 a4.0,4.0 0 0 1 -4.0,4.0 h-44.7 z" fill="#1baf7a"/>
+<path d="M210.0,247.0 h59.9 a4.0,4.0 0 0 1 4.0,4.0 v6.0 a4.0,4.0 0 0 1 -4.0,4.0 h-59.9 z" fill="#eda100"/>
+<path d="M210.0,283.0 h35.8 a4.0,4.0 0 0 1 4.0,4.0 v6.0 a4.0,4.0 0 0 1 -4.0,4.0 h-35.8 z" fill="#2a78d6"/>
+<text x="255.8" y="293.5" fill="#52514e" font-size="11">0.82s</text>
+<path d="M210.0,299.0 h79.1 a4.0,4.0 0 0 1 4.0,4.0 v6.0 a4.0,4.0 0 0 1 -4.0,4.0 h-79.1 z" fill="#eb6834"/>
+<path d="M210.0,315.0 h48.1 a4.0,4.0 0 0 1 4.0,4.0 v6.0 a4.0,4.0 0 0 1 -4.0,4.0 h-48.1 z" fill="#1baf7a"/>
+<path d="M210.0,331.0 h45.5 a4.0,4.0 0 0 1 4.0,4.0 v6.0 a4.0,4.0 0 0 1 -4.0,4.0 h-45.5 z" fill="#eda100"/>
+<path d="M210.0,367.0 h38.6 a4.0,4.0 0 0 1 4.0,4.0 v6.0 a4.0,4.0 0 0 1 -4.0,4.0 h-38.6 z" fill="#2a78d6"/>
+<text x="258.6" y="377.5" fill="#52514e" font-size="11">0.88s</text>
+<path d="M210.0,383.0 h152.7 a4.0,4.0 0 0 1 4.0,4.0 v6.0 a4.0,4.0 0 0 1 -4.0,4.0 h-152.7 z" fill="#eb6834"/>
+<path d="M210.0,399.0 h125.2 a4.0,4.0 0 0 1 4.0,4.0 v6.0 a4.0,4.0 0 0 1 -4.0,4.0 h-125.2 z" fill="#1baf7a"/>
+<path d="M210.0,415.0 h63.7 a4.0,4.0 0 0 1 4.0,4.0 v6.0 a4.0,4.0 0 0 1 -4.0,4.0 h-63.7 z" fill="#eda100"/>
+<path d="M210.0,451.0 h0.0 a0.2,0.2 0 0 1 0.2,0.2 v13.7 a0.2,0.2 0 0 1 -0.2,0.2 h-0.0 z" fill="#2a78d6"/>
+<text x="216.2" y="461.5" fill="#52514e" font-size="11">&lt; 0.01s</text>
+<path d="M210.0,467.0 h65.3 a4.0,4.0 0 0 1 4.0,4.0 v6.0 a4.0,4.0 0 0 1 -4.0,4.0 h-65.3 z" fill="#eb6834"/>
+<path d="M210.0,483.0 h29.8 a4.0,4.0 0 0 1 4.0,4.0 v6.0 a4.0,4.0 0 0 1 -4.0,4.0 h-29.8 z" fill="#1baf7a"/>
+<path d="M210.0,499.0 h34.7 a4.0,4.0 0 0 1 4.0,4.0 v6.0 a4.0,4.0 0 0 1 -4.0,4.0 h-34.7 z" fill="#eda100"/>
+<text x="556" y="92" fill="#52514e" font-weight="600">Peak memory (MB)</text>
+<line x1="556.0" y1="104" x2="556.0" y2="524" stroke="#e1e0d9" stroke-width="1"/>
+<text x="556.0" y="542" fill="#898781" font-size="11" text-anchor="middle">0</text>
+<line x1="652.7" y1="104" x2="652.7" y2="524" stroke="#e1e0d9" stroke-width="1"/>
+<text x="652.7" y="542" fill="#898781" font-size="11" text-anchor="middle">500</text>
+<line x1="749.3" y1="104" x2="749.3" y2="524" stroke="#e1e0d9" stroke-width="1"/>
+<text x="749.3" y="542" fill="#898781" font-size="11" text-anchor="middle">1000</text>
+<line x1="846.0" y1="104" x2="846.0" y2="524" stroke="#e1e0d9" stroke-width="1"/>
+<text x="846.0" y="542" fill="#898781" font-size="11" text-anchor="middle">1500</text>
+<line x1="556.0" y1="104" x2="556.0" y2="524" stroke="#c3c2b7" stroke-width="1"/>
+<path d="M556.0,115.0 h0.0 a2.3,2.3 0 0 1 2.3,2.3 v9.3 a2.3,2.3 0 0 1 -2.3,2.3 h-0.0 z" fill="#2a78d6"/>
+<text x="564.3" y="125.5" fill="#52514e" font-size="11">12 MB</text>
+<path d="M556.0,131.0 h162.3 a4.0,4.0 0 0 1 4.0,4.0 v6.0 a4.0,4.0 0 0 1 -4.0,4.0 h-162.3 z" fill="#eb6834"/>
+<path d="M556.0,147.0 h192.4 a4.0,4.0 0 0 1 4.0,4.0 v6.0 a4.0,4.0 0 0 1 -4.0,4.0 h-192.4 z" fill="#1baf7a"/>
+<path d="M556.0,163.0 h157.8 a4.0,4.0 0 0 1 4.0,4.0 v6.0 a4.0,4.0 0 0 1 -4.0,4.0 h-157.8 z" fill="#eda100"/>
+<path d="M556.0,199.0 h0.0 a2.4,2.4 0 0 1 2.4,2.4 v9.2 a2.4,2.4 0 0 1 -2.4,2.4 h-0.0 z" fill="#2a78d6"/>
+<text x="564.4" y="209.5" fill="#52514e" font-size="11">13 MB</text>
+<path d="M556.0,215.0 h156.3 a4.0,4.0 0 0 1 4.0,4.0 v6.0 a4.0,4.0 0 0 1 -4.0,4.0 h-156.3 z" fill="#eb6834"/>
+<path d="M556.0,231.0 h192.4 a4.0,4.0 0 0 1 4.0,4.0 v6.0 a4.0,4.0 0 0 1 -4.0,4.0 h-192.4 z" fill="#1baf7a"/>
+<path d="M556.0,247.0 h115.4 a4.0,4.0 0 0 1 4.0,4.0 v6.0 a4.0,4.0 0 0 1 -4.0,4.0 h-115.4 z" fill="#eda100"/>
+<path d="M556.0,283.0 h0.0 a2.4,2.4 0 0 1 2.4,2.4 v9.2 a2.4,2.4 0 0 1 -2.4,2.4 h-0.0 z" fill="#2a78d6"/>
+<text x="564.4" y="293.5" fill="#52514e" font-size="11">12 MB</text>
+<path d="M556.0,299.0 h156.6 a4.0,4.0 0 0 1 4.0,4.0 v6.0 a4.0,4.0 0 0 1 -4.0,4.0 h-156.6 z" fill="#eb6834"/>
+<path d="M556.0,315.0 h192.4 a4.0,4.0 0 0 1 4.0,4.0 v6.0 a4.0,4.0 0 0 1 -4.0,4.0 h-192.4 z" fill="#1baf7a"/>
+<path d="M556.0,331.0 h125.2 a4.0,4.0 0 0 1 4.0,4.0 v6.0 a4.0,4.0 0 0 1 -4.0,4.0 h-125.2 z" fill="#eda100"/>
+<path d="M556.0,367.0 h0.0 a2.4,2.4 0 0 1 2.4,2.4 v9.3 a2.4,2.4 0 0 1 -2.4,2.4 h-0.0 z" fill="#2a78d6"/>
+<text x="564.4" y="377.5" fill="#52514e" font-size="11">12 MB</text>
+<path d="M556.0,383.0 h157.7 a4.0,4.0 0 0 1 4.0,4.0 v6.0 a4.0,4.0 0 0 1 -4.0,4.0 h-157.7 z" fill="#eb6834"/>
+<path d="M556.0,399.0 h192.5 a4.0,4.0 0 0 1 4.0,4.0 v6.0 a4.0,4.0 0 0 1 -4.0,4.0 h-192.5 z" fill="#1baf7a"/>
+<path d="M556.0,415.0 h135.3 a4.0,4.0 0 0 1 4.0,4.0 v6.0 a4.0,4.0 0 0 1 -4.0,4.0 h-135.3 z" fill="#eda100"/>
+<path d="M556.0,451.0 h0.0 a0.9,0.9 0 0 1 0.9,0.9 v12.1 a0.9,0.9 0 0 1 -0.9,0.9 h-0.0 z" fill="#2a78d6"/>
+<text x="562.9" y="461.5" fill="#52514e" font-size="11">5 MB</text>
+<path d="M556.0,467.0 h156.3 a4.0,4.0 0 0 1 4.0,4.0 v6.0 a4.0,4.0 0 0 1 -4.0,4.0 h-156.3 z" fill="#eb6834"/>
+<path d="M556.0,483.0 h192.4 a4.0,4.0 0 0 1 4.0,4.0 v6.0 a4.0,4.0 0 0 1 -4.0,4.0 h-192.4 z" fill="#1baf7a"/>
+<path d="M556.0,499.0 h109.2 a4.0,4.0 0 0 1 4.0,4.0 v6.0 a4.0,4.0 0 0 1 -4.0,4.0 h-109.2 z" fill="#eda100"/>
+<text x="196" y="150.0" fill="#0b0b0b" text-anchor="end">pretty-print</text>
+<text x="196" y="234.0" fill="#0b0b0b" text-anchor="end">$.items[*].name</text>
+<text x="196" y="318.0" fill="#0b0b0b" text-anchor="end">filter price &gt; 190</text>
+<text x="196" y="402.0" fill="#0b0b0b" text-anchor="end">regex filter on email</text>
+<text x="196" y="486.0" fill="#0b0b0b" text-anchor="end">first 10 items (file arg)</text>
+</svg>
