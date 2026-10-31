@@ -18,7 +18,7 @@ func ParseQueryString(s string) (ast.Query, error) {
 	var query parser.Query
 	parseErr := grammar.Parse(&query, stream)
 	if parseErr != nil {
-		return ast.Query{}, err
+		return ast.Query{}, parseErr
 	}
 	if n := stream.Next(); n != grammar.EOF {
 		return ast.Query{}, errors.New("invalid query string")
