@@ -12,7 +12,7 @@ test:
 
 bench:
 	go run ./bench gen 500000 > /tmp/jp-bench.json
-	go run ./bench run /tmp/jp-bench.json
+	go run ./bench run /tmp/jp-bench.json -svg docs/benchmark.svg
 
 update-jsonpath-cts:
 	curl https://raw.githubusercontent.com/jsonpath-standard/jsonpath-compliance-test-suite/main/cts.json -o transform/jsonpath/cts.json
