@@ -58,7 +58,7 @@ func chartSVG(tools []string, results [][]result, file string) string {
 	var b strings.Builder
 	w := func(format string, args ...any) { fmt.Fprintf(&b, format+"\n", args...) }
 	w(`<svg xmlns="http://www.w3.org/2000/svg" width="%.0f" height="%.0f" viewBox="0 0 %.0f %.0f" font-family='%s' font-size="12">`, width, height, width, height, fontFamily)
-	w(`<title>Benchmark: jp against %s on a %s file</title>`, strings.Join(tools[1:], ", "), filepath.Base(file))
+	w(`<title>Benchmark: pj against %s on a %s file</title>`, strings.Join(tools[1:], ", "), filepath.Base(file))
 	w(`<rect width="100%%" height="100%%" fill="%s"/>`, surface)
 
 	// Title, subtitle and legend.
@@ -117,7 +117,7 @@ func chartSVG(tools []string, results [][]result, file string) string {
 				if bw > 0 {
 					w(`<path d="%s" fill="%s"/>`, barPath(p.x0, y, bw, barThickness, 4), seriesColors[t%len(seriesColors)])
 				}
-				// Direct labels on jp only: it is the series the chart is about;
+				// Direct labels on pj only: it is the series the chart is about;
 				// the other values are on the axis and in the README table.
 				if t == 0 {
 					w(`<text x="%.1f" y="%.1f" fill="%s" font-size="11">%s</text>`, p.x0+bw+6, y+barThickness-3.5, inkSecondary, escape(p.label(r)))

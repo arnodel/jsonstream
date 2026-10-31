@@ -1,4 +1,4 @@
-// Command bench generates a large JSON file and times jp, and whichever of jq,
+// Command bench generates a large JSON file and times pj, and whichever of jq,
 // jaq and gojq are installed, on a few typical workloads.
 //
 //	go run ./bench gen 500000 > /tmp/big.json
@@ -47,7 +47,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage:\n  bench gen N > file.json              generate a file with N items\n  bench run file.json [-svg out.svg]   time jp, jq, jaq and gojq on it")
+	fmt.Fprintln(os.Stderr, "usage:\n  bench gen N > file.json              generate a file with N items\n  bench run file.json [-svg out.svg]   time pj, jq, jaq and gojq on it")
 	os.Exit(2)
 }
 
@@ -81,11 +81,11 @@ func gen(n int) {
 	out.WriteString("]}\n")
 }
 
-// A workload is a query in jp's syntax and the equivalent in jq's, which jaq
+// A workload is a query in pj's syntax and the equivalent in jq's, which jaq
 // and gojq share.
 type workload struct {
 	name string
-	jp   []string
+	pj   []string
 	jq   []string
 }
 
@@ -117,9 +117,9 @@ func (r result) String() string {
 }
 
 func run(file string, svgPath string) {
-	jp := buildJP()
-	tools := []string{"jp"}
-	paths := []string{jp}
+	pj := buildJP()
+	tools := []string{"pj"}
+	paths := []string{pj}
 	for _, name := range jqLikeTools {
 		if path, err := exec.LookPath(name); err == nil {
 			tools = append(tools, name)
@@ -137,8 +137,8 @@ func run(file string, svgPath string) {
 	fmt.Println()
 	for i, w := range workloads {
 		results[i] = make([]result, len(tools))
-		jpArgs := append([]string{"-color", "never"}, w.jp...)
-		results[i][0] = measure(jp, append(jpArgs, file))
+		jpArgs := append([]string{"-color", "never"}, w.pj...)
+		results[i][0] = measure(pj, append(jpArgs, file))
 		for t := 1; t < len(tools); t++ {
 			if w.jq != nil {
 				results[i][t] = measure(paths[t], append(append([]string{}, w.jq...), file))
@@ -160,11 +160,11 @@ func run(file string, svgPath string) {
 }
 
 func buildJP() string {
-	path := filepath.Join(os.TempDir(), "jp-bench")
-	cmd := exec.Command("go", "build", "-o", path, "./cmd/jp")
+	path := filepath.Join(os.TempDir(), "pj-bench")
+	cmd := exec.Command("go", "build", "-o", path, "./cmd/pj")
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		fmt.Fprintln(os.Stderr, "building jp:", err)
+		fmt.Fprintln(os.Stderr, "building pj:", err)
 		os.Exit(1)
 	}
 	return path

@@ -11,7 +11,7 @@ import (
 
 // An Encoder writes a stream of JSON values as JSON text, pretty-printed,
 // through a format.Printer.  NewEncoder sets one up with the defaults used by
-// jp; the fields can be adjusted before Consume is called.
+// pj; the fields can be adjusted before Consume is called.
 //
 // Arrays are laid out in one of three forms depending on their contents and
 // CompactWidthLimit: compact, with every item on one line when the scalars

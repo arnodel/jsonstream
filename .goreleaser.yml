@@ -1,4 +1,4 @@
-# GoReleaser configuration for jp
+# GoReleaser configuration for pj
 # See: https://goreleaser.com
 
 version: 2
@@ -11,9 +11,9 @@ before:
     - go test ./...
 
 builds:
-  - id: jp
-    main: ./cmd/jp
-    binary: jp
+  - id: pj
+    main: ./cmd/pj
+    binary: pj
     env:
       - CGO_ENABLED=0
     goos:
@@ -36,7 +36,7 @@ builds:
       - -X main.date={{.Date}}
 
 archives:
-  - id: jp-targz
+  - id: pj-targz
     formats:
       - tar.gz
     name_template: >-
@@ -48,7 +48,7 @@ archives:
     files:
       - README.md
       - LICENSE*
-  - id: jp-zip
+  - id: pj-zip
     formats:
       - zip
     name_template: >-
@@ -93,11 +93,11 @@ release:
   prerelease: auto
   name_template: "{{.ProjectName}} {{.Version}}"
   header: |
-    ## jp {{.Version}}
+    ## pj {{.Version}}
 
     Download pre-built binaries below or install using Go:
     ```bash
-    go install github.com/arnodel/jsonstream/cmd/jp@{{.Tag}}
+    go install github.com/arnodel/jsonstream/cmd/pj@{{.Tag}}
     ```
   footer: |
     **Full Changelog**: https://github.com/arnodel/jsonstream/compare/{{ .PreviousTag }}...{{ .Tag }}
@@ -120,12 +120,12 @@ release:
 #    - Add 'TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}' to env section
 #
 # How it works:
-# - On each release, GoReleaser automatically creates/updates Casks/jp.rb in homebrew-tap
-# - Users can then install with: brew install arnodel/tap/jp
+# - On each release, GoReleaser automatically creates/updates Casks/pj.rb in homebrew-tap
+# - Users can then install with: brew install arnodel/tap/pj
 homebrew_casks:
-  - name: jp
+  - name: pj
     ids:
-      - jp-targz
+      - pj-targz
     repository:
       owner: arnodel
       name: homebrew-tap
@@ -138,12 +138,12 @@ homebrew_casks:
       name: goreleaserbot
       email: bot@goreleaser.com
     binaries:
-      - jp
+      - pj
     hooks:
       post:
         install: |
           if OS.mac?
-            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/jp"]
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/pj"]
           end
 
 # Nix package configuration
@@ -165,11 +165,11 @@ homebrew_casks:
 #
 # How it works:
 # - On each release, GoReleaser automatically creates/updates default.nix in nur-packages
-# - Users can then install with: nix-env -iA nur.repos.arnodel.jp
+# - Users can then install with: nix-env -iA nur.repos.arnodel.pj
 nix:
-  - name: jp
+  - name: pj
     ids:
-      - jp-targz
+      - pj-targz
     repository:
       owner: arnodel
       name: nur-packages

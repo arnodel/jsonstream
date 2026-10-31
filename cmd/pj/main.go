@@ -32,7 +32,7 @@ import (
 var strictMode bool
 
 // idleFlushTimeout is how long output may sit in the stdout buffer while
-// waiting for more input.  When the input stalls (e.g. 'tail -f app.log | jp |
+// waiting for more input.  When the input stalls (e.g. 'tail -f app.log | pj |
 // less'), results already produced are flushed after this delay instead of
 // waiting in the buffer until more input arrives or the buffer fills up.
 const idleFlushTimeout = 100 * time.Millisecond
@@ -460,19 +460,19 @@ var defaultColorizer = format.Colorizer{
 }
 
 func printUsage() {
-	fmt.Fprint(os.Stderr, `jp - JSON stream processor
+	fmt.Fprint(os.Stderr, `pj - JSON stream processor
 
 USAGE:
-  jp [options] [transforms...] [files...]
+  pj [options] [transforms...] [files...]
 
 DESCRIPTION:
-  jp processes JSON input in a streaming manner, allowing you to transform,
+  pj processes JSON input in a streaming manner, allowing you to transform,
   filter, and format JSON data with constant memory usage.
 
   Input is read from the files given as arguments, or from stdin:
-    jp file.json
-    jp '$.items[*]' file.json
-    cat file.json | jp
+    pj file.json
+    pj '$.items[*]' file.json
+    cat file.json | pj
 
 HELP OPTIONS:
   -help-input       Show detailed help for input formats
@@ -519,31 +519,31 @@ JSONPATH QUERIES:
   A query stops reading as soon as it cannot produce more results if the
   input is a single JSON value ('-in json', or a .json file argument), and
   skips to the next value if it is a stream ('-in json-stream', a .jsonl
-  file). Otherwise jp works it out from the input: see 'jp -help-input'.
+  file). Otherwise pj works it out from the input: see 'pj -help-input'.
 
 EXAMPLES:
   # Pretty-print JSON
-  cat data.json | jp
+  cat data.json | pj
 
   # Extract specific field from array items
-  cat users.json | jp '$.users[*].name'
+  cat users.json | pj '$.users[*].name'
 
   # Convert JSON array to JSON Lines (one item per line)
-  cat array.json | jp -json-lines split
+  cat array.json | pj -json-lines split
 
   # Filter and transform
-  cat data.json | jp '$.items[?@.price < 100]' split
+  cat data.json | pj '$.items[?@.price < 100]' split
 
   # CSV to JSON Lines
-  cat data.csv | jp -in csv-with-header -json-lines
+  cat data.csv | pj -in csv-with-header -json-lines
 
-For Unix-like usage patterns (head/tail/grep), see: jp -help-cookbook
+For Unix-like usage patterns (head/tail/grep), see: pj -help-cookbook
 For more information, visit: https://github.com/arnodel/jsonstream
 `)
 }
 
 func printInputHelp() {
-	fmt.Fprint(os.Stderr, `jp - Input Format Help
+	fmt.Fprint(os.Stderr, `pj - Input Format Help
 
 INPUT FORMAT SELECTION:
   Use the '-in FORMAT' flag to specify the input format.
@@ -562,7 +562,7 @@ AVAILABLE FORMATS:
   json-stream (or jsonl, ndjson)
     A sequence of JSON values separated by whitespace. JSON Lines (one value
     per line) is the usual shape, but values may span several lines, as in
-    jp's own pretty-printed output. Each value goes separately through the
+    pj's own pretty-printed output. Each value goes separately through the
     transform pipeline:
       {"name": "Alice", "age": 30}
       {"name": "Bob", "age": 25}
@@ -612,28 +612,28 @@ AVAILABLE FORMATS:
     - A single file argument named *.json is a single value; *.jsonl or
       *.ndjson is a stream; several files are a stream.
     - Otherwise (stdin, or another extension), the first time a query is
-      done with a value before its end, jp skips ahead up to about 1MB. If
+      done with a value before its end, pj skips ahead up to about 1MB. If
       the value ends by then, the input is a stream; if not, it is one big
-      value and jp stops reading.
+      value and pj stops reading.
     Values over 1MB in a stream are therefore mistaken for a single value;
     pass '-in json-stream' in that case.
 
 INPUT FILES:
   Files can be given as arguments, in any position relative to transforms:
-    jp '$.items[*]' data.json
-    jp a.json b.json
+    pj '$.items[*]' data.json
+    pj a.json b.json
   Several files are read one after the other as a stream of values.
 
 NOTES:
   - Empty fields in CSV are converted to null
   - CSV values 'true' and 'false' are converted to booleans
   - CSV numeric values are parsed as JSON numbers
-  - Files can also be read with shell redirection: jp -in csv < data.csv
+  - Files can also be read with shell redirection: pj -in csv < data.csv
 `)
 }
 
 func printOutputHelp() {
-	fmt.Fprint(os.Stderr, `jp - Output Format Help
+	fmt.Fprint(os.Stderr, `pj - Output Format Help
 
 OUTPUT FORMAT SELECTION:
   Use the '-out FORMAT' flag to specify the output format.
@@ -664,7 +664,7 @@ AVAILABLE FORMATS:
         {"name": "Bob", "scores": [88, 91, 95]}
 
       Combine with 'split' to convert JSON arrays to JSON Lines:
-        cat array.json | jp -json-lines split
+        cat array.json | pj -json-lines split
 
     -json-indent N
       Set indentation level (default: 2, only applies when not compact).
@@ -703,7 +703,7 @@ AVAILABLE FORMATS:
 
     Workflow example:
       # Convert to JPV, filter with grep, convert back to JSON
-      cat data.json | jp -out jpv | grep city | jp -in jpv
+      cat data.json | pj -out jpv | grep city | pj -in jpv
 
 COLOR OPTIONS:
   -color MODE        Control color output (default: auto)
@@ -720,21 +720,21 @@ COLOR OPTIONS:
 
 EXAMPLES:
   # Convert JSON array to JSON Lines
-  cat array.json | jp -json-lines split
+  cat array.json | pj -json-lines split
 
   # JSON Lines output (compact)
-  cat data.json | jp -json-lines
+  cat data.json | pj -json-lines
 
   # No colors even in terminal
-  cat data.json | jp -color never
+  cat data.json | pj -color never
 
   # Convert JSON to JPV and filter
-  cat users.json | jp -out jpv | grep email
+  cat users.json | pj -out jpv | grep email
 `)
 }
 
 func printTransformsHelp() {
-	fmt.Fprint(os.Stderr, `jp - Transform Help
+	fmt.Fprint(os.Stderr, `pj - Transform Help
 
 TRANSFORMS:
   Transforms are applied sequentially to process the JSON stream.
@@ -774,7 +774,7 @@ AVAILABLE TRANSFORMS:
   join
     Joins a stream of values into a single array. Since the result is one
     value, a following query can stop reading as soon as it has its
-    results: 'jp join '$[:10]'' is 'head' for a stream of values.
+    results: 'pj join '$[:10]'' is 'head' for a stream of values.
 
     Example:
       Input:  1
@@ -800,28 +800,28 @@ COMBINING TRANSFORMS:
 
   Examples:
     # Split array, then filter with JSONPath
-    jp split '$[?@.age > 18]' < users.json
+    pj split '$[?@.age > 18]' < users.json
 
     # Extract nested field from all items
-    jp '$.users[*]' split '$.address.city' < data.json
+    pj '$.users[*]' split '$.address.city' < data.json
 
     # Get all names at any depth and collect into array
-    jp '$..name' join < nested.json
+    pj '$..name' join < nested.json
 
     # Limit depth and convert to JPV
-    jp -out jpv depth=2 < deep.json
+    pj -out jpv depth=2 < deep.json
 
 MORE EXAMPLES:
   For Unix-like usage patterns (head/tail/grep), see:
-    jp -help-cookbook
+    pj -help-cookbook
 
 JSONPATH STRICT MODE vs DEFAULT MODE:
 
-  By default, jp optimizes for streaming performance. For descendant queries
+  By default, pj optimizes for streaming performance. For descendant queries
   (using ..), results are emitted in document order as items are encountered.
   This allows constant memory usage and immediate output.
 
-  With -jsonpath-strict, jp follows RFC 9535 ordering exactly. For descendant queries,
+  With -jsonpath-strict, pj follows RFC 9535 ordering exactly. For descendant queries,
   all matches at the current level are emitted before descending into nested
   values. This requires buffering collections and reduces streaming efficiency.
 
@@ -848,14 +848,14 @@ NOTES:
 }
 
 func printCookbookHelp() {
-	fmt.Fprint(os.Stderr, `jp - Cookbook: Unix-like JSON Processing
+	fmt.Fprint(os.Stderr, `pj - Cookbook: Unix-like JSON Processing
 
 OVERVIEW:
-  jp can be used like Unix text tools (head, tail, grep) but for JSON data.
-  Unlike tools that load entire files into memory, jp processes JSON as a
+  pj can be used like Unix text tools (head, tail, grep) but for JSON data.
+  Unlike tools that load entire files into memory, pj processes JSON as a
   stream, providing constant memory usage and immediate output.
 
-  This means jp works efficiently with:
+  This means pj works efficiently with:
   - Very large JSON files (gigabytes)
   - Infinite streams (e.g., from 'yes' or streaming APIs)
   - Pipes where you want immediate results (with 'less', 'head', etc.)
@@ -873,21 +873,21 @@ LIKE 'head' - GET FIRST N ITEMS
 
   JSONPath approach:
     # Get first 10 items from array
-    jp '$.items[:10]' < data.json
+    pj '$.items[:10]' < data.json
 
     # Get first 5 users
-    jp '$.users[:5]' < users.json
+    pj '$.users[:5]' < users.json
 
   split + head approach:
     # Split array and use Unix head
-    jp split | head -5
+    pj split | head -5
 
   Stream-friendly: outputs the first N items immediately, using constant
-  memory. When jp knows the input is a single value (a .json file argument,
+  memory. When pj knows the input is a single value (a .json file argument,
   or -in json) it stops reading right after the Nth item, even on an
   infinite stream. For a stream of values it skips to the next value.
-    jp '$.items[:10]' huge.json
-    curl https://api.example.com/items | jp -in json '$.items[:10]'
+    pj '$.items[:10]' huge.json
+    curl https://api.example.com/items | pj -in json '$.items[:10]'
 
 ────────────────────────────────────────────────────────────────────────
 
@@ -895,10 +895,10 @@ LIKE 'tail' - GET LAST N ITEMS
 
   JSONPath approach:
     # Get last 10 items from array
-    jp '$.items[-10:]' < data.json
+    pj '$.items[-10:]' < data.json
 
     # Get last 3 log entries
-    jp '$.logs[-3:]' < logs.json
+    pj '$.logs[-3:]' < logs.json
 
   Memory efficient: Uses sliding window, doesn't load entire array.
 
@@ -908,23 +908,23 @@ LIKE 'grep' - FILTER/SEARCH DATA
 
   JSONPath approach:
     # Find users who have an email field
-    jp '$.users[?@.email]' < users.json
+    pj '$.users[?@.email]' < users.json
 
     # Find expensive items
-    jp '$.products[?@.price > 100]' < products.json
+    pj '$.products[?@.price > 100]' < products.json
 
     # Find all error logs
-    jp '$..[?@.level == "error"]' < logs.json
+    pj '$..[?@.level == "error"]' < logs.json
 
   JPV + grep approach:
     # Find all fields containing "gmail"
-    jp -out jpv < data.json | grep gmail | jp -in jpv
+    pj -out jpv < data.json | grep gmail | pj -in jpv
 
     # Find all price fields
-    jp -out jpv < data.json | grep 'price' | jp -in jpv
+    pj -out jpv < data.json | grep 'price' | pj -in jpv
 
     # Case-insensitive search
-    jp -out jpv < logs.json | grep -i 'error' | jp -in jpv
+    pj -out jpv < logs.json | grep -i 'error' | pj -in jpv
 
   Stream-friendly: Processes records one at a time, outputs matches
   immediately without loading entire file.
@@ -934,39 +934,39 @@ LIKE 'grep' - FILTER/SEARCH DATA
 COMBINING PATTERNS
 
   Filter active users:
-    jp '$.users[?@.active == true]' < users.json
+    pj '$.users[?@.active == true]' < users.json
 
   Filter expensive items:
-    jp '$.products[?@.price > 100]' < products.json
+    pj '$.products[?@.price > 100]' < products.json
 
   Extract emails, collect to array:
-    jp '$..email' join < data.json
+    pj '$..email' join < data.json
 
   Split array, truncate depth, search:
-    jp split depth=1 | grep -i 'error'
+    pj split depth=1 | grep -i 'error'
 
   Convert JSON array to JSON Lines format:
-    jp -json-lines split < array.json
+    pj -json-lines split < array.json
 
 ────────────────────────────────────────────────────────────────────────
 
 STREAMING EXAMPLES
 
   Process infinite stream (Ctrl+C to stop):
-    yes '{"id": 1, "name": "test"}' | jp
+    yes '{"id": 1, "name": "test"}' | pj
 
   Pretty-print streaming API response:
-    curl -N https://stream-api.example.com | jp
+    curl -N https://stream-api.example.com | pj
 
   Process large file with 'less' (immediate output):
-    jp < huge.json | less
+    pj < huge.json | less
 
   Get first 20 lines of pretty output from infinite stream:
-    yes '{"x": 1}' | jp | head -20
+    yes '{"x": 1}' | pj | head -20
 
   Filter a JSON Lines log (join wraps the lines in an array so the filter
   can select from them, and still streams):
-    tail -f app.log | jp join '$[?@.level == "error"]' '$.message'
+    tail -f app.log | pj join '$[?@.level == "error"]' '$.message'
 
 ────────────────────────────────────────────────────────────────────────
 
@@ -976,13 +976,13 @@ JPV FORMAT WORKFLOW
   It's perfect for grep-style workflows:
 
   1. Convert to JPV:
-     jp -out jpv < data.json
+     pj -out jpv < data.json
 
   2. Use Unix tools:
-     jp -out jpv < data.json | grep 'email'
+     pj -out jpv < data.json | grep 'email'
 
   3. Convert back to JSON:
-     jp -out jpv < data.json | grep 'email' | jp -in jpv
+     pj -out jpv < data.json | grep 'email' | pj -in jpv
 
   Example output (JPV format):
     $.users[0].name = "Alice"
@@ -991,18 +991,18 @@ JPV FORMAT WORKFLOW
     $.users[1].email = "bob@example.com"
 
   Grep for specific fields:
-    jp -out jpv < data.json | grep '\.email' | jp -in jpv
+    pj -out jpv < data.json | grep '\.email' | pj -in jpv
     # Reconstructs JSON with only email fields
 
   Remove lines (removes from JSON):
-    jp -out jpv < data.json | grep -v 'password' | jp -in jpv
+    pj -out jpv < data.json | grep -v 'password' | pj -in jpv
     # Removes all password fields
 
 ────────────────────────────────────────────────────────────────────────
 
 MEMORY USAGE NOTES
 
-  jp uses constant memory for streaming operations:
+  pj uses constant memory for streaming operations:
   - '$.items[*]' or '$.items[:N]': Streams items one by one
   - '$.items[-N:]': Uses sliding window (only last N in memory)
   - split: Converts array to stream (one item at a time)
@@ -1014,12 +1014,12 @@ MEMORY USAGE NOTES
   - Sorting (not yet implemented)
 
   This means you can safely run:
-    jp '$.items[:100]' < 10GB-file.json
+    pj '$.items[:100]' < 10GB-file.json
 
   And it will output the first 100 items almost instantly, using
   constant memory regardless of file size. Pass the file as an argument
   (or use -in json) and it exits as soon as it has them instead of reading
   to the end of the file:
-    jp '$.items[:100]' 10GB-file.json
+    pj '$.items[:100]' 10GB-file.json
 `)
 }
