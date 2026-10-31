@@ -87,3 +87,26 @@ func TestLiteralRegexFunctions(t *testing.T) {
 		})
 	}
 }
+
+// TestRootQueryOnScalarDocument checks queries referring to the root ($) in a
+// filter when the document itself is a scalar (found by FuzzQuery: the
+// scalar's Clone has no detach function, which was called unconditionally).
+func TestRootQueryOnScalarDocument(t *testing.T) {
+	for _, c := range []struct{ query, doc, want string }{
+		{`$[?$ != 'x']`, `0`, ``},
+		{`$[?@ == $]`, `[1, 2]`, ``},
+		{`$[?@ < $[1]]`, `[1, 2]`, `1`},
+		{`$[?count($[*]) == 2]`, `[1, 2]`, `1 2`},
+		{`$[?count($[*]) == 2]`, `"s"`, ``},
+		// A root singular query that finds nothing (the root is an array, so
+		// $.a does not exist) compares as Nothing: equal to a missing node,
+		// different from everything else.
+		{`$[?$.a == @.b]`, `[{"b": 1}, {"c": 2}]`, `"c" 2`},
+		{`$[?$.a != @.b]`, `[{"b": 1}, {"c": 2}]`, `"b" 1`},
+		{`$[?$[5] == 1]`, `[1, 2]`, ``},
+	} {
+		if got := collectScalars(t, c.query, jsonInput(c.doc)); got != c.want {
+			t.Errorf("%s on %s: got %q, want %q", c.query, c.doc, got, c.want)
+		}
+	}
+}

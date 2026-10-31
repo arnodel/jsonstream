@@ -251,6 +251,7 @@ func ParseString(scanr *scanner.Scanner) (*token.Scalar, error) {
 		switch b {
 		case '\\':
 			isUnescaped = false
+			isAlnum = false
 			x, err := checkEOF(scanr.Read())
 			if err != nil {
 				return nil, err
@@ -269,11 +270,16 @@ func ParseString(scanr *scanner.Scanner) (*token.Scalar, error) {
 						return nil, UnexpectedByte(scanr, "expected hex, got")
 					}
 				}
+			default:
+				scanr.Back()
+				return nil, UnexpectedByte(scanr, "invalid escape character in string")
 			}
 		case '"':
 			stringBytes := scanr.EndToken()
 			scalar := token.NewScalar(token.String, stringBytes)
-			if isAlnum {
+			// An empty string is not alphanumeric: it cannot be written as a
+			// shorthand name in a path.
+			if isAlnum && !firstChar {
 				scalar.TypeAndFlags |= token.AlnumMask
 			}
 			if isUnescaped {

@@ -72,14 +72,16 @@ func (d *Decoder) parseLine(out token.WriteStream) error {
 	if err != nil {
 		return err
 	}
-	b, err := checkEOF(d.scanr.SkipSpaceAndRead())
+	// Peek rather than read and push back: parsePath may already have pushed
+	// this byte back, and the scanner cannot go back twice.
+	b, err := checkEOF(d.scanr.SkipSpaceAndPeek())
 	if err != nil {
 		return err
 	}
 	if b != '=' {
-		d.scanr.Back()
 		return json.UnexpectedByte(d.scanr, "expected '=', got")
 	}
+	d.scanr.Read()
 	err = d.updatePath(linePath, out)
 	if err != nil {
 		return err
@@ -97,10 +99,10 @@ func (d *Decoder) updatePath(newPath []*token.Scalar, out token.WriteStream) err
 	}
 	divergenceIndex := -1
 	for i, key := range d.lastPath {
-		newKey := newPath[i]
 		if i >= len(newPath) {
 			return errors.New("inconsistent path: cannot be a prefix of the previous path")
 		}
+		newKey := newPath[i]
 		if !key.Equal(newKey) {
 			if key.Type() != newKey.Type() {
 				return errors.New("inconsistent path: key types differ")

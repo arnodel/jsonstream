@@ -81,7 +81,10 @@ func (r MainQueryRunner) computeRunContext(value iterator.Value) *RunContext {
 		// There is nothing useful in the context to compute a singular query
 		// value, so it is safe to pass nil.
 		val := q.Evaluate(nil, clone)
-		if scalar, ok := val.(*iterator.Scalar); ok {
+		if val == nil {
+			// Nothing: the path does not exist in the document.
+			ctx.innerSingularQueries[i] = nil
+		} else if scalar, ok := val.(*iterator.Scalar); ok {
 			ctx.innerSingularQueries[i] = scalar
 		} else {
 			dest := token.NewAccumulatorStream()
@@ -91,7 +94,10 @@ func (r MainQueryRunner) computeRunContext(value iterator.Value) *RunContext {
 			iter.Advance()
 			ctx.innerSingularQueries[i] = iter.CurrentValue()
 		}
-		detach()
+		// Scalars clone without a detach function.
+		if detach != nil {
+			detach()
+		}
 	}
 	for i, q := range r.innerQueries {
 		clone, detach := value.Clone()
@@ -103,7 +109,9 @@ func (r MainQueryRunner) computeRunContext(value iterator.Value) *RunContext {
 		q.TransformValue(ctx, clone, dest)
 		cursor := token.NewCursorFromData(dest.GetTokens())
 		ctx.innerQueries[i] = iterator.New(cursor)
-		detach()
+		if detach != nil {
+			detach()
+		}
 	}
 	return ctx
 }

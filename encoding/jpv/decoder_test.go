@@ -363,3 +363,25 @@ func TestIndexScalarBytes(t *testing.T) {
 		t.Error("index scalars do not parse as the expected numbers")
 	}
 }
+
+// TestPathPrefixOfPrevious checks that a path which is a prefix of the
+// previous line's path is reported as an error rather than crashing (found by
+// FuzzJPVDecoder).
+func TestPathPrefixOfPrevious(t *testing.T) {
+	acc := token.NewAccumulatorStream()
+	err := NewDecoder(strings.NewReader("$.a.b = 1\n$.a = 2\n")).Produce(acc)
+	if err == nil || !strings.Contains(err.Error(), "prefix") {
+		t.Fatalf("expected a prefix error, got %v", err)
+	}
+}
+
+// TestPathFollowedByGarbage checks that a byte that ends the path but is not
+// '=' is a syntax error, not a scanner panic (found by FuzzJPVDecoder: "$0").
+func TestPathFollowedByGarbage(t *testing.T) {
+	for _, input := range []string{"$0", "$.a 1", "$.a[0]x = 1", "$"} {
+		acc := token.NewAccumulatorStream()
+		if err := NewDecoder(strings.NewReader(input)).Produce(acc); err == nil {
+			t.Errorf("%q: expected an error", input)
+		}
+	}
+}

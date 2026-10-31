@@ -126,6 +126,26 @@ type collectionBase struct {
 	discarding      bool
 	discardingChild Collection
 	discardDepth    int
+
+	// ownsStream is true when stream is a token.Cursor that this collection
+	// created by cloning itself (see clone).  Such a cursor is detached when
+	// the collection is finished, so that it does not stay attached to its
+	// pool: a cursor only detaches itself when it reaches the end of the
+	// stream, and the end of a value is usually not that.  Collections nested
+	// in this one read from the same cursor but do not own it.
+	ownsStream bool
+}
+
+// finish marks the end of the collection and releases its cursor if it owns
+// one.
+func (c *collectionBase) finish() {
+	c.done = true
+	if c.ownsStream {
+		c.ownsStream = false
+		if cursor, ok := c.stream.(*token.Cursor); ok {
+			cursor.Detach()
+		}
+	}
 }
 
 func (c *collectionBase) clone() (collectionBase, func()) {
@@ -134,8 +154,13 @@ func (c *collectionBase) clone() (collectionBase, func()) {
 	}
 	clone := *c
 	var cloneStream *token.Cursor
+	_, wasCursor := c.stream.(*token.Cursor)
 	c.stream, cloneStream = token.CloneReadStream(c.stream)
+	// If the stream was not a cursor yet, CloneReadStream wrapped it in a
+	// pool and the cursor now standing in for it is ours to release.
+	c.ownsStream = c.ownsStream || !wasCursor
 	clone.stream = cloneStream
+	clone.ownsStream = false // the caller releases the clone with detach
 	return clone, cloneStream.Detach
 }
 
@@ -175,7 +200,7 @@ func (c *collectionBase) DiscardN(maxTokens int) (consumed int, done bool) {
 	for consumed < maxTokens {
 		item := c.stream.Next()
 		if item == nil {
-			c.done = true
+			c.finish()
 			return consumed, true
 		}
 		consumed++
@@ -186,7 +211,7 @@ func (c *collectionBase) DiscardN(maxTokens int) (consumed int, done bool) {
 			c.discardDepth--
 		}
 		if c.discardDepth < 0 {
-			c.done = true
+			c.finish()
 			return consumed, true
 		}
 	}
@@ -203,6 +228,7 @@ func (c *collectionBase) Copy(w token.WriteStream) {
 	for {
 		item := c.stream.Next()
 		if item == nil {
+			c.finish()
 			return
 		}
 		switch item.(type) {
@@ -213,6 +239,7 @@ func (c *collectionBase) Copy(w token.WriteStream) {
 		}
 		w.Put(item)
 		if depth < 0 {
+			c.finish()
 			return
 		}
 	}
@@ -299,7 +326,7 @@ func (o *Object) Advance() bool {
 		o.currentValue = nextStreamedValue(item, o.stream)
 		return true
 	case *token.EndObject:
-		o.done = true
+		o.finish()
 		return false
 	case *token.Elision:
 		o.elided = true
@@ -414,7 +441,7 @@ func (a *Array) Advance() bool {
 	}
 	switch item.(type) {
 	case *token.EndArray:
-		a.done = true
+		a.finish()
 		return false
 	case *token.Elision:
 		a.elided = true

@@ -107,7 +107,9 @@ func (e *Encoder) writeScalar(scalar *token.Scalar) {
 func (e *Encoder) writePath() {
 	e.PrintBytes(pathRootBytes)
 	for _, key := range e.path {
-		if key.IsAlnum() && !e.AlwaysQuoteKeys {
+		// Dot form only for a non-empty alphanumeric key; anything else is
+		// bracketed and quoted so that it can be read back.
+		if key.IsAlnum() && len(key.Bytes) > 2 && !e.AlwaysQuoteKeys {
 			e.PrintBytes([]byte{'.'})
 			e.PrintSuccintScalar(e.Printer, key)
 		} else {
