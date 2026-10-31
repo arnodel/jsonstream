@@ -6,6 +6,7 @@ import (
 	"math"
 	"reflect"
 
+	jsonpathparser "github.com/arnodel/jsonstream/internal/jsonpath"
 	"github.com/arnodel/jsonstream/internal/jsonpath/ast"
 	"github.com/arnodel/jsonstream/iterator"
 	"github.com/arnodel/jsonstream/token"
@@ -19,6 +20,17 @@ func WithStrictMode(strictMode bool) CompileQueryOption {
 	return func(c *compiler) {
 		c.strictMode = strictMode
 	}
+}
+
+// CompileQueryString parses a JSONPath query string (RFC 9535) and compiles it
+// to a MainQueryRunner, which implements token.StreamTransformer.  This is the
+// entry point for using JSONPath queries from Go code.
+func CompileQueryString(query string, options ...CompileQueryOption) (MainQueryRunner, error) {
+	q, err := jsonpathparser.ParseQueryString(query)
+	if err != nil {
+		return MainQueryRunner{}, err
+	}
+	return CompileQuery(q, options...)
 }
 
 // CompileQuery compiles a JSON query AST to a QueryRunner.
