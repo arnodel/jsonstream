@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/arnodel/jsonstream/internal/format"
+	"github.com/arnodel/jsonstream/format"
 	"github.com/arnodel/jsonstream/token"
 )
 

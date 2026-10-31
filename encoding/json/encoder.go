@@ -2,22 +2,64 @@ package json
 
 import (
 	"fmt"
+	"io"
 
-	"github.com/arnodel/jsonstream/internal/format"
+	"github.com/arnodel/jsonstream/format"
 	"github.com/arnodel/jsonstream/iterator"
 	"github.com/arnodel/jsonstream/token"
 )
 
-// An Encoder can output a stream encoding a (stream of) JSON values
-// using the given Printer instance for formatting.
+// An Encoder writes a stream of JSON values as JSON text, pretty-printed,
+// through a format.Printer.  NewEncoder sets one up with the defaults used by
+// jp; the fields can be adjusted before Consume is called.
+//
+// Arrays are laid out in one of three forms depending on their contents and
+// CompactWidthLimit: compact, with every item on one line when the scalars
+// fit; mixed, where runs of scalars are packed onto lines up to the width
+// limit while nested arrays and objects get lines of their own; and
+// expanded, one item per line.  For example, with a limit of 20:
+//
+//	[
+//	  1, 2, 3,
+//	  {"k": "v"},
+//	  4, 5, 6,
+//	  [7, 8],
+//	  9
+//	]
+//
+// Objects are kept on one line when they have few, short, scalar members
+// (CompactObjectMaxItems and CompactWidthLimit), and expanded otherwise.
 type Encoder struct {
+	// Printer receives the output.  A *format.DefaultPrinter with IndentSize
+	// -1 writes each value on a single line (JSON Lines).
 	format.Printer
+
+	// Colorizer, if not nil, wraps scalars and keys in ANSI colour codes.
 	*format.Colorizer
-	CompactWidthLimit     int
+
+	// CompactWidthLimit is the width, in characters, up to which runs of
+	// scalar array items are packed onto one line.  0 puts every item on its
+	// own line.
+	CompactWidthLimit int
+
+	// CompactObjectMaxItems is the number of members up to which an object
+	// whose members are all scalars, and fit in CompactWidthLimit, is kept
+	// on one line.  0 expands every object.
 	CompactObjectMaxItems int
 }
 
 var _ token.StreamSink = &Encoder{}
+
+// NewEncoder returns an Encoder writing pretty-printed JSON to w: two spaces
+// of indentation, with small arrays and objects kept on one line.  For JSON
+// Lines output, set Printer to a format.DefaultPrinter with IndentSize -1.
+func NewEncoder(w io.Writer) *Encoder {
+	return &Encoder{
+		Printer:               &format.DefaultPrinter{Writer: w, IndentSize: 2},
+		CompactWidthLimit:     60,
+		CompactObjectMaxItems: 2,
+	}
+}
 
 // Consume formats the JSON stream read from in using the
 // instance's Printer.  It assumes that the stream is well-formed, i.e.

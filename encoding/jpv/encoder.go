@@ -2,9 +2,10 @@ package jpv
 
 import (
 	"fmt"
+	"io"
 	"strconv"
 
-	"github.com/arnodel/jsonstream/internal/format"
+	"github.com/arnodel/jsonstream/format"
 	"github.com/arnodel/jsonstream/iterator"
 	"github.com/arnodel/jsonstream/token"
 )
@@ -22,6 +23,12 @@ type Encoder struct {
 }
 
 var _ token.StreamSink = &Encoder{}
+
+// NewEncoder returns an Encoder writing JPV to w, one path-value pair per
+// line, with keys in dot form where they are plain identifiers.
+func NewEncoder(w io.Writer) *Encoder {
+	return &Encoder{Printer: &format.DefaultPrinter{Writer: w}}
+}
 
 // Consume formats the JSON stream encoded in the given channel using the
 // instance's Printer.  It assumes that the stream is well-formed, i.e. is a

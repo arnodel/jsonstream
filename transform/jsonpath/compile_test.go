@@ -1,7 +1,7 @@
 package jsonpath_test
 
 import (
-	"fmt"
+	"os"
 	"strings"
 	"testing"
 
@@ -21,19 +21,18 @@ func TestCompileQueryString(t *testing.T) {
 	}
 }
 
-// ExampleCompileQueryString shows how to run a JSONPath query over a stream of
-// JSON from Go code.
+// ExampleCompileQueryString shows the whole pipeline from Go code: decode
+// JSON, run a JSONPath query over it, and pretty-print the results.
 func ExampleCompileQueryString() {
-	runner, err := jsonpathtransformer.CompileQueryString("$.users[?@.age > 30].name")
+	runner, err := jsonpathtransformer.CompileQueryString("$.users[?@.age > 30]")
 	if err != nil {
 		panic(err)
 	}
 	input := strings.NewReader(`{"users": [{"name": "Alice", "age": 35}, {"name": "Bob", "age": 25}]}`)
 	stream := token.StartStream(json.NewDecoder(input), nil)
 	stream = token.TransformStream(stream, runner)
-	r := stream.Reader()
-	for tok := r.Next(); tok != nil; tok = r.Next() {
-		fmt.Println(tok)
+	if err := token.ConsumeStream(stream, json.NewEncoder(os.Stdout)); err != nil {
+		panic(err)
 	}
-	// Output: Scalar("Alice")
+	// Output: {"name": "Alice", "age": 35}
 }
