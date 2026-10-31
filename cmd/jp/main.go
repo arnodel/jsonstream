@@ -755,8 +755,9 @@ LIKE 'head' - GET FIRST N ITEMS
     # Split array and use Unix head
     jp split | head -5
 
-  Stream-friendly: Outputs immediately, stops reading after N items.
-  Works on infinite streams!
+  Stream-friendly: outputs the first N items immediately, using constant
+  memory. Note that jp still reads (and skips) the rest of the input, since
+  more JSON values may follow. To stop reading early, use 'split | head'.
 
 ────────────────────────────────────────────────────────────────────────
 
@@ -833,8 +834,9 @@ STREAMING EXAMPLES
   Get first 20 lines of pretty output from infinite stream:
     yes '{"x": 1}' | jp | head -20
 
-  Stream logs through multiple filters:
-    tail -f app.log | jp '$..[?@.level == "error"]' | jp '$.message'
+  Filter a JSON Lines log (join wraps the lines in an array so the filter
+  can select from them, and still streams):
+    tail -f app.log | jp join '$[?@.level == "error"]' '$.message'
 
 ────────────────────────────────────────────────────────────────────────
 
@@ -885,6 +887,7 @@ MEMORY USAGE NOTES
     jp '$.items[:100]' < 10GB-file.json
 
   And it will output the first 100 items almost instantly, using
-  constant memory regardless of file size!
+  constant memory regardless of file size. (It still reads to the end of
+  the file afterwards; pipe into 'head' if you want it to stop early.)
 `)
 }

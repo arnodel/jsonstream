@@ -7,7 +7,7 @@ Stream, filter, and transform JSON with Unix pipeline efficiency.
 cat huge.json | jp '$.items[?@.price > 100]' | less
 
 # Monitor live logs in real-time
-tail -f app.log | jp '$..[?@.level == "error"]' '$.message'
+tail -f app.log | jp join '$[?@.level == "error"]' '$.message'
 
 # Compose with Unix tools using JPV format
 jp -out jpv < data.json | grep -v password | sed 's/test/prod/' | jp
@@ -125,14 +125,14 @@ echo '[{"price":50},{"price":150}]' | jp '$[?@.price > 100]'
 ### Use in Pipelines
 
 ```bash
-# Get first 10 items (immediate output, stops reading after 10)
+# Get first 10 items (immediate output, constant memory)
 jp '$.items[:10]' < data.json
 
 # Get last 5 items (memory-efficient sliding window)
 jp '$.items[-5:]' < data.json
 
-# Monitor live log stream
-tail -f app.log | jp '$..[?@.level == "error"]'
+# Monitor a live JSON Lines log (join wraps the lines in an array to filter them)
+tail -f app.log | jp join '$[?@.level == "error"]'
 ```
 
 ### Convert Formats
@@ -193,6 +193,11 @@ jp -out jpv < data.json | grep email | jp       # grep approach (see JPV below)
 
 Most common operations stream efficiently with constant or limited memory.
 
+**Note on early termination**: a query like `$.items[:10]` emits its results
+immediately, but `jp` still reads (and skips) the rest of the input, because
+more JSON values may follow. To stop reading as soon as you have enough, pipe
+into `head`: `jp split < array.json | head -10` exits once `head` closes the pipe.
+
 ### Format Conversion
 
 Convert between JSON, JSON Lines, CSV, and JPV formats:
@@ -222,7 +227,7 @@ jp '$.users[*]' < data.json | jp -json-lines
 # Browse huge file with immediate output (works with any size file)
 cat 10GB-file.json | jp | less
 
-# Get first 100 items from huge file (reads only what's needed)
+# Get first 100 items from huge file (immediate output, constant memory)
 jp '$.items[:100]' < 10GB-file.json
 
 # Extract specific data from large file
@@ -231,9 +236,14 @@ jp '$.transactions[?@.amount > 1000].id' < huge-file.json | less
 
 ### Monitor Real-Time Streams
 
+Log files are usually JSON Lines: one object per line. A JSONPath filter selects
+from the *children* of a value, never the value itself, so to filter the lines
+themselves, first wrap the stream in an array with `join`, then filter its items.
+This streams: each line is tested and emitted as it arrives.
+
 ```bash
-# Watch logs in real-time
-tail -f application.log | jp '$..[?@.level == "error"]'
+# Watch a JSON Lines log in real-time
+tail -f application.log | jp join '$[?@.level == "error"]'
 
 # Pretty-print streaming API
 curl -N https://stream-api.example.com/events | jp
@@ -264,8 +274,8 @@ jp '$.users[*]' split '$.address.city' < data.json | sort | uniq
 # Combine with Unix tools
 jp -json-lines '$.items[*]' split < data.json | grep -i 'important' | wc -l
 
-# Chain multiple filters
-jp '$.logs[*]' split '$[?@.level == "error"]' '$[?@.timestamp > "2024-01-01"]' < logs.json
+# Chain multiple filters (join wraps the stream of values so the next filter can select from it)
+jp '$.logs[?@.level == "error"]' join '$[?@.timestamp > "2024-01-01"]' < logs.json
 ```
 
 **Why chain transforms in a single `jp` call?**
@@ -494,7 +504,7 @@ jp depth=1 split '$.summary' < data.json
 **Streaming examples:**
 
 ```bash
-# Get first 100 items from huge file (stops reading after 100)
+# Get first 100 items from huge file (immediate output, constant memory)
 jp '$.items[:100]' < 10GB-file.json
 
 # Process infinite input (Ctrl+C to stop)
@@ -506,7 +516,7 @@ cat huge.json | jp | less
 
 **Memory-efficient operations:**
 - `$.items[*]`: Streams one item at a time (constant memory)
-- `$.items[:N]`: Stops after N items (constant memory)
+- `$.items[:N]`: Emits the first N items immediately, then skips the rest (constant memory)
 - `$.items[-N:]`: Sliding window (N items in memory)
 - `split`: Converts array to stream (constant memory)
 - `join`: Wraps stream in brackets (no buffering)

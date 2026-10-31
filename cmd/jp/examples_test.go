@@ -572,3 +572,16 @@ func TestJSONLinesFlag(t *testing.T) {
 		})
 	}
 }
+
+// TestReadme_LogFiltering checks the README's JSON Lines log-filtering recipe:
+// a filter selects children, so the stream must be wrapped with join first.
+func TestReadme_LogFiltering(t *testing.T) {
+	input := "{\"level\":\"error\",\"message\":\"boom\"}\n{\"level\":\"info\",\"message\":\"ok\"}\n"
+	stdout, stderr, exitCode := runJP(t, input, "-json-compact", "join", `$[?@.level == "error"]`, "$.message")
+	if exitCode != 0 {
+		t.Fatalf("exit code %d, stderr: %s", exitCode, stderr)
+	}
+	if want := "\"boom\"\n"; stdout != want {
+		t.Errorf("got %q, want %q", stdout, want)
+	}
+}
