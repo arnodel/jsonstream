@@ -177,7 +177,8 @@ func (s *Scalar) Equal(t *Scalar) bool {
 	return parseJsonLiteralBytes(s.Bytes) == parseJsonLiteralBytes(t.Bytes)
 }
 
-// panics if not a string
+// ToString returns the value of a string scalar.  It panics if the scalar is
+// not a string.
 func (s *Scalar) ToString() string {
 	if s.IsUnescaped() {
 		return string(s.Bytes[1 : len(s.Bytes)-1])
@@ -185,6 +186,17 @@ func (s *Scalar) ToString() string {
 	return parseJsonLiteralBytes(s.Bytes).(string)
 }
 
+// ToFloat64 returns the value of a number scalar.  It panics if the scalar is
+// not a number.
+func (s *Scalar) ToFloat64() float64 {
+	if s.Type() != Number {
+		panic("not a number")
+	}
+	return parseNumberBytes(s.Bytes)
+}
+
+// ToGo returns the value of the scalar as a Go value: string, float64, bool or
+// nil.
 func (s *Scalar) ToGo() any {
 	if s.IsUnescaped() {
 		return string(s.Bytes[1 : len(s.Bytes)-1])
@@ -192,13 +204,48 @@ func (s *Scalar) ToGo() any {
 	return parseJsonLiteralBytes(s.Bytes)
 }
 
-func parseJsonLiteralBytes(b []byte) json.Token {
-	dec := json.NewDecoder(bytes.NewReader(b))
-	tok, err := dec.Token()
+// ParseLiteralBytes parses the literal representation of a JSON scalar and
+// returns it as a Go value: string, float64, bool or nil.  It panics if b is
+// not a valid JSON scalar.
+func ParseLiteralBytes(b []byte) any {
+	return parseJsonLiteralBytes(b)
+}
+
+// parseJsonLiteralBytes is on the hot path of JSONPath comparisons, so it
+// avoids the generic json.Decoder, which allocates a read buffer per instance.
+func parseJsonLiteralBytes(b []byte) any {
+	if len(b) == 0 {
+		panic("empty JSON literal")
+	}
+	switch b[0] {
+	case '"':
+		var str string
+		if err := json.Unmarshal(b, &str); err != nil {
+			panic(err)
+		}
+		return str
+	case 't':
+		return true
+	case 'f':
+		return false
+	case 'n':
+		return nil
+	default:
+		return parseNumberBytes(b)
+	}
+}
+
+func parseNumberBytes(b []byte) float64 {
+	f, err := strconv.ParseFloat(string(b), 64)
 	if err != nil {
+		// Out of range numbers are accepted with the infinite value, as the
+		// generic decoder does.
+		if numErr, ok := err.(*strconv.NumError); ok && numErr.Err == strconv.ErrRange {
+			return f
+		}
 		panic(err)
 	}
-	return tok
+	return f
 }
 
 // ScalarType encodes the four possible JSON scalar types.

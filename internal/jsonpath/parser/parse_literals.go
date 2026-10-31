@@ -1,11 +1,12 @@
 package parser
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
+
+	"github.com/arnodel/jsonstream/token"
 )
 
 const (
@@ -56,11 +57,8 @@ func ParseJsonLiteral(s string) (json.Token, error) {
 	return dec.Token()
 }
 
+// ParseJsonLiteralBytes parses the literal representation of a JSON scalar.
+// It panics if b is not a valid JSON scalar.
 func ParseJsonLiteralBytes(b []byte) json.Token {
-	dec := json.NewDecoder(bytes.NewReader(b))
-	tok, err := dec.Token()
-	if err != nil {
-		panic(err)
-	}
-	return tok
+	return token.ParseLiteralBytes(b)
 }

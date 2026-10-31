@@ -208,7 +208,14 @@ func parsePath(scanr *scanner.Scanner) ([]*token.Scalar, error) {
 					scanr.Back()
 					return nil, json.UnexpectedByte(scanr, "expected digit, got")
 				}
+				// ReadDigits has consumed the byte after the digits: exclude it
+				// from the token, then read it again.
+				scanr.Back()
 				path = append(path, token.NewKey(token.Number, scanr.EndToken()))
+				b, err = checkEOF(scanr.Read())
+				if err != nil {
+					return nil, err
+				}
 			}
 			if b != ']' {
 				return nil, errors.New("syntax error: expected ']'")
