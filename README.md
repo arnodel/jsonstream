@@ -1,675 +1,152 @@
-# jp - JSON Stream Processor
+# jp
 
-Stream, filter, and transform JSON with Unix pipeline efficiency.
+A fast, streaming JSON processor for the command line.
 
-```bash
-# Process gigabyte files efficiently
-cat huge.json | jp '$.items[?@.price > 100]' | less
-
-# Monitor live logs in real-time
-tail -f app.log | jp join '$[?@.level == "error"]' '$.message'
-
-# Compose with Unix tools using JPV format
-jp -out jpv < data.json | grep -v password | sed 's/test/prod/' | jp
-```
-
-## What is jp?
-
-`jp` is a command-line JSON processor designed for **Unix pipelines**. It processes JSON as a **stream** with **immediate output**, making it ideal for large files, infinite streams, and real-time data processing.
-
-Unlike tools that load entire files into memory, `jp` starts outputting results immediately and works seamlessly with other Unix tools like `less`, `grep`, `head`, and `tail`. It runs in about 10 MB of memory whatever the size of the input, and it is faster than `jq` and than the `jaq` and `gojq` reimplementations on every workload we measure (see [Performance](#performance)).
-
-## Why jp?
-
-### Pipeline-First Design
-
-`jp` follows the Unix philosophy: do one thing well and compose with other tools.
-
-- **Immediate output**: Start seeing results right away, don't wait for the full file. When the input pauses, whatever is ready is flushed within 100ms, so `tail -f log | jp | less` shows each line as it arrives
-- **Constant memory**: About 10 MB whatever the input size; `jq`, `jaq` and `gojq` need roughly ten times the size of the file
-- **Fast**: Faster than `jq`, `jaq` and `gojq` on every workload we measure
-- **Streaming architecture**: Perfect for `| less`, `| head`, `| grep` and other pipelines
-- **Composable**: Chain multiple transforms in a single `jp` call, or mix with standard Unix tools
-
-### Powerful Features
-
-- **Full JSONPath support**: Complete [RFC 9535](https://datatracker.ietf.org/doc/rfc9535/) implementation
-- **Unix-like operations**: `head`, `tail`, `grep` patterns for JSON data
-- **Format conversion**: JSON, JSON Lines, CSV, and JPV (JSON Path-Value)
-- **JPV format**: Makes JSON grep-able and sed-able like plain text
-
-## Table of Contents
-
-- [Performance](#performance)
-- [Installation](#installation)
-- [Quick Start](#quick-start)
-- [Key Features](#key-features)
-- [Common Use Cases](#common-use-cases)
-- [Pipeline Examples](#pipeline-examples)
-- [The JPV Format](#the-jpv-format)
-- [Advanced Features](#advanced-features)
-- [Input/Output Formats](#inputoutput-formats)
-- [Command Reference](#command-reference)
-- [JSONPath Compliance](#jsonpath-compliance)
-- [The jsonstream Package](#the-jsonstream-package)
-- [Development Status](#development-status)
-
-## Performance
-
-`jp` never holds more than a small window of the input in memory, so its memory
-use does not depend on the size of the file. On a 73 MB file with 500,000
-items (`go run ./bench gen 500000`), on an Apple M-series laptop, against `jq`
-1.7.1 and its faster reimplementations [`jaq`](https://github.com/01mf02/jaq)
-3.1 (Rust) and [`gojq`](https://github.com/itchyny/gojq) 0.12 (Go):
+- **JSONPath queries**, the full [RFC 9535](https://datatracker.ietf.org/doc/rfc9535/)
+- **JPV**, a line-based form of JSON that `grep`, `sed` and `diff` understand
+- **A pretty-printer worth having**
+- **About 12 MB of memory** whatever the size of the input
+- **Faster than `jq`, `jaq` and `gojq`** on typical workloads
 
 ![Time and peak memory by workload for jp, jq, jaq and gojq. jp takes under a second on every workload at 12 MB; the others take 1 to 4.6 seconds at 600 to 1016 MB.](docs/benchmark.svg)
 
-| Workload | jp | jq | jaq | gojq |
-|---|---|---|---|---|
-| Pretty-print | **0.8s**, 12 MB | 4.6s, 860 MB | 1.6s, 1016 MB | 1.3s, 843 MB |
-| `$.items[*].name` | **0.8s**, 12 MB | 1.7s, 829 MB | 1.0s, 1016 MB | 1.3s, 618 MB |
-| `$.items[?@.price > 190]` | **0.8s**, 12 MB | 1.7s, 831 MB | 1.1s, 1016 MB | 1.1s, 676 MB |
-| `$.items[?match(@.email, "user1.*@example\\.com")]` | **0.8s**, 12 MB | 3.2s, 837 MB | 2.6s, 1016 MB | 1.4s, 720 MB |
-| `$.items[:10]` (file argument) | **< 0.01s**, 5 MB | 1.5s, 829 MB | 0.7s, 1016 MB | 0.8s, 586 MB |
-| JPV output | 0.7s, 12 MB | n/a | n/a | n/a |
+```bash
+# Pretty-print anything, however big: output starts immediately
+cat huge.json | jp | less
 
-The `$.items[:10]` row is not a measurement error: when `jp` knows the input is a single
-document, it stops reading as soon as the query cannot produce more results
-(see [Streaming Behavior](#streaming-behavior)).
+# Query with JSONPath; a .json file argument stops reading as soon as it has the answer
+jp '$.items[?@.price > 100].name' data.json
 
-Reproduce it with `make bench`, which also redraws the chart, or
-`go run ./bench gen 500000 > big.json && go run ./bench run big.json -svg chart.svg`;
-it uses whichever of `jq`, `jaq` and `gojq` are installed. This is one synthetic
-file and one machine, so treat the ratios as indicative. The memory difference
-is structural: the others load the whole document.
+# Edit JSON with Unix tools via JPV, then turn it back into JSON
+jp -out jpv config.json | grep -v password | sed 's/"dev"/"prod"/' | jp
+```
+
+`jp` selects and reformats JSON. It does not construct new JSON: there is no
+way to build an object out of pieces of the input, as `jq` can. If that is
+what you need, `jq` or `jaq` is the right tool, and the two combine well
+(`jp` to cut a large file down, `jq` to reshape the result).
+
+- [Installation](#installation)
+- [JPV: JSON for Unix tools](#jpv-json-for-unix-tools)
+- [JSONPath queries](#jsonpath-queries)
+- [Pretty-printing](#pretty-printing)
+- [Input formats, files and streams](#input-formats-files-and-streams)
+- [Transforms](#transforms)
+- [Live streams](#live-streams)
+- [Performance](#performance)
+- [The Go library](#the-go-library)
+- [Reference](#reference)
 
 ## Installation
 
-### Homebrew (macOS/Linux)
-
-**Recommended for macOS users** - automatically handles code signing and removes quarantine attributes:
-
 ```bash
-brew install arnodel/tap/jp
+brew install arnodel/tap/jp                                                      # Homebrew (macOS, Linux)
+nix-env -f https://github.com/arnodel/nur-packages/archive/main.tar.gz -iA jp   # Nix
+go install github.com/arnodel/jsonstream/cmd/jp@latest                          # Go 1.25 or later
 ```
 
-### Nix (NixOS/Linux/macOS)
+Pre-built binaries for Linux, macOS and Windows are on the
+[releases page](https://github.com/arnodel/jsonstream/releases/latest). On
+macOS a downloaded binary is not code-signed; Homebrew handles that, or run
+`xattr -d com.apple.quarantine jp`.
+
+## JPV: JSON for Unix tools
+
+JPV writes a JSON document as one line per value, each with its JSONPath:
 
 ```bash
-nix-env -f https://github.com/arnodel/nur-packages/archive/main.tar.gz -iA jp
-```
-
-### Pre-built Binaries
-
-Download pre-built binaries for Linux, macOS, or Windows from the [releases page](https://github.com/arnodel/jsonstream/releases/latest).
-
-Available platforms:
-- Linux (amd64, arm64)
-- macOS (amd64, arm64)
-- Windows (amd64)
-
-**Note for macOS users**: If you download a pre-built binary directly, macOS Gatekeeper may block it because the binary is not code-signed. You can either:
-- Use Homebrew installation (recommended - handles this automatically)
-- Remove the quarantine attribute: `xattr -d com.apple.quarantine jp`
-- Or allow it in System Preferences → Security & Privacy
-
-### Using Go
-
-```bash
-go install github.com/arnodel/jsonstream/cmd/jp@latest
-```
-
-Note: This requires Go 1.25 or later. The `jp` binary will be installed to `$GOPATH/bin` (or `$HOME/go/bin` by default). Make sure this directory is in your `$PATH`:
-
-```bash
-# Add to ~/.bashrc, ~/.zshrc, or equivalent
-export PATH="$PATH:$(go env GOPATH)/bin"
-```
-
-## Quick Start
-
-### Pretty-Print JSON
-
-```bash
-# Format JSON with colors (when outputting to terminal)
-cat data.json | jp
-
-# Browse large files with immediate output
-cat huge.json | jp | less
-```
-
-### Extract Data with JSONPath
-
-```bash
-# Get all names
-echo '{"users":[{"name":"Alice"},{"name":"Bob"}]}' | jp '$.users[*].name'
-# Output:
-# "Alice"
-# "Bob"
-
-# Filter by condition
-echo '[{"price":50},{"price":150}]' | jp '$[?@.price > 100]'
-# Output:
-# {"price": 150}
-```
-
-### Use in Pipelines
-
-```bash
-# Get first 10 items (immediate output, constant memory)
-jp '$.items[:10]' < data.json
-
-# Same, and stop reading the file as soon as the 10 items are out
-jp '$.items[:10]' data.json
-
-# Get last 5 items (memory-efficient sliding window)
-jp '$.items[-5:]' < data.json
-
-# Monitor a live JSON Lines log (join wraps the lines in an array to filter them)
-tail -f app.log | jp join '$[?@.level == "error"]'
-```
-
-### Convert Formats
-
-```bash
-# JSON array to JSON Lines (one item per line)
-echo '[1,2,3]' | jp -json-lines split
-# Output:
-# 1
-# 2
-# 3
-
-# CSV to JSON
-cat data.csv | jp -in csv-with-header
-```
-
-## Key Features
-
-### JSONPath Queries
-
-Full [RFC 9535](https://datatracker.ietf.org/doc/rfc9535/) compliant JSONPath implementation with streaming optimization.
-
-```bash
-# Basic selectors
-jp '$.name'           # Get field
-jp '$.items[0]'       # First item
-jp '$.items[-1]'      # Last item
-jp '$.items[2:5]'     # Slice (items 2, 3, 4)
-jp '$.items[*]'       # All items
-
-# Recursive descent
-jp '$..email'         # All email fields at any depth
-
-# Filters
-jp '$[?@.price < 100]'              # Price less than 100
-jp '$.users[?@.active == true]'     # Active users
-jp '$.logs[?@.level == "error"]'    # Error logs
-```
-
-**Streaming optimization**: By default, `jp` optimizes for streaming performance. Use `-jsonpath-strict` for exact RFC 9535 ordering (less streaming-friendly).
-
-### Unix-Like Operations
-
-Use `jp` like `head`, `tail`, and `grep` but for JSON:
-
-```bash
-# HEAD: Get first N items
-jp '$.items[:10]' < data.json                    # JSONPath approach
-jp split < array.json | head -10                 # Unix pipe approach
-
-# TAIL: Get last N items (memory-efficient sliding window)
-jp '$.items[-10:]' < data.json
-
-# GREP: Filter data
-jp '$.users[?@.email]' < users.json              # JSONPath filter
-jp -out jpv < data.json | grep email | jp       # grep approach (see JPV below)
-```
-
-Most common operations stream efficiently with constant or limited memory.
-
-**Note on early termination**: a query like `$.items[:10]` emits its results
-immediately. Whether `jp` then stops reading depends on whether the input is a
-single JSON value or a stream of values (such as JSON Lines), since in a stream
-the query must also be applied to the following values:
-
-```bash
-# A .json file argument is a single value: exits right after the 10th item,
-# even if the file is 10GB
-jp '$.items[:10]' huge.json
-
-# Same for piped input, when you know it is a single value
-curl https://api.example.com/items | jp -in json '$.items[:10]'
-
-# Otherwise jp works it out: it skips ahead up to about 1MB, and if the value
-# has not ended by then it treats the input as a single value and stops
-cat huge.json | jp '$.items[:10]'
-```
-
-See [Input/Output Formats](#inputoutput-formats) for the details.
-
-### Format Conversion
-
-Convert between JSON, JSON Lines, CSV, and JPV formats:
-
-```bash
-# JSON array to JSON Lines
-cat array.json | jp -json-lines split
-
-# CSV to JSON
-cat data.csv | jp -in csv-with-header
-
-# JSON to CSV-like structures
-jp '$.users[*]' < data.json | jp -json-lines
-```
-
-**Supported formats:**
-- **JSON**: Standard JSON with pretty-printing
-- **JSON Lines**: Newline-delimited JSON (one value per line)
-- **CSV**: Comma-separated values with header support
-- **JPV**: JSON Path-Value format (see dedicated section below)
-
-## Common Use Cases
-
-### Process Large Files
-
-```bash
-# Browse huge file with immediate output (works with any size file)
-cat 10GB-file.json | jp | less
-
-# Get first 100 items from huge file and stop reading as soon as they are out
-jp '$.items[:100]' 10GB-file.json
-
-# Extract specific data from large file
-jp '$.transactions[?@.amount > 1000].id' < huge-file.json | less
-```
-
-### Monitor Real-Time Streams
-
-Log files are usually JSON Lines: one object per line. A JSONPath filter selects
-from the *children* of a value, never the value itself, so to filter the lines
-themselves, first wrap the stream in an array with `join`, then filter its items.
-This streams: each line is tested and emitted as it arrives, and when the input
-pauses `jp` flushes its output within 100ms, so results show up in `less` or the
-next command in the pipe without waiting for more input.
-
-```bash
-# Watch a JSON Lines log in real-time
-tail -f application.log | jp join '$[?@.level == "error"]'
-
-# Pretty-print streaming API
-curl -N https://stream-api.example.com/events | jp
-
-# Process infinite stream (Ctrl+C to stop)
-yes '{"timestamp": "2024-01-01", "value": 42}' | jp | head -20
-```
-
-### Extract and Transform Data
-
-```bash
-# Extract all email addresses and collect them
-jp '$..email' join < data.json
-
-# Get names from nested structure
-jp '$.departments[*].employees[*].name' < org.json
-
-# Filter and extract
-jp '$.products[?@.inStock == true].name' < inventory.json
-```
-
-### Build Complex Pipelines
-
-```bash
-# Multi-stage transformation (chain transforms in one jp call)
-jp '$.users[*]' split '$.address.city' < data.json | sort | uniq
-
-# Combine with Unix tools
-jp -json-lines '$.items[*]' split < data.json | grep -i 'important' | wc -l
-
-# Chain multiple filters (join wraps the stream of values so the next filter can select from it)
-jp '$.logs[?@.level == "error"]' join '$[?@.timestamp > "2024-01-01"]' < logs.json
-```
-
-**Why chain transforms in a single `jp` call?**
-Using `jp T1 T2` instead of `jp T1 | jp T2` is more efficient: it avoids serialization/deserialization overhead and pipe I/O. The transforms process the token stream directly in memory.
-
-## Pipeline Examples
-
-`jp` shines in Unix pipelines thanks to its streaming architecture.
-
-### Why Streaming Matters
-
-Traditional JSON tools often load entire files before producing output. `jp`'s streaming approach means:
-
-1. **Immediate feedback**: See results right away, don't wait for the full file
-2. **Works with infinite streams**: Process data that never ends (logs, APIs)
-3. **Memory efficiency**: Many operations use constant or limited memory
-4. **Pipeline efficiency**: Each tool in the chain starts working immediately
-5. **Early termination**: `| head -10` stops reading after 10 items
-
-### Complex Multi-Stage Examples
-
-```bash
-# Extract, transform, and analyze
-jp '$.transactions[?@.amount > 100]' split '$.user.email' < data.json | \
-  sort | uniq -c | sort -nr | head -10
-
-# Sanitize config with JPV
-jp -out jpv < config.json | grep -v 'password' | grep -v 'secret' | jp > sanitized.json
-```
-
-## The JPV Format
-
-JPV (JSON Path-Value) is a line-based format that makes JSON compatible with classic Unix text processing tools like `grep`, `sed`, and `awk`.
-
-### What is JPV?
-
-JPV represents JSON as lines of "path = value" pairs using JSONPath syntax:
-
-```bash
-# Original JSON
-echo '{"name":"Alice","email":"alice@example.com","age":30}' | jp -out jpv
-
-# JPV output
+$ echo '{"name": "Alice", "tags": ["a", "b"], "address": {"city": "Boston"}}' | jp -out jpv
 $.name = "Alice"
-$.email = "alice@example.com"
-$.age = 30
+$.tags[0] = "a"
+$.tags[1] = "b"
+$.address.city = "Boston"
 ```
 
-### Why JPV?
-
-JPV makes JSON **line-oriented**, unlocking the full power of Unix text tools:
-
-- **grep-friendly**: Search for fields or values like plain text
-- **sed-able**: Edit values with familiar text tools
-- **awk-compatible**: Process with awk scripts
-- **Reversible**: Convert JSON → JPV → JSON without data loss
-- **Subset property**: Any subset of JPV lines is still valid JPV
-
-### JPV vs GRON
-
-JPV is similar to [gron](https://github.com/tomnomnom/gron) but uses standard [JSONPath syntax](https://datatracker.ietf.org/doc/rfc9535/) instead of a custom format.
-
-### Basic JPV Workflow
+Every line stands on its own, so the whole Unix toolbox applies, and `jp`
+turns the result back into JSON. It is the same idea as
+[gron](https://github.com/tomnomnom/gron), with standard JSONPath on the left
+of the `=`, so a path you find with `grep` is also a query you can give to `jp`.
 
 ```bash
-# 1. Convert JSON to JPV
-jp -out jpv < data.json
+# Find every email field, wherever it is
+jp -out jpv data.json | grep '\.email'
 
-# 2. Process with Unix tools
-jp -out jpv < data.json | grep email
+# Keep only what matches, as JSON again
+jp -out jpv users.json | grep 'gmail.com' | jp
 
-# 3. Convert back to JSON
-jp -out jpv < data.json | grep email | jp
+# Remove sensitive fields
+jp -out jpv config.json | grep -v 'password\|secret' | jp
+
+# Edit values with sed
+jp -out jpv users.json | sed 's/@oldcorp\.com/@newcorp.com/g' | jp
+
+# Diff two documents as text
+diff <(jp -out jpv old.json) <(jp -out jpv new.json)
+
+# Sum every "count" field with awk
+jp -out jpv metrics.json | grep 'count' | awk -F' = ' '{sum += $2} END {print sum}'
 ```
 
-### JPV Pipeline Examples
+**Any subset of the lines, in the original order, is still valid JPV** and
+converts back to JSON: deleting lines removes fields, and `grep` keeps the
+structure around whatever it matches. Reordering lines is not supported.
 
-#### Find All Email Fields
+Keys that are not plain identifiers are written in bracket form
+(`$["a b"]`), and `-jpv-quote-keys` writes every key that way.
+
+## JSONPath queries
+
+Queries follow [RFC 9535](https://datatracker.ietf.org/doc/rfc9535/) and
+`jp` passes the whole
+[compliance test suite](https://github.com/jsonpath-standard/jsonpath-compliance-test-suite).
+Quote the query so the shell leaves it alone.
 
 ```bash
-# Search for email fields anywhere in the JSON
-jp -out jpv < data.json | grep '\.email'
-
-# Find specific email domains
-jp -out jpv < users.json | grep 'email.*gmail.com' | jp
+jp '$.name' data.json                         # a field
+jp '$.items[0]' data.json                     # first item; [-1] is the last
+jp '$.items[2:5]' data.json                   # a slice
+jp '$.items[*].name' data.json                # one result per item
+jp '$..email' data.json                       # every email field at any depth
+jp '$.items[?@.price < 100]' data.json        # filter on a condition
+jp '$.users[?@.active && @.age > 18].name' data.json
+jp '$.items[?match(@.sku, "[A-Z]{3}-[0-9]+")]' data.json
+jp '$.logs[?@.level == "error"]' app.json
 ```
 
-**Output:**
-```json
-{
-  "users": [
-    {
-      "email": "alice@gmail.com"
-    },
-    {
-      "email": "bob@gmail.com"
-    }
-  ]
-}
-```
+Results are written one after the other as separate JSON values; add
+`-json-lines` for one per line, or the `join` transform to collect them into
+an array.
 
-#### Remove Sensitive Fields
+A filter selects from the *children* of a value, never the value itself. To
+filter a stream of top-level values, such as JSON Lines or CSV records, wrap
+the stream in an array first with `join`:
 
 ```bash
-# Strip passwords and secrets
-jp -out jpv < config.json | grep -v 'password' | grep -v 'secret' | jp
-
-# Remove entire sections
-jp -out jpv < data.json | grep -v '\.credentials' | jp
+jp join '$[?@.level == "error"]' app.jsonl
 ```
 
-**Before:**
-```json
-{
-  "user": "alice",
-  "password": "secret123",
-  "api_key": "xyz"
-}
-```
+Results are emitted as they are found, in document order. `-jsonpath-strict`
+uses the exact ordering the RFC specifies for descendant queries (`$..`),
+which can need buffering; the set of results is the same either way.
 
-**After:**
-```json
-{
-  "user": "alice",
-  "api_key": "xyz"
-}
-```
+## Pretty-printing
 
-#### Edit Values with sed
+The default output is pretty-printed with some care. Arrays take one of three
+forms depending on what they hold:
+
+- **Compact**: short arrays of scalars stay on one line.
+- **Packed**: in longer arrays, runs of scalars fill each line up to a width,
+  while nested arrays and objects get lines of their own. A long list of
+  numbers reads like a table rather than a column, and a mixed array stays
+  readable.
+- **Expanded**: one item per line, which is what `-json-compact-width 0` gives.
+
+Objects with a couple of short scalar members stay on one line; others expand.
 
 ```bash
-# Replace domain in all email addresses
-jp -out jpv < users.json | sed 's/@oldcorp\.com/@newcorp.com/g' | jp
-
-# Update environment in config
-jp -out jpv < config.json | sed 's/environment.*=.*"dev"/environment = "prod"/' | jp
-
-# Update all port numbers
-jp -out jpv < services.json | sed 's/port = 8080/port = 9090/g' | jp
-```
-
-#### Complex Multi-Tool Pipelines
-
-```bash
-# Find, filter, and transform
-jp -out jpv < data.json | \
-  grep 'users' | \                # Only user-related fields
-  grep -v 'password' | \          # Remove passwords
-  sed 's/status = "active"/status = "verified"/' | \  # Update status
-  jp                              # Convert back to JSON
-
-# Extract and analyze with awk
-jp -out jpv < metrics.json | \
-  grep 'count' | \                # Get count fields
-  awk -F' = ' '{sum += $2} END {print sum}'  # Sum all counts
-
-# Conditional editing
-jp -out jpv < config.json | \
-  awk '/timeout = / {gsub(/[0-9]+/, "5000")} {print}' | \  # Set all timeouts to 5000
-  jp
-```
-
-#### Diff JSON Files
-
-```bash
-# Compare two JSON files as text
-diff <(jp -out jpv < old.json | sort) <(jp -out jpv < new.json | sort)
-
-# Find what changed
-jp -out jpv < old.json | sort > old.jpv
-jp -out jpv < new.json | sort > new.jpv
-diff -u old.jpv new.jpv
-```
-
-### The Subset Property
-
-JPV has a unique property: **any subset of JPV lines (preserving order) is still valid JPV** that can be converted back to JSON.
-
-This means you can:
-- Delete any lines (removes those fields from JSON)
-- Extract matching lines (creates JSON with only those fields)
-
-**Note:** You must preserve the original order of lines. Reordering JPV lines may produce invalid JSON structure.
-
-```bash
-# Original JSON
-{"name":"Alice","age":30,"city":"Boston","country":"USA"}
-
-# Convert to JPV and remove some lines
-$ echo '{"name":"Alice","age":30,"city":"Boston","country":"USA"}' | \
-  jp -out jpv | grep -v age | grep -v country | jp
-{
-  "name": "Alice",
-  "city": "Boston"
-}
-```
-
-This is what makes JPV so powerful for Unix-style text processing of JSON data.
-
-## Advanced Features
-
-### Transform Chaining
-
-Chain multiple transforms in a single `jp` call for efficiency:
-
-```bash
-# Each transform processes the output of the previous one
-jp split '$[?@.age > 18]' '$.name' join < data.json
-
-# Limit depth, split, and extract
-jp depth=1 split '$.summary' < data.json
-```
-
-**Available transforms:**
-- `split`: Split array into stream of values
-- `join`: Join stream of values into array
-- `depth=N`: Truncate output at depth N
-- `trace`: Log stream to stderr (debugging)
-
-**Note:** Multiple transforms in one `jp` call is more efficient than piping through multiple `jp` processes, as it avoids serialization overhead.
-
-### Streaming Behavior
-
-`jp` processes JSON as a **stream of tokens**, not as complete in-memory objects. This enables efficient processing of large files and infinite streams.
-
-**Streaming examples:**
-
-```bash
-# Get first 100 items from huge file and stop reading as soon as they are out
-jp '$.items[:100]' 10GB-file.json
-
-# Process infinite input (Ctrl+C to stop)
-yes '{"x": 1}' | jp | head -20
-
-# Start outputting immediately, no waiting
-cat huge.json | jp | less
-```
-
-**Memory-efficient operations:**
-- `$.items[*]`: Streams one item at a time (constant memory)
-- `$.items[:N]`: Emits the first N items immediately, then stops reading if the input is a single value, or skips to the next value if it is a stream (constant memory)
-- `$.items[-N:]`: Sliding window (N items in memory)
-- `split`: Converts array to stream (constant memory)
-- `join`: Wraps stream in brackets (no buffering)
-- Simple filters like `$[?@.price > 100]`: Process one item at a time
-
-**Operations that may use more memory:**
-- Strict mode (`-jsonpath-strict`) with descendant queries: buffers collections for RFC ordering
-- Complex filters with multiple paths or function calls: may need to buffer values
-- Queries with negative indices without lookahead optimization
-- Very deeply nested descendant queries (`$..`)
-
-For maximum memory efficiency, use default (non-strict) mode and prefer simple queries.
-
-### Strict Mode vs Default Mode
-
-By default, `jp` optimizes for streaming. Use `-jsonpath-strict` for exact RFC 9535 ordering.
-
-**Default mode (streaming-optimized):**
-- Results emitted in document order as encountered
-- Descendant queries (`$..`) process items immediately
-- Constant memory for most operations
-- Best for: large files, infinite streams, real-time data
-
-**Strict mode (`-jsonpath-strict`):**
-- Results emitted in RFC 9535 order
-- Descendant queries process level-by-level
-- May buffer collections
-- Best for: RFC compliance, reproducible ordering, small files
-
-**Example with `$..[*]` on `{"a": {"b": 1}, "c": 2}`:**
-- Default: `{"b": 1}, 1, 2` (document order)
-- Strict: `{"b": 1}, 2, 1` (per-level order)
-
-Use `-jsonpath-strict` when:
-- You need RFC 9535 compliance for interoperability
-- Output order matters for your use case
-- Processing small files where memory isn't a concern
-
-Use default (no `-jsonpath-strict`) when:
-- You want maximum streaming performance
-- Processing large files or infinite streams
-- Document order is acceptable
-
-## Input/Output Formats
-
-### Input Formats (`-in FORMAT`)
-
-| Format | Description | Example |
-|--------|-------------|---------|
-| `auto` (default) | Auto-detect format, see below | `jp data.json` |
-| `json` | A single JSON value | `jp -in json < data.json` |
-| `json-stream` (or `jsonl`, `ndjson`) | A sequence of JSON values, e.g. JSON Lines | `jp -in jsonl < log.jsonl` |
-| `jpv` | JSON Path-Value format | `jp -in jpv < data.jpv` |
-| `csv` | CSV records as JSON arrays | `jp -in csv < data.csv` |
-| `csvh` or `csv-with-header` | CSV with header row | `jp -in csvh < data.csv` |
-
-**Single value or stream?** The difference between `json` and `json-stream`
-only matters when a query is done with a value before having read it to the
-end, e.g. `$.items[:10]` after the 10th item. With a single value, `jp` stops
-reading there. With a stream, it skips to the next value, because the query
-must be applied to it too. In `auto` mode:
-
-- A single file argument named `*.json` is a single value; `*.jsonl` or
-  `*.ndjson` is a stream; several files are a stream.
-- Otherwise (stdin, other extensions), the first time a query is done with a
-  value early, `jp` skips ahead up to about 1MB. If the value ends by then,
-  the input is a stream; if not, it is one big value and `jp` stops reading.
-  Streams whose values exceed 1MB are therefore mistaken for a single value:
-  pass `-in json-stream` for those.
-
-Within a pipeline, the mode follows the data: a JSONPath query or `split`
-produces a stream, and `join` produces a single value, so `jp join '$[:10]'`
-stops after 10 values like `head` would.
-
-**CSV options:**
-- `-csv-header NAMES`: Specify field names for CSV (comma-separated)
-- CSV values: numbers, booleans (`true`/`false`), and `null` are parsed
-- Empty CSV fields become `null`
-
-### Output Formats (`-out FORMAT`)
-
-| Format | Description | Example |
-|--------|-------------|---------|
-| `json` (default) | Pretty-printed JSON | `jp < data.json` |
-| `jpv` | JSON Path-Value format | `jp -out jpv < data.json` |
-
-**JSON output options:**
-- `-json-lines` or `-json-compact`: Output JSON Lines (one value per line)
-- `-json-indent N`: Indentation level (default: 2)
-- `-json-compact-width N`: Max width for inline arrays/objects (default: 60)
-- `-color MODE`: Color output (`auto`, `always`, `never`)
-
-**Pretty-printing.** Arrays take one of three forms depending on what they
-hold and on `-json-compact-width`. Short arrays of scalars stay on one line.
-Long ones are *packed*: runs of scalars fill each line up to the width while
-nested arrays and objects get lines of their own, so a list of numbers reads
-like a table rather than a column, and a mixed array stays readable. With
-`-json-compact-width 0`, everything is expanded one item per line. Objects
-with a couple of short scalar members are kept on one line; others expand.
-
-```bash
-$ echo '{"scores":[95,87,92,78,88,91,85,90,79,83,94,88],"mixed":[1,2,3,{"k":"v"},4,5,6,[7,8],9]}' | jp -json-compact-width 20
+$ echo '{"scores": [95, 87, 92, 78, 88, 91, 85, 90, 79, 83, 94, 88],
+         "mixed": [1, 2, 3, {"k": "v"}, 4, 5, 6, [7, 8], 9]}' \
+    | jp -json-compact-width 20
 {
   "scores": [
     95, 87, 92, 78, 88,
@@ -686,65 +163,138 @@ $ echo '{"scores":[95,87,92,78,88,91,85,90,79,83,94,88],"mixed":[1,2,3,{"k":"v"}
 }
 ```
 
-**JPV output options:**
-- `-jpv-quote-keys`: Always quote keys in brackets
+- `-json-indent N`: indentation (default 2)
+- `-json-compact-width N`: width for packing (default 60)
+- `-json-lines` (or `-json-compact`): one value per line, JSON Lines
+- `-color auto|always|never`: colours, on by default when writing to a terminal
 
-## Command Reference
+## Input formats, files and streams
 
-`jp` has comprehensive built-in help:
+Input comes from file arguments, or from stdin when there are none:
 
 ```bash
-jp -h                    # Main help
-jp -help-input           # Detailed input format help
-jp -help-output          # Detailed output format help
-jp -help-transforms      # Transform help with examples
-jp -help-cookbook        # Unix-like usage patterns (head/tail/grep)
+jp '$.items[*]' data.json
+jp a.json b.json          # several files are read one after the other
+cat data.json | jp
 ```
 
-**Common flags:**
+The format is detected from the content; `-in FORMAT` overrides it.
+
+| `-in` | Input |
+|---|---|
+| `json` | One JSON value |
+| `json-stream` (or `jsonl`, `ndjson`) | A sequence of JSON values, such as JSON Lines |
+| `jpv` | JPV, as written by `-out jpv` |
+| `csv` | CSV, one array per record |
+| `csvh` (or `csv-with-header`) | CSV with a header row, one object per record |
+
+### JSON: one value or a stream
+
+The difference between `json` and `json-stream` only matters when a query is
+done with a value before reading it to the end, as `$.items[:10]` is after the
+tenth item. With one value, `jp` stops reading there, so a query on a 10 GB file
+can return in milliseconds. With a stream it must skip to the next value and
+query that too. When not told:
+
+- A single `.json` file argument is one value; `.jsonl` or `.ndjson` is a stream;
+  several files are a stream.
+- Otherwise `jp` works it out the first time a query finishes a value early:
+  it reads ahead up to about 1 MB, and if the value ends by then more may
+  follow, so it is a stream; if not, it is one big value and `jp` stops.
+
+The one case this gets wrong is a stream whose values exceed 1 MB; pass
+`-in json-stream` for those. Within a pipeline the mode follows the data: a
+query or `split` produces a stream, `join` produces one value.
+
 ```bash
--in FORMAT               # Input format: json, json-stream (jsonl), jpv, csv, csvh, auto (default: auto)
--out FORMAT              # Output format: json, jpv (default: json)
--json-lines              # Output JSON Lines format
--json-indent N           # Indentation level (default: 2)
--jsonpath-strict         # Strict RFC 9535 mode
--color MODE              # Color output: auto, always, never
+jp '$.items[:10]' huge.json                              # stops after the 10th item
+curl https://api.example.com/items | jp -in json '$.items[:10]'   # same, from a pipe
 ```
 
-**Example usage:**
+### CSV
+
+CSV input becomes a stream of JSON values, one per record. With a header row
+each record is an object; without one it is an array, or an object if
+`-csv-header name,age,...` supplies the names. Numbers, `true`, `false` and
+`null` are recognised; an empty field is `null`.
+
 ```bash
-jp [options] [transforms...] [files...]
+$ cat people.csv
+name,age,city,active
+Alice,30,Boston,true
+Bob,,Paris,false
 
-# Input from a file argument, or from stdin
-jp '$.users[*]' data.json
-jp '$.users[*]' < data.json
+$ jp -json-lines people.csv
+{"name": "Alice", "age": 30, "city": "Boston", "active": true}
+{"name": "Bob", "age": null, "city": "Paris", "active": false}
 
-# Multiple transforms
-jp '$.users[*]' split '$.email' < data.json
-
-# With options
-jp -json-lines -color never '$.items[*]' < data.json
+$ jp join '$[?@.age > 20].name' people.csv
+"Alice"
 ```
 
-## JSONPath Compliance
+There is no CSV output: results are JSON, JSON Lines or JPV.
 
-`jp` implements the full [RFC 9535](https://datatracker.ietf.org/doc/rfc9535/) JSONPath specification. The implementation passes all tests from the [official JSONPath compliance test suite](https://github.com/jsonpath-standard/jsonpath-compliance-test-suite) (as of 2025-11-23).
+## Transforms
 
-By default, `jp` optimizes for streaming performance while maintaining compliance with query semantics. Use `-jsonpath-strict` for exact RFC 9535 ordering requirements.
+Positional arguments are transforms, applied left to right to the stream of
+values. Chaining them in one `jp` call avoids re-parsing between steps.
 
-## The jsonstream Package
+| Transform | Effect |
+|---|---|
+| `'$...'` | A JSONPath query |
+| `split` | Turn each array into its items |
+| `join` | Collect the stream into one array |
+| `depth=N` | Truncate nesting below N, showing `...` |
+| `trace` | Log every token to stderr, for debugging |
 
-`jp` is built on the `jsonstream` Go package, which provides:
+```bash
+jp '$.users[*]' '$.address.city' data.json | sort | uniq -c   # chained queries
+jp -json-lines split array.json                                # array to JSON Lines
+jp '$..email' join data.json                                   # collect into an array
+jp depth=2 deep.json                                           # a quick look at the shape
+```
 
-- **Token-based streaming**: Process JSON without loading full documents
-- **JSONPath implementation**: Full RFC 9535 support
-- **Format encoders/decoders**: JSON, JPV, CSV
-- **Transform pipeline**: Composable stream transformations, with tokens
-  passed between stages in batches for throughput and flushed as soon as a
-  stage would otherwise wait, for latency
+## Live streams
 
-Decoding JSON, running a JSONPath query over it and pretty-printing the
-results, from Go:
+`jp` works on input that never ends. Each value is processed as soon as it
+arrives, and when the input pauses, whatever output is ready is flushed within
+100 ms, so results show up in `less` or the next command without waiting for
+more input.
+
+```bash
+tail -f app.log | jp join '$[?@.level == "error"]' '$.message'
+curl -N https://stream-api.example.com/events | jp
+yes '{"x": 1}' | jp join '$[:3]'      # like head: exits after three values
+```
+
+## Performance
+
+`jp` never holds more than a small window of the input in memory, so its memory
+use does not depend on the size of the file. On a 73 MB file with 500,000
+items (`go run ./bench gen 500000`), on an Apple M-series laptop, against `jq`
+1.7.1 and its faster reimplementations [`jaq`](https://github.com/01mf02/jaq)
+3.1 (Rust) and [`gojq`](https://github.com/itchyny/gojq) 0.12 (Go):
+
+| Workload | jp | jq | jaq | gojq |
+|---|---|---|---|---|
+| Pretty-print | **0.8s**, 12 MB | 4.6s, 860 MB | 1.6s, 1016 MB | 1.3s, 843 MB |
+| `$.items[*].name` | **0.8s**, 12 MB | 1.7s, 829 MB | 1.0s, 1016 MB | 1.3s, 618 MB |
+| `$.items[?@.price > 190]` | **0.8s**, 12 MB | 1.7s, 831 MB | 1.1s, 1016 MB | 1.1s, 676 MB |
+| `$.items[?match(@.email, "user1.*@example\\.com")]` | **0.8s**, 12 MB | 3.2s, 837 MB | 2.6s, 1016 MB | 1.4s, 720 MB |
+| `$.items[:10]` (file argument) | **< 0.01s**, 5 MB | 1.5s, 829 MB | 0.7s, 1016 MB | 0.8s, 586 MB |
+| JPV output | 0.7s, 12 MB | n/a | n/a | n/a |
+
+The `$.items[:10]` row is the early exit described above. Reproduce it all with
+`make bench`, which also redraws the chart; it uses whichever of `jq`, `jaq`
+and `gojq` are installed. One synthetic file on one machine, so treat the
+ratios as indicative. The memory difference is structural: the others load the
+whole document.
+
+## The Go library
+
+`jp` is a thin command over the `jsonstream` packages: a token-based streaming
+decoder and encoder for JSON, JPV and CSV, the JSONPath engine, and a pipeline
+that passes tokens between stages in batches.
 
 ```go
 import (
@@ -762,26 +312,26 @@ stream = token.TransformStream(stream, runner)
 err = token.ConsumeStream(stream, json.NewEncoder(os.Stdout))
 ```
 
-`json.NewEncoder` pretty-prints; see the `format` package to change the
-indentation, write JSON Lines, add colours or flush per line.
-
 See the [package documentation](https://pkg.go.dev/github.com/arnodel/jsonstream).
+The `format` package controls indentation, JSON Lines output, colours and
+flushing; the `iterator` package reads values out of a token stream without
+buffering them.
 
-## Development Status
+## Reference
 
-`jp` is in active development. The core features are functional and the JSONPath implementation is complete, but I work on it in my spare time so progress is incremental.
+The built-in help is the complete reference:
 
-**Current status:**
-- ✅ Full RFC 9535 JSONPath implementation
-- ✅ Streaming architecture (constant memory, output flushed as soon as it is ready)
-- ✅ Faster than `jq`, `jaq` and `gojq` on every workload we measure, with a fraction of the memory
-- ✅ JSON, JSON Lines, CSV, and JPV formats
-- ✅ Unix-like operations (head/tail/grep patterns)
-- ✅ Transform chaining
-- ⏳ Additional transforms and features planned
+```bash
+jp -h                 # options and transforms
+jp -help-input        # input formats, file arguments, one value or a stream
+jp -help-output       # output formats and pretty-printing options
+jp -help-transforms   # transforms, with examples
+jp -help-cookbook     # head, tail and grep patterns
+```
 
-Feedback and contributions welcome! Please [open an issue](https://github.com/arnodel/jsonstream/issues) if you find bugs or have feature requests.
+`jp` is a spare-time project in active development. The JSONPath
+implementation is complete; the pipeline, formats and pretty-printer are
+stable; more transforms are planned. Bug reports and ideas are welcome in the
+[issues](https://github.com/arnodel/jsonstream/issues).
 
-## License
-
-See [LICENSE](LICENSE) file for details.
+Licensed under the Apache License 2.0, see [LICENSE](LICENSE).
