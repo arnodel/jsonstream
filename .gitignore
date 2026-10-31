@@ -1,0 +1,14 @@
+# Build artefacts
+/jp
+/dist/
+coverage.out
+coverage.txt
+
+# Editor and OS files
+.DS_Store
+.vscode/
+*.code-workspace
+
+# Local Go workspace files
+go.work
+go.work.*
