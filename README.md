@@ -17,7 +17,7 @@ jp -out jpv < data.json | grep -v password | sed 's/test/prod/' | jp
 
 `jp` is a command-line JSON processor designed for **Unix pipelines**. It processes JSON as a **stream** with **immediate output**, making it ideal for large files, infinite streams, and real-time data processing.
 
-Unlike tools that load entire files into memory, `jp` starts outputting results immediately and works seamlessly with other Unix tools like `less`, `grep`, `head`, and `tail`. Many operations use constant memory, especially in default streaming mode.
+Unlike tools that load entire files into memory, `jp` starts outputting results immediately and works seamlessly with other Unix tools like `less`, `grep`, `head`, and `tail`. It runs in about 10 MB of memory whatever the size of the input, and it is faster than `jq`, and than the `jaq` and `gojq` reimplementations on most workloads (see [Performance](#performance)).
 
 ## Why jp?
 
@@ -25,8 +25,9 @@ Unlike tools that load entire files into memory, `jp` starts outputting results 
 
 `jp` follows the Unix philosophy: do one thing well and compose with other tools.
 
-- **Immediate output**: Start seeing results right away, don't wait for the full file
-- **Memory-efficient streaming**: Many operations use constant memory, especially simple queries and transforms
+- **Immediate output**: Start seeing results right away, don't wait for the full file. When the input pauses, whatever is ready is flushed within 100ms, so `tail -f log | jp | less` shows each line as it arrives
+- **Constant memory**: About 10 MB whatever the input size; `jq`, `jaq` and `gojq` need roughly ten times the size of the file
+- **Fast**: Faster than `jq` on every workload we measure, and than `jaq` and `gojq` on most
 - **Streaming architecture**: Perfect for `| less`, `| head`, `| grep` and other pipelines
 - **Composable**: Chain multiple transforms in a single `jp` call, or mix with standard Unix tools
 
@@ -39,6 +40,7 @@ Unlike tools that load entire files into memory, `jp` starts outputting results 
 
 ## Table of Contents
 
+- [Performance](#performance)
 - [Installation](#installation)
 - [Quick Start](#quick-start)
 - [Key Features](#key-features)
@@ -51,6 +53,33 @@ Unlike tools that load entire files into memory, `jp` starts outputting results 
 - [JSONPath Compliance](#jsonpath-compliance)
 - [The jsonstream Package](#the-jsonstream-package)
 - [Development Status](#development-status)
+
+## Performance
+
+`jp` never holds more than a small window of the input in memory, so its memory
+use does not depend on the size of the file. On a 73 MB file with 500,000
+items (`go run ./bench gen 500000`), on an Apple M-series laptop, against `jq`
+1.7.1 and its faster reimplementations [`jaq`](https://github.com/01mf02/jaq)
+3.1 (Rust) and [`gojq`](https://github.com/itchyny/gojq) 0.12 (Go):
+
+| Workload | jp | jq | jaq | gojq |
+|---|---|---|---|---|
+| Pretty-print | **0.8s**, 12 MB | 4.5s, 860 MB | 1.5s, 1015 MB | 1.2s, 837 MB |
+| `$.items[*].name` | **0.8s**, 12 MB | 1.7s, 829 MB | 1.0s, 1015 MB | 1.3s, 617 MB |
+| `$.items[?@.price > 190]` | 1.2s, 13 MB | 1.7s, 830 MB | **1.0s**, 1015 MB | **1.0s**, 668 MB |
+| `$.items[:10]` (file argument) | **< 0.01s**, 5 MB | 1.4s, 829 MB | 0.7s, 1015 MB | 0.8s, 585 MB |
+| JPV output | 0.8s, 12 MB | n/a | n/a | n/a |
+
+The `$.items[:10]` row is not a measurement error: when `jp` knows the input is a single
+document, it stops reading as soon as the query cannot produce more results
+(see [Streaming Behavior](#streaming-behavior)). The filter row is where the
+others catch up: there the time goes into evaluating the condition on each
+item rather than into decoding.
+
+Reproduce it with `make bench`, or `go run ./bench gen 500000 > big.json && go run ./bench run big.json`;
+it uses whichever of `jq`, `jaq` and `gojq` are installed. This is one synthetic
+file and one machine, so treat the ratios as indicative. The memory difference
+is structural: the others load the whole document.
 
 ## Installation
 
@@ -257,7 +286,9 @@ jp '$.transactions[?@.amount > 1000].id' < huge-file.json | less
 Log files are usually JSON Lines: one object per line. A JSONPath filter selects
 from the *children* of a value, never the value itself, so to filter the lines
 themselves, first wrap the stream in an array with `join`, then filter its items.
-This streams: each line is tested and emitted as it arrives.
+This streams: each line is tested and emitted as it arrives, and when the input
+pauses `jp` flushes its output within 100ms, so results show up in `less` or the
+next command in the pipe without waiting for more input.
 
 ```bash
 # Watch a JSON Lines log in real-time
@@ -680,9 +711,26 @@ By default, `jp` optimizes for streaming performance while maintaining complianc
 - **Token-based streaming**: Process JSON without loading full documents
 - **JSONPath implementation**: Full RFC 9535 support
 - **Format encoders/decoders**: JSON, JPV, CSV
-- **Transform pipeline**: Composable stream transformations
+- **Transform pipeline**: Composable stream transformations, with tokens
+  passed between stages in batches for throughput and flushed as soon as a
+  stage would otherwise wait, for latency
 
-If you're building Go applications that need streaming JSON processing, check out the [package documentation](https://pkg.go.dev/github.com/arnodel/jsonstream).
+Running a JSONPath query over a stream of JSON from Go:
+
+```go
+runner, err := jsonpath.CompileQueryString("$.users[?@.age > 30].name")
+if err != nil {
+    return err
+}
+stream := token.StartStream(json.NewDecoder(input), nil) // encoding/json from this module
+stream = token.TransformStream(stream, runner)
+r := stream.Reader()
+for tok := r.Next(); tok != nil; tok = r.Next() {
+    fmt.Println(tok)
+}
+```
+
+See the [package documentation](https://pkg.go.dev/github.com/arnodel/jsonstream).
 
 ## Development Status
 
@@ -690,7 +738,8 @@ If you're building Go applications that need streaming JSON processing, check ou
 
 **Current status:**
 - ✅ Full RFC 9535 JSONPath implementation
-- ✅ Streaming architecture (many operations use constant memory)
+- ✅ Streaming architecture (constant memory, output flushed as soon as it is ready)
+- ✅ Faster than `jq`, `jaq` and `gojq` on most workloads, with a fraction of the memory
 - ✅ JSON, JSON Lines, CSV, and JPV formats
 - ✅ Unix-like operations (head/tail/grep patterns)
 - ✅ Transform chaining
