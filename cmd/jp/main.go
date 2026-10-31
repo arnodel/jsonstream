@@ -19,7 +19,6 @@ import (
 	"github.com/arnodel/jsonstream/encoding/jpv"
 	"github.com/arnodel/jsonstream/encoding/json"
 	"github.com/arnodel/jsonstream/internal/format"
-	"github.com/arnodel/jsonstream/internal/jsonpath"
 	"github.com/arnodel/jsonstream/iterator"
 	"github.com/arnodel/jsonstream/token"
 	"github.com/arnodel/jsonstream/transform"
@@ -281,11 +280,7 @@ func parseTransformer(arg string) (token.StreamTransformer, error) {
 		return &transform.MaxDepthFilter{MaxDepth: int(depth)}, nil
 	}
 	if strings.HasPrefix(arg, "$") {
-		query, err := jsonpath.ParseQueryString(arg)
-		if err != nil {
-			return nil, err
-		}
-		return jsonpathtransformer.CompileQuery(query, jsonpathtransformer.WithStrictMode(strictMode))
+		return jsonpathtransformer.CompileQueryString(arg, jsonpathtransformer.WithStrictMode(strictMode))
 	}
 	return nil, errors.New("invalid transform")
 }
