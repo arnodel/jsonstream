@@ -1,10 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="866" height="560" viewBox="0 0 866 560" font-family='system-ui, -apple-system, "Segoe UI", sans-serif' font-size="12">
-<title>Benchmark: jp against jq, jaq, gojq on a bench.json file</title>
+<title>Benchmark: pj against jq, jaq, gojq on a bench.json file</title>
 <rect width="100%" height="100%" fill="#fcfcfb"/>
 <text x="20" y="28" fill="#0b0b0b" font-size="15" font-weight="600">Time and peak memory by workload, lower is better</text>
 <text x="20" y="48" fill="#52514e">bench.json, output to /dev/null, one run each</text>
 <rect x="20" y="62" width="10" height="10" rx="2" fill="#2a78d6"/>
-<text x="35" y="71" fill="#0b0b0b">jp</text>
+<text x="35" y="71" fill="#0b0b0b">pj</text>
 <rect x="72" y="62" width="10" height="10" rx="2" fill="#eb6834"/>
 <text x="87" y="71" fill="#0b0b0b">jq</text>
 <rect x="124" y="62" width="10" height="10" rx="2" fill="#1baf7a"/>

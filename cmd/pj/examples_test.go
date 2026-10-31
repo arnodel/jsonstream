@@ -13,8 +13,8 @@ import (
 	"time"
 )
 
-// runJP executes the jp program using 'go run' with the given args and input
-func runJP(t *testing.T, input string, args ...string) (stdout, stderr string, exitCode int) {
+// runPJ executes the pj program using 'go run' with the given args and input
+func runPJ(t *testing.T, input string, args ...string) (stdout, stderr string, exitCode int) {
 	t.Helper()
 
 	// Build the command: go run . [args...]
@@ -34,7 +34,7 @@ func runJP(t *testing.T, input string, args ...string) (stdout, stderr string, e
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			exitCode = exitErr.ExitCode()
 		} else {
-			t.Fatalf("failed to run jp: %v", err)
+			t.Fatalf("failed to run pj: %v", err)
 		}
 	}
 
@@ -65,7 +65,7 @@ func TestMainHelp_Examples(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			stdout, stderr, exitCode := runJP(t, tt.input, tt.args...)
+			stdout, stderr, exitCode := runPJ(t, tt.input, tt.args...)
 			if exitCode != 0 {
 				t.Fatalf("unexpected exit code %d, stderr: %s", exitCode, stderr)
 			}
@@ -112,7 +112,7 @@ func TestInputHelp_Examples(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			stdout, stderr, exitCode := runJP(t, tt.input, tt.args...)
+			stdout, stderr, exitCode := runPJ(t, tt.input, tt.args...)
 			if exitCode != 0 {
 				t.Fatalf("unexpected exit code %d, stderr: %s", exitCode, stderr)
 			}
@@ -195,7 +195,7 @@ func TestTransformHelp_Examples(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			stdout, stderr, exitCode := runJP(t, tt.input, tt.args...)
+			stdout, stderr, exitCode := runPJ(t, tt.input, tt.args...)
 			if exitCode != 0 {
 				t.Fatalf("unexpected exit code %d, stderr: %s", exitCode, stderr)
 			}
@@ -236,7 +236,7 @@ func TestTransformHelp_CombiningExamples(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			stdout, stderr, exitCode := runJP(t, tt.input, tt.args...)
+			stdout, stderr, exitCode := runPJ(t, tt.input, tt.args...)
 			if exitCode != 0 {
 				t.Fatalf("unexpected exit code %d, stderr: %s", exitCode, stderr)
 			}
@@ -283,7 +283,7 @@ func TestTransformHelp_CookbookExamples(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			stdout, stderr, exitCode := runJP(t, tt.input, tt.args...)
+			stdout, stderr, exitCode := runPJ(t, tt.input, tt.args...)
 			if exitCode != 0 {
 				t.Fatalf("unexpected exit code %d, stderr: %s", exitCode, stderr)
 			}
@@ -318,7 +318,7 @@ func TestOutputHelp_Examples(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			stdout, stderr, exitCode := runJP(t, tt.input, tt.args...)
+			stdout, stderr, exitCode := runPJ(t, tt.input, tt.args...)
 			if exitCode != 0 {
 				t.Fatalf("unexpected exit code %d, stderr: %s", exitCode, stderr)
 			}
@@ -359,7 +359,7 @@ func TestCSVConversions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			stdout, stderr, exitCode := runJP(t, tt.input, tt.args...)
+			stdout, stderr, exitCode := runPJ(t, tt.input, tt.args...)
 			if exitCode != 0 {
 				t.Fatalf("unexpected exit code %d, stderr: %s", exitCode, stderr)
 			}
@@ -394,7 +394,7 @@ func TestDeprecatedSyntax(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			stdout, stderr, exitCode := runJP(t, tt.input, tt.args...)
+			stdout, stderr, exitCode := runPJ(t, tt.input, tt.args...)
 			if exitCode == 0 {
 				t.Fatalf("expected non-zero exit code, got 0")
 			}
@@ -486,7 +486,7 @@ func TestCookbookHelp_Examples(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			stdout, stderr, exitCode := runJP(t, tt.input, tt.args...)
+			stdout, stderr, exitCode := runPJ(t, tt.input, tt.args...)
 			if exitCode != 0 {
 				t.Fatalf("unexpected exit code %d, stderr: %s", exitCode, stderr)
 			}
@@ -533,7 +533,7 @@ func TestMainUsage_Examples(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			stdout, stderr, exitCode := runJP(t, tt.input, tt.args...)
+			stdout, stderr, exitCode := runPJ(t, tt.input, tt.args...)
 			if exitCode != 0 {
 				t.Fatalf("unexpected exit code %d, stderr: %s", exitCode, stderr)
 			}
@@ -568,7 +568,7 @@ func TestJSONLinesFlag(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			stdout, stderr, exitCode := runJP(t, tt.input, tt.args...)
+			stdout, stderr, exitCode := runPJ(t, tt.input, tt.args...)
 			if exitCode != 0 {
 				t.Fatalf("unexpected exit code %d, stderr: %s", exitCode, stderr)
 			}
@@ -583,7 +583,7 @@ func TestJSONLinesFlag(t *testing.T) {
 // a filter selects children, so the stream must be wrapped with join first.
 func TestReadme_LogFiltering(t *testing.T) {
 	input := "{\"level\":\"error\",\"message\":\"boom\"}\n{\"level\":\"info\",\"message\":\"ok\"}\n"
-	stdout, stderr, exitCode := runJP(t, input, "-json-compact", "join", `$[?@.level == "error"]`, "$.message")
+	stdout, stderr, exitCode := runPJ(t, input, "-json-compact", "join", `$[?@.level == "error"]`, "$.message")
 	if exitCode != 0 {
 		t.Fatalf("exit code %d, stderr: %s", exitCode, stderr)
 	}
@@ -636,7 +636,7 @@ func TestAutoDetect_Formats(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			stdout, stderr, exitCode := runJP(t, tt.input, tt.args...)
+			stdout, stderr, exitCode := runPJ(t, tt.input, tt.args...)
 			if exitCode != 0 {
 				t.Fatalf("exit code %d, stderr: %s", exitCode, stderr)
 			}
@@ -680,7 +680,7 @@ func TestInputMode_StopsReading(t *testing.T) {
 			cmd.Stdout = &outBuf
 			cmd.Stderr = &errBuf
 			if err := cmd.Run(); err != nil {
-				t.Fatalf("jp did not exit cleanly: %v (stderr: %s)", err, errBuf.String())
+				t.Fatalf("pj did not exit cleanly: %v (stderr: %s)", err, errBuf.String())
 			}
 			if want := "1\n1\n1\n"; outBuf.String() != want {
 				t.Errorf("got %q, want %q", outBuf.String(), want)
@@ -694,7 +694,7 @@ func TestInputMode_StopsReading(t *testing.T) {
 // with each value as soon as it finds the key, so it is where the modes differ.
 func TestInputMode_Streams(t *testing.T) {
 	const jsonLines = "{\"a\": 1, \"b\": 0}\n{\"a\": 2, \"b\": 0}\n"
-	// The shape of jp's own pretty-printed output: not JSON Lines.
+	// The shape of pj's own pretty-printed output: not JSON Lines.
 	const prettyStream = "{\n  \"a\": 1,\n  \"b\": 0\n}\n{\n  \"a\": 2,\n  \"b\": 0\n}\n"
 	tests := []struct {
 		name  string
@@ -713,7 +713,7 @@ func TestInputMode_Streams(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			stdout, stderr, exitCode := runJP(t, tt.input, tt.args...)
+			stdout, stderr, exitCode := runPJ(t, tt.input, tt.args...)
 			if exitCode != 0 {
 				t.Fatalf("exit code %d, stderr: %s", exitCode, stderr)
 			}
@@ -757,7 +757,7 @@ func TestInputFiles(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			stdout, stderr, exitCode := runJP(t, "", tt.args...)
+			stdout, stderr, exitCode := runPJ(t, "", tt.args...)
 			if exitCode != 0 {
 				t.Fatalf("exit code %d, stderr: %s", exitCode, stderr)
 			}
@@ -767,7 +767,7 @@ func TestInputFiles(t *testing.T) {
 		})
 	}
 
-	stdout, stderr, exitCode := runJP(t, "", "$.a", filepath.Join(dir, "missing.json"))
+	stdout, stderr, exitCode := runPJ(t, "", "$.a", filepath.Join(dir, "missing.json"))
 	if exitCode == 0 || !strings.Contains(stderr, "missing.json") {
 		t.Errorf("missing file: exit %d, stdout %q, stderr %q", exitCode, stdout, stderr)
 	}
@@ -836,6 +836,6 @@ func TestOutputFlushedWhenInputStalls(t *testing.T) {
 		t.Errorf("second line: got %q (ok=%v), want %q", line, ok, "2")
 	}
 	if err := cmd.Wait(); err != nil {
-		t.Fatalf("jp failed: %v (stderr: %s)", err, errBuf.String())
+		t.Fatalf("pj failed: %v (stderr: %s)", err, errBuf.String())
 	}
 }

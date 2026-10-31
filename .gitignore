@@ -1,5 +1,5 @@
 # Build artefacts
-/jp
+/pj
 /dist/
 coverage.out
 coverage.txt

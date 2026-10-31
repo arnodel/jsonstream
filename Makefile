@@ -1,11 +1,11 @@
 install:
-	go install ./cmd/jp
+	go install ./cmd/pj
 
 run:
-	go run ./cmd/jp
+	go run ./cmd/pj
 
 debug:
-	go run -tags debug ./cmd/jp
+	go run -tags debug ./cmd/pj
 
 test:
 	go test ./...
@@ -20,8 +20,8 @@ fuzz:
 	go test -run=^$$ -fuzz=FuzzQuery -fuzztime=$(FUZZTIME) ./transform/jsonpath
 
 bench:
-	go run ./bench gen 500000 > /tmp/jp-bench.json
-	go run ./bench run /tmp/jp-bench.json -svg docs/benchmark.svg
+	go run ./bench gen 500000 > /tmp/pj-bench.json
+	go run ./bench run /tmp/pj-bench.json -svg docs/benchmark.svg
 
 update-jsonpath-cts:
 	curl https://raw.githubusercontent.com/jsonpath-standard/jsonpath-compliance-test-suite/main/cts.json -o transform/jsonpath/cts.json

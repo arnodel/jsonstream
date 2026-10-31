@@ -26,11 +26,11 @@ package jsonstream
 //   available immediately without waiting for the entire file to be processed
 // - Process arbitrarily large or infinite JSON streams
 //
-// This package was designed for the jp CLI utility that processes JSON input.
+// This package was designed for the pj CLI utility that processes JSON input.
 // There is no facility for marshaling or unmarshaling Go structures, unlike
 // the standard library encoding/json package.
 //
-// The CLI utility is in the directory cmd/jp. You can install it with:
+// The CLI utility is in the directory cmd/pj. You can install it with:
 //
-//  go install github.com/arnodel/jsonstream/cmd/jp
+//  go install github.com/arnodel/jsonstream/cmd/pj
 //
