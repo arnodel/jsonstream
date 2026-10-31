@@ -155,7 +155,9 @@ func main() {
 		start = start[:n]
 		inputFormat = guessFormat(start)
 		if inputFormat == "" {
-			fatalError("unable to guess input format, please specify -in FORMAT")
+			// Nothing matched (e.g. a top-level scalar such as 42 or "hello"),
+			// fall back to JSON and let the decoder report any syntax error.
+			inputFormat = "json"
 		}
 		input = io.MultiReader(bytes.NewReader(start[:n]), input)
 	}
@@ -303,7 +305,7 @@ func formatGuesser(format string, pattern string) FormatGuesser {
 }
 
 var formatGuessers = []FormatGuesser{
-	formatGuesser("jpv", `^$`),
+	formatGuesser("jpv", `^\$`),
 	formatGuesser("json", `^[{[]`),
 	formatGuesser("csv-with-header", `^[a-zA-Z][a-zA-Z_0-9-]*(,[a-zA-Z][a-zA-Z_0-9-]*)+(\n|,?$)`),
 	formatGuesser("csv", `^([^,"\n]*|("[^"]*"))(,[^,"\n]*|,("[^"]*"))+(\n|,?$)`),
