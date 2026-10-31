@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	jpjson "github.com/arnodel/jsonstream/encoding/json"
-	"github.com/arnodel/jsonstream/internal/format"
+	"github.com/arnodel/jsonstream/format"
 	"github.com/arnodel/jsonstream/iterator"
 	"github.com/arnodel/jsonstream/token"
 	jsonpathtransformer "github.com/arnodel/jsonstream/transform/jsonpath"

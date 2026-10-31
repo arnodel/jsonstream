@@ -7,6 +7,7 @@ package jsonstream
 // - encoding/json: JSON decoder and encoder
 // - encoding/csv: CSV decoder
 // - encoding/jpv: JPV (JSON Path-Value) decoder and encoder
+// - format: Printer and Colorizer, the output side used by the encoders
 // - transform: Built-in stream transformers
 // - transform/jsonpath: JSONPath query execution
 // - token: Core token-based streaming infrastructure

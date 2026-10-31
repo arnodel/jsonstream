@@ -717,20 +717,27 @@ By default, `jp` optimizes for streaming performance while maintaining complianc
   passed between stages in batches for throughput and flushed as soon as a
   stage would otherwise wait, for latency
 
-Running a JSONPath query over a stream of JSON from Go:
+Decoding JSON, running a JSONPath query over it and pretty-printing the
+results, from Go:
 
 ```go
-runner, err := jsonpath.CompileQueryString("$.users[?@.age > 30].name")
+import (
+    "github.com/arnodel/jsonstream/encoding/json" // not the standard library one
+    "github.com/arnodel/jsonstream/token"
+    "github.com/arnodel/jsonstream/transform/jsonpath"
+)
+
+runner, err := jsonpath.CompileQueryString("$.users[?@.age > 30]")
 if err != nil {
     return err
 }
-stream := token.StartStream(json.NewDecoder(input), nil) // encoding/json from this module
+stream := token.StartStream(json.NewDecoder(input), nil)
 stream = token.TransformStream(stream, runner)
-r := stream.Reader()
-for tok := r.Next(); tok != nil; tok = r.Next() {
-    fmt.Println(tok)
-}
+err = token.ConsumeStream(stream, json.NewEncoder(os.Stdout))
 ```
+
+`json.NewEncoder` pretty-prints; see the `format` package to change the
+indentation, write JSON Lines, add colours or flush per line.
 
 See the [package documentation](https://pkg.go.dev/github.com/arnodel/jsonstream).
 

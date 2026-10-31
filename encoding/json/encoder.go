@@ -2,22 +2,46 @@ package json
 
 import (
 	"fmt"
+	"io"
 
-	"github.com/arnodel/jsonstream/internal/format"
+	"github.com/arnodel/jsonstream/format"
 	"github.com/arnodel/jsonstream/iterator"
 	"github.com/arnodel/jsonstream/token"
 )
 
-// An Encoder can output a stream encoding a (stream of) JSON values
-// using the given Printer instance for formatting.
+// An Encoder writes a stream of JSON values as JSON text, pretty-printed,
+// through a format.Printer.  NewEncoder sets one up with the defaults used by
+// jp; the fields can be adjusted before Consume is called.
 type Encoder struct {
+	// Printer receives the output.  A *format.DefaultPrinter with IndentSize
+	// -1 writes each value on a single line (JSON Lines).
 	format.Printer
+
+	// Colorizer, if not nil, wraps scalars and keys in ANSI colour codes.
 	*format.Colorizer
-	CompactWidthLimit     int
+
+	// CompactWidthLimit is the width up to which an array of scalars is kept
+	// on one line; 0 puts every item on its own line.
+	CompactWidthLimit int
+
+	// CompactObjectMaxItems is the number of scalar members up to which an
+	// object is kept on one line (within CompactWidthLimit); 0 puts every
+	// member on its own line.
 	CompactObjectMaxItems int
 }
 
 var _ token.StreamSink = &Encoder{}
+
+// NewEncoder returns an Encoder writing pretty-printed JSON to w: two spaces
+// of indentation, with small arrays and objects kept on one line.  For JSON
+// Lines output, set Printer to a format.DefaultPrinter with IndentSize -1.
+func NewEncoder(w io.Writer) *Encoder {
+	return &Encoder{
+		Printer:               &format.DefaultPrinter{Writer: w, IndentSize: 2},
+		CompactWidthLimit:     60,
+		CompactObjectMaxItems: 2,
+	}
+}
 
 // Consume formats the JSON stream read from in using the
 // instance's Printer.  It assumes that the stream is well-formed, i.e.
