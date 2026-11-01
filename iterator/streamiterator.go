@@ -229,7 +229,7 @@ func (c *collectionBase) Copy(w token.WriteStream) {
 		item := c.stream.Next()
 		if item == nil {
 			c.finish()
-			return
+			panic(fmt.Errorf("%w: copying a collection", token.ErrTruncated))
 		}
 		switch item.(type) {
 		case *token.StartArray, *token.StartObject:
@@ -313,7 +313,7 @@ func (o *Object) Advance() bool {
 	}
 	item := o.stream.Next()
 	if item == nil {
-		panic("stream ended inside object - expected key")
+		panic(fmt.Errorf("%w: expected an object key", token.ErrTruncated))
 	}
 	switch v := item.(type) {
 	case *token.Scalar:
@@ -321,7 +321,7 @@ func (o *Object) Advance() bool {
 		o.currentKey = v
 		item := o.stream.Next()
 		if item == nil {
-			panic("stream ended inside obejct - expected value")
+			panic(fmt.Errorf("%w: expected an object value", token.ErrTruncated))
 		}
 		o.currentValue = nextStreamedValue(item, o.stream)
 		return true
@@ -437,7 +437,7 @@ func (a *Array) Advance() bool {
 	}
 	item := a.stream.Next()
 	if item == nil {
-		panic("stream ended inside array")
+		panic(fmt.Errorf("%w: expected an array item", token.ErrTruncated))
 	}
 	switch item.(type) {
 	case *token.EndArray:
