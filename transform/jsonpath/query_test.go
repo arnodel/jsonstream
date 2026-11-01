@@ -81,6 +81,20 @@ func TestSimpleQueries(t *testing.T) {
 			query:  `$`,
 			output: `[1, 2]`,
 		},
+		// A reversed slice keeps the items it selects to emit them in
+		// reverse, so they must be cloned even when nothing else selects them.
+		{
+			name:   "reversed slice of collections",
+			input:  `[[1], {"a": 2}, [3, [4]]]`,
+			query:  `$[::-1]`,
+			output: `[3, [4]] {"a": 2} [1]`,
+		},
+		{
+			name:   "reversed slice then index",
+			input:  `[[1], {"a": 2}, [3, [4]]]`,
+			query:  `$[::-1][0]`,
+			output: `3 1`,
+		},
 		// Index queries
 		{
 			name:   "index",

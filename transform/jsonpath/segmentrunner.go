@@ -386,7 +386,13 @@ func (d *itemDispatcher) dispatchItem(ctx *RunContext, value iterator.Value, dec
 
 	// Process the value if selected
 	if selectedCount > 0 {
-		d.shouldClone = selectedCount > 1 || !d.selectorStates[0].selected
+		// The value can be handed on without cloning only if it goes
+		// straight to d.next, i.e. it is selected once, by the first live
+		// selector, and that selector does not keep its items to emit them
+		// in reverse.  Anything kept as pending outlives the iteration over
+		// the collection and so needs its own cursor.
+		first := &d.selectorStates[0]
+		d.shouldClone = selectedCount > 1 || !first.selected || first.reversesSelection
 		if followingSegment == nil {
 			result = d.ProcessValue(ctx, value)
 		} else {
