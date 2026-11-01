@@ -233,10 +233,16 @@ func main() {
 		fatalError("invalid input format: %q (use json, json-stream, jpv, csv or csv-with-header)", inputFormat)
 	}
 
-	// Start parsing the input file
+	// Start parsing the input file.  A parse error is reported as soon as it
+	// happens; the input stream then ends, possibly in the middle of a value,
+	// and the output gets as far as the input did.  parseErr is safe to read
+	// once the output is written, since the source sets it before closing
+	// the stream.
+	var parseErr error
 	stream := token.StartStream(
 		decoder,
 		func(err error) {
+			parseErr = err
 			fmt.Fprintf(os.Stderr, "pj: error while parsing: %s\n", err)
 		},
 	)
@@ -306,15 +312,29 @@ func main() {
 			panic(&format.PrinterError{Err: err})
 		}
 	}
-	err := encoder.Consume(reader)
+	err := consume(encoder, reader)
 	if err != nil {
 		if errors.Is(err, syscall.EPIPE) {
 			// stdout is a pipe and something closed it (e.g. 'head' or 'less').
 			// In this case we don't want to complain.
 			return
 		}
-		fatalError("%s", err)
+		if !errors.Is(err, token.ErrTruncated) || parseErr == nil {
+			fatalError("%s", err)
+		}
 	}
+	if parseErr != nil {
+		// Already reported; write out what came before it and fail.
+		out.Flush()
+		os.Exit(1)
+	}
+}
+
+// consume feeds in to sink, turning a truncated input (which happens after a
+// parse error) into an error rather than a panic.
+func consume(sink token.StreamSink, in token.ReadStream) (err error) {
+	defer token.CatchTruncated(&err)
+	return sink.Consume(in)
 }
 
 // isTransformArg tells whether a positional argument is a transform (as
