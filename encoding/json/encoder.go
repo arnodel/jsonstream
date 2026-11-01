@@ -46,6 +46,12 @@ type Encoder struct {
 	// whose members are all scalars, and fit in CompactWidthLimit, is kept
 	// on one line.  0 expands every object.
 	CompactObjectMaxItems int
+
+	// RawStrings writes top-level string values as their contents, without
+	// quotes or escapes, like jq -r.  Strings inside arrays and objects, and
+	// values of other types, are written as JSON.  The output is then no
+	// longer JSON: a string containing a newline spans several lines.
+	RawStrings bool
 }
 
 var _ token.StreamSink = &Encoder{}
@@ -72,10 +78,23 @@ func (sw *Encoder) Consume(in token.ReadStream) (err error) {
 	defer format.CatchPrinterError(&err)
 	iterator := iterator.New(in)
 	for iterator.Advance() {
-		sw.writeValue(iterator.CurrentValue())
+		value := iterator.CurrentValue()
+		if s, ok := value.AsScalar(); ok && sw.RawStrings && s.Type() == token.String {
+			sw.PrintBytes(rawStringBytes(s))
+		} else {
+			sw.writeValue(value)
+		}
 		sw.Printer.Reset()
 	}
 	return nil
+}
+
+// rawStringBytes returns the contents of a string scalar, unescaped.
+func rawStringBytes(s *token.Scalar) []byte {
+	if s.IsUnescaped() {
+		return s.Bytes[1 : len(s.Bytes)-1]
+	}
+	return []byte(s.ToString())
 }
 
 func (sw *Encoder) writeValue(value iterator.Value) {

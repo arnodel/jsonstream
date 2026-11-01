@@ -115,7 +115,12 @@ pj '$.logs[?@.level == "error"]' app.json
 
 Results are written one after the other as separate JSON values; add
 `-json-lines` for one per line, or the `join` transform to collect them into
-an array.
+an array. Add `-raw` (or `-r`, as in `jq`) to write string results as plain
+text, for other tools:
+
+```bash
+pj -raw '$.users[*].name' users.json | sort | uniq -c
+```
 
 A filter selects from the *children* of a value, never the value itself. To
 filter a stream of top-level values, such as JSON Lines or CSV records, wrap
@@ -166,6 +171,7 @@ $ echo '{"scores": [95, 87, 92, 78, 88, 91, 85, 90, 79, 83, 94, 88],
 - `-json-indent N`: indentation (default 2)
 - `-json-compact-width N`: width for packing (default 60)
 - `-json-lines` (or `-json-compact`): one value per line, JSON Lines
+- `-raw` (or `-r`): strings as plain text without quotes, like `jq -r`
 - `-color auto|always|never`: colours, on by default when writing to a terminal
 
 ## Input formats, files and streams
