@@ -51,6 +51,7 @@ func main() {
 	// Parse the command line arguments
 	var jsonIndent int
 	var jsonCompact bool
+	var rawStrings bool
 	var jsonCompactWidth int
 	var outputFormat string
 	var inputFormat string
@@ -80,6 +81,8 @@ func main() {
 	flag.IntVar(&jsonIndent, "json-indent", 2, "JSON indentation level (only used when -json-compact is false)")
 	flag.BoolVar(&jsonCompact, "json-compact", false, "output JSON on a single line (JSON Lines format)")
 	flag.BoolVar(&jsonCompact, "json-lines", false, "output in JSON Lines format (alias for -json-compact)")
+	flag.BoolVar(&rawStrings, "raw", false, "write top-level strings without quotes or escapes")
+	flag.BoolVar(&rawStrings, "r", false, "alias for -raw")
 	flag.IntVar(&jsonCompactWidth, "json-compact-width", 60, "max width for compact JSON arrays/objects")
 	flag.BoolVar(&jpvQuoteKeys, "jpv-quote-keys", false, "always quote keys in JPV output")
 	flag.StringVar(&colorMode, "color", "auto", "colorize output: auto, always, never")
@@ -234,7 +237,7 @@ func main() {
 	stream := token.StartStream(
 		decoder,
 		func(err error) {
-			fmt.Fprintf(os.Stderr, "error while parsing: %s", err)
+			fmt.Fprintf(os.Stderr, "pj: error while parsing: %s\n", err)
 		},
 	)
 
@@ -245,7 +248,7 @@ func main() {
 	for _, arg := range transformArgs {
 		transformer, outMode, err := parseTransformer(arg, mode)
 		if err != nil {
-			fatalError("error: %s", err)
+			fatalError("%s", err)
 		}
 		stream = token.TransformStream(stream, transformer)
 		mode = outMode
@@ -279,8 +282,12 @@ func main() {
 			Colorizer:             colorizer,
 			CompactWidthLimit:     jsonCompactWidth,
 			CompactObjectMaxItems: 2,
+			RawStrings:            rawStrings,
 		}
 	case "jpv", "path":
+		if rawStrings {
+			fatalError("-raw only applies to JSON output, not -out %s", outputFormat)
+		}
 		{
 			jpvEncoder := &jpv.Encoder{Printer: printer, Colorizer: colorizer}
 			jpvEncoder.AlwaysQuoteKeys = jpvQuoteKeys
@@ -306,7 +313,7 @@ func main() {
 			// In this case we don't want to complain.
 			return
 		}
-		fatalError("error: %s", err)
+		fatalError("%s", err)
 	}
 }
 
@@ -416,7 +423,7 @@ func guessFormat(start []byte) string {
 }
 
 func fatalError(msg string, args ...interface{}) {
-	fmt.Fprintf(os.Stderr, msg, args...)
+	fmt.Fprintf(os.Stderr, "pj: "+msg+"\n", args...)
 	os.Exit(1)
 }
 
@@ -490,6 +497,7 @@ INPUT/OUTPUT:
                     Only valid with '-in csv'
 
 JSON OUTPUT OPTIONS:
+  -raw (or -r)          Write top-level strings without quotes, like jq -r
   -json-compact         Output in JSON Lines format (one value per line)
   -json-lines           Alias for -json-compact
   -json-indent N        Indentation level (default: 2, only used when not compact)
@@ -655,6 +663,14 @@ AVAILABLE FORMATS:
       }
 
     JSON-SPECIFIC OPTIONS:
+
+    -raw (or -r)
+      Write results that are strings as plain text, without quotes or
+      escapes, one per line, like jq -r. Other values are still written as
+      JSON. Useful for feeding results to other tools:
+        pj -raw '$.users[*].name' users.json | sort | uniq -c
+        for url in $(pj -r '$.items[*].url' data.json); do curl -O "$url"; done
+      A string containing a newline spans several lines in the output.
 
     -json-compact (or -json-lines)
       Output in JSON Lines format - each value on a single line.

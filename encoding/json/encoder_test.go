@@ -371,3 +371,20 @@ func encodeWithEncoder(t *testing.T, encoder *Encoder, tokens []token.Token) str
 
 	return buf.String()
 }
+
+func TestEncoderRawStrings(t *testing.T) {
+	toks, err := decodeAll(`"plain" "café \"q\" \\ tab\t" "" 42 null ["a"] {"k": "v"}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var buf bytes.Buffer
+	enc := NewEncoder(&buf)
+	enc.RawStrings = true
+	if err := enc.Consume(token.NewSliceReadStream(toks)); err != nil {
+		t.Fatal(err)
+	}
+	want := "plain\ncafé \"q\" \\ tab\t\n\n42\nnull\n[\"a\"]\n{\"k\": \"v\"}\n"
+	if got := buf.String(); got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}

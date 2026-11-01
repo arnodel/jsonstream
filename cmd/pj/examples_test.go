@@ -839,3 +839,22 @@ func TestOutputFlushedWhenInputStalls(t *testing.T) {
 		t.Fatalf("pj failed: %v (stderr: %s)", err, errBuf.String())
 	}
 }
+
+// TestRawOutput checks -raw and -r: string results as plain text, other
+// values as JSON, and a clear error with JPV output.
+func TestRawOutput(t *testing.T) {
+	input := `{"users": [{"name": "bo"}, {"name": "café"}, {"name": 3}]}`
+	for _, flag := range []string{"-raw", "-r"} {
+		stdout, stderr, exitCode := runPJ(t, input, flag, "$.users[*].name")
+		if exitCode != 0 {
+			t.Fatalf("%s: exit code %d, stderr: %s", flag, exitCode, stderr)
+		}
+		if want := "bo\ncafé\n3\n"; stdout != want {
+			t.Errorf("%s: got %q, want %q", flag, stdout, want)
+		}
+	}
+	_, stderr, exitCode := runPJ(t, `"x"`, "-raw", "-out", "jpv")
+	if exitCode == 0 || !strings.HasSuffix(stderr, "\n") || !strings.Contains(stderr, "-raw") {
+		t.Errorf("-raw with jpv: exit %d, stderr %q; want an error mentioning -raw, ending in a newline", exitCode, stderr)
+	}
+}
