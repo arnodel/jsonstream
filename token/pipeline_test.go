@@ -1,6 +1,8 @@
 package token_test
 
 import (
+	"errors"
+	"fmt"
 	"io"
 	"testing"
 	"time"
@@ -80,3 +82,60 @@ func TestPipelineOrderAndCount(t *testing.T) {
 type sourceFunc func(out token.WriteStream) error
 
 func (f sourceFunc) Produce(out token.WriteStream) error { return f(out) }
+
+// truncating copies its input and then reports that it ended inside a value,
+// as a stage reading a truncated stream does.
+type truncating struct{}
+
+func (truncating) Transform(in token.ReadStream, out token.WriteStream) {
+	for tok := in.Next(); tok != nil; tok = in.Next() {
+		out.Put(tok)
+	}
+	panic(fmt.Errorf("%w: test", token.ErrTruncated))
+}
+
+func TestTransformStreamTruncated(t *testing.T) {
+	// The source fails after starting an array, the stage downstream finds
+	// the array cut short; what it produced must still come out, and the
+	// stream must end rather than the program crash.
+	src := sourceFunc(func(out token.WriteStream) error {
+		out.Put(&token.StartArray{})
+		out.Put(token.Int64Scalar(1))
+		return errors.New("syntax error")
+	})
+	var sourceErr error
+	stream := token.TransformStream(token.StartStream(src, func(err error) { sourceErr = err }), truncating{})
+	r := stream.Reader()
+	if _, ok := r.Next().(*token.StartArray); !ok {
+		t.Fatal("expected StartArray")
+	}
+	if _, ok := r.Next().(*token.Scalar); !ok {
+		t.Fatal("expected Scalar")
+	}
+	if tok := r.Next(); tok != nil {
+		t.Fatalf("expected end of stream, got %v", tok)
+	}
+	if sourceErr == nil {
+		t.Error("source error not reported")
+	}
+}
+
+func TestCatchTruncated(t *testing.T) {
+	err := func() (err error) {
+		defer token.CatchTruncated(&err)
+		panic(fmt.Errorf("%w: test", token.ErrTruncated))
+	}()
+	if !errors.Is(err, token.ErrTruncated) {
+		t.Errorf("got %v, want ErrTruncated", err)
+	}
+	defer func() {
+		if r := recover(); r != "other" {
+			t.Errorf("other panics must carry on, got %v", r)
+		}
+	}()
+	func() {
+		var err error
+		defer token.CatchTruncated(&err)
+		panic("other")
+	}()
+}

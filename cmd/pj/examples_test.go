@@ -858,3 +858,48 @@ func TestRawOutput(t *testing.T) {
 		t.Errorf("-raw with jpv: exit %d, stderr %q; want an error mentioning -raw, ending in a newline", exitCode, stderr)
 	}
 }
+
+// TestInvalidInput checks that a syntax error is reported once, that the
+// output gets as far as the input did, and that pj exits with status 1, with
+// no stack trace, whichever stages the truncated input goes through.
+func TestInvalidInput(t *testing.T) {
+	// The tab inside the string is invalid JSON, in the middle of an object
+	// in the middle of an array.
+	const input = "{\"a\": [1, 2, {\"b\": \"x\ty\"}]}"
+	tests := []struct {
+		args       []string
+		wantPrefix string
+	}{
+		{nil, "{\n  \"a\": [\n    1, 2,"},
+		{[]string{"-json-compact", "$.a"}, "[1, 2,"},
+		{[]string{"-json-compact", "$..a"}, "[1, 2,"},
+		{[]string{"-json-compact", "$.a[*]"}, "1\n2\n"},
+		{[]string{"-json-compact", "$.a[?@.b]"}, ""},
+		{[]string{"-json-compact", "$.a", "split"}, "1\n2\n"},
+		{[]string{"-json-compact", "$.a", "split", "join"}, "[1, 2,"},
+		{[]string{"-json-compact", "$.a[*]", "join"}, "[1, 2,"},
+		{[]string{"-json-compact", "join"}, "[{\"a\": [1, 2,"},
+		{[]string{"-json-compact", "depth=1"}, "{\"a\": ["},
+		{[]string{"-out", "jpv"}, "$.a[0] = 1\n$.a[1] = 2\n"},
+	}
+	for _, tt := range tests {
+		t.Run(strings.Join(tt.args, " "), func(t *testing.T) {
+			stdout, stderr, exitCode := runPJ(t, input, tt.args...)
+			if exitCode != 1 {
+				t.Errorf("exit code %d, want 1", exitCode)
+			}
+			if !strings.HasPrefix(stderr, "pj: error while parsing: syntax error at L1,C22:") || strings.Contains(stderr, "goroutine") {
+				t.Errorf("stderr %q, want just the syntax error", stderr)
+			}
+			if !strings.HasPrefix(stdout, tt.wantPrefix) {
+				t.Errorf("stdout %q, want it to start with %q", stdout, tt.wantPrefix)
+			}
+		})
+	}
+
+	// An error between values leaves the values before it intact.
+	stdout, stderr, exitCode := runPJ(t, "1 2 ]", "-json-compact")
+	if exitCode != 1 || stdout != "1\n2\n" || !strings.HasPrefix(stderr, "pj: error while parsing:") {
+		t.Errorf("got exit %d, stdout %q, stderr %q", exitCode, stdout, stderr)
+	}
+}

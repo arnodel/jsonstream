@@ -72,11 +72,17 @@ type StreamSink interface {
 // transformer is computed in a goroutine.
 //
 // If the transformer returns before consuming all its input, the stream it
-// returns is closed and the upstream producer is left blocked.
+// returns is closed and the upstream producer is left blocked.  If the input
+// ends in the middle of a value (see ErrTruncated), the output is closed
+// after what the transformer had produced.
 func TransformStream(in Stream, transformer StreamTransformer) Stream {
 	out := make(chan []Token, streamChannelBuffer)
 	go func() {
 		defer close(out)
+		// A truncated input truncates the output: pass on what was produced
+		// and let the stages downstream find out in turn.
+		var truncated error
+		defer CatchTruncated(&truncated)
 		w := NewBatchWriter(out, batchSize)
 		defer w.Flush()
 		r := NewBatchReader(in)

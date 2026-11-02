@@ -33,6 +33,12 @@ type MaxDepthFilter struct {
 // Transform implements the MaxDepthFilter tansform.
 func (f *MaxDepthFilter) Transform(in token.ReadStream, out token.WriteStream) {
 	depth := 0
+	defer func() {
+		// Do not let the elision hide a truncated input.
+		if depth != 0 {
+			panic(token.ErrTruncated)
+		}
+	}()
 	for item := in.Next(); item != nil; item = in.Next() {
 		postIncr := 0
 		switch item.(type) {
@@ -84,8 +90,19 @@ type JoinStream struct{}
 // Transform implements the JoinStream transform
 func (f JoinStream) Transform(in token.ReadStream, out token.WriteStream) {
 	out.Put(&token.StartArray{})
+	depth := 0
 	for item := in.Next(); item != nil; item = in.Next() {
+		switch item.(type) {
+		case *token.StartArray, *token.StartObject:
+			depth++
+		case *token.EndArray, *token.EndObject:
+			depth--
+		}
 		out.Put(item)
+	}
+	if depth != 0 {
+		// Closing the array would make the cut-off value look complete.
+		panic(token.ErrTruncated)
 	}
 	out.Put(&token.EndArray{})
 }
