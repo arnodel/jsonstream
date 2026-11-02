@@ -262,7 +262,7 @@ func (e *TestExpr) CompileToLogicalExpr() (ast.LogicalExpr, error) {
 type BasicTestExpr struct {
 	grammar.OneOf
 	*FilterQuery
-	*FunctionExpr
+	FunctionExpr *FunctionExpr // named, not embedded: see memo.go
 }
 
 func (e *BasicTestExpr) CompileToLogicalExpr() (ast.LogicalExpr, error) {
@@ -356,7 +356,7 @@ type Comparable struct {
 	grammar.OneOf
 	*Literal
 	*SingularQuery
-	*FunctionExpr
+	FunctionExpr *FunctionExpr // named, not embedded: see memo.go
 }
 
 func (c *Comparable) CompileToComparable() (ast.Comparable, error) {
@@ -575,7 +575,7 @@ type FunctionArgument struct {
 	grammar.OneOf
 	*Literal
 	*FilterQuery
-	*FunctionExpr
+	FunctionExpr *FunctionExpr // named, not embedded: see memo.go
 	*LogicalExpr
 }
 

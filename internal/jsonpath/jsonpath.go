@@ -10,10 +10,11 @@ import (
 )
 
 func ParseQueryString(s string) (ast.Query, error) {
-	stream, err := parser.TokeniseJsonPathString(s)
+	tokens, err := parser.TokeniseJsonPathString(s)
 	if err != nil {
 		return ast.Query{}, err
 	}
+	stream := parser.NewTokenStream(tokens)
 
 	var query parser.Query
 	parseErr := grammar.Parse(&query, stream)
