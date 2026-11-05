@@ -1,5 +1,5 @@
-github.com/arnodel/grammar v0.0.0-20211030100909-fff725e3d446 h1:ynK48MoQBerg1Oe6qwcij8gBS9aqNc0ypVePnpsngVk=
-github.com/arnodel/grammar v0.0.0-20211030100909-fff725e3d446/go.mod h1:AGts2EYJ2mFxv69ntiJGTJBZrW+SxyvCsSRwihu8h0E=
+github.com/arnodel/grammar v0.2.0 h1:2OnXWwOXYCMT2a2b/P56Ke0BgOlO/qyIRtmXA/lh8mk=
+github.com/arnodel/grammar v0.2.0/go.mod h1:HVLUezXqj5xm/IVkM3nWjr2ot2AGBfoY3C0YIDIYEIE=
 github.com/mattn/go-colorable v0.1.13 h1:fFA4WZxdEF4tXPZVKMLwD8oUnCTTo08duU7wxecdEvA=
 github.com/mattn/go-colorable v0.1.13/go.mod h1:7S9/ev0klgBDR4GtXTXX8a3vIGJpMovkB8vQcUbaXHg=
 github.com/mattn/go-isatty v0.0.16/go.mod h1:kYGgaQfpe5nmfYZH+SKPsOc2e4SrIfOl2e/yFXSvRLM=

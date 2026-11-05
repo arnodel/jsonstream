@@ -3,7 +3,7 @@ module github.com/arnodel/jsonstream
 go 1.25
 
 require (
-	github.com/arnodel/grammar v0.0.0-20211030100909-fff725e3d446
+	github.com/arnodel/grammar v0.2.0
 	github.com/mattn/go-colorable v0.1.13
 	github.com/mattn/go-isatty v0.0.20
 )
