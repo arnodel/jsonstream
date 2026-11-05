@@ -37,7 +37,8 @@ var TokeniseJsonPathString = grammar.SimpleTokeniser([]grammar.TokenDef{
 	{
 		Name: "int",
 		Ptn:  `(?:0|-?[1-9][0-9]*)(?:[^.eE0-9]|$)`,
-		Special: func(input string) string {
+		// The pattern checks what follows the digits; Scan keeps only the digits.
+		Scan: func(input string) int {
 			i := 0
 			if input[i] == '-' {
 				i++
@@ -47,7 +48,7 @@ var TokeniseJsonPathString = grammar.SimpleTokeniser([]grammar.TokenDef{
 					break
 				}
 			}
-			return input[:i]
+			return i
 		},
 	},
 	{

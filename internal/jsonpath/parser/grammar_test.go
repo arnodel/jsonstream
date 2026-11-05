@@ -535,9 +535,11 @@ func TestGrammar(t *testing.T) {
 			if err != test.err {
 				t.Fatalf("exprected error to be %q, got %q", test.err, err)
 			}
+			clearPositions(reflect.ValueOf(&query))
 			if !reflect.DeepEqual(query, test.query) {
-				grammar.PrettyWrite(os.Stdout, query)
-				grammar.PrettyWrite(os.Stdout, test.query)
+				expected := test.query.(Query)
+				grammar.PrettyWrite(os.Stdout, &query)
+				grammar.PrettyWrite(os.Stdout, &expected)
 				t.Fatalf("query error")
 			}
 			if test.ast != nil {
@@ -550,6 +552,31 @@ func TestGrammar(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// clearPositions zeroes the token positions in v, so that a parsed query can
+// be compared with one written out in a test.
+func clearPositions(v reflect.Value) {
+	switch v.Kind() {
+	case reflect.Pointer, reflect.Interface:
+		if !v.IsNil() {
+			clearPositions(v.Elem())
+		}
+	case reflect.Struct:
+		if v.Type() == reflect.TypeOf(grammar.Position{}) {
+			v.SetZero()
+			return
+		}
+		for i := 0; i < v.NumField(); i++ {
+			if v.Type().Field(i).IsExported() {
+				clearPositions(v.Field(i))
+			}
+		}
+	case reflect.Slice, reflect.Array:
+		for i := 0; i < v.Len(); i++ {
+			clearPositions(v.Index(i))
+		}
 	}
 }
 
