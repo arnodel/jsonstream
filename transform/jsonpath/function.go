@@ -176,7 +176,9 @@ func run_value(args []any) any {
 			singleValue = nil
 			return false
 		}
-		singleValue = v
+		// Looking for a second node moves past v, which would leave a
+		// collection consumed by the time the caller reads it.
+		singleValue = detachedValue(v)
 		return true
 	})
 	return singleValue
