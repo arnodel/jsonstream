@@ -105,7 +105,6 @@ func run_length(args []any) any {
 			n++
 		}
 	case *iterator.Object:
-		var n int64
 		for x.Advance() {
 			n++
 		}
