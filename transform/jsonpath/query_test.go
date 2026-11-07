@@ -183,6 +183,32 @@ func TestSimpleQueries(t *testing.T) {
 			query:  `$..["b"]`,
 			output: `1 {"a": 2}`,
 		},
+		// Function queries.  value() of a root query must not hand back a
+		// collection that finding out whether there is a second node consumed.
+		{
+			name:   "value of root collection",
+			input:  `{"x": [1], "y": [1], "z": [2]}`,
+			query:  `$[?value($.x) == @]`,
+			output: `[1] [1]`,
+		},
+		{
+			name:   "value of root collection on both sides",
+			input:  `[[1], [2]]`,
+			query:  `$[?value($[0]) == value($[0])]`,
+			output: `[1] [2]`,
+		},
+		{
+			name:   "value of root",
+			input:  `{"a": [1], "b": 2}`,
+			query:  `$[?value($) == value($)]`,
+			output: `[1] 2`,
+		},
+		{
+			name:   "value of relative collection",
+			input:  `[{"a": [1], "b": [1]}, {"a": [1], "b": [2]}]`,
+			query:  `$[?value(@.a) == value(@.b)]`,
+			output: `{"a": [1], "b": [1]}`,
+		},
 	}
 	for _, c := range testCases {
 		t.Run(c.name, func(t *testing.T) {
