@@ -11,6 +11,9 @@ import (
 	jsonpathtransformer "github.com/arnodel/jsonstream/transform/jsonpath"
 )
 
+// TestRunCTS runs the JSONPath compliance test suite in cts.json.  cts.version
+// is the suite's commit it was fetched from; 'make update-jsonpath-cts'
+// updates both.
 func TestRunCTS(t *testing.T) {
 	ctsFile, err := os.Open("cts.json")
 	if err != nil {

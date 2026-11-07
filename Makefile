@@ -23,5 +23,13 @@ bench:
 	go run ./bench gen 500000 > /tmp/pj-bench.json
 	go run ./bench run /tmp/pj-bench.json -svg docs/benchmark.svg
 
+# Fetch cts.json from a commit of the compliance test suite (the tip of main
+# by default, or e.g. CTS_REF=<sha>) and record that commit in cts.version.
+CTS_REPO = https://github.com/jsonpath-standard/jsonpath-compliance-test-suite
+CTS_REF ?= main
+
 update-jsonpath-cts:
-	curl https://raw.githubusercontent.com/jsonpath-standard/jsonpath-compliance-test-suite/main/cts.json -o transform/jsonpath/cts.json
+	sha=$$(git ls-remote $(CTS_REPO) $(CTS_REF) | cut -f1); \
+	if [ -z "$$sha" ]; then sha=$(CTS_REF); fi; \
+	curl -fsSL https://raw.githubusercontent.com/jsonpath-standard/jsonpath-compliance-test-suite/$$sha/cts.json -o transform/jsonpath/cts.json && \
+	echo $$sha > transform/jsonpath/cts.version
