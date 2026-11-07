@@ -80,20 +80,8 @@ func (r MainQueryRunner) computeRunContext(value iterator.Value) *RunContext {
 
 		// There is nothing useful in the context to compute a singular query
 		// value, so it is safe to pass nil.
-		val := q.Evaluate(nil, clone)
-		if val == nil {
-			// Nothing: the path does not exist in the document.
-			ctx.innerSingularQueries[i] = nil
-		} else if scalar, ok := val.(*iterator.Scalar); ok {
-			ctx.innerSingularQueries[i] = scalar
-		} else {
-			dest := token.NewAccumulatorStream()
-			val.Copy(dest)
-			cursor := token.NewCursorFromData(dest.GetTokens())
-			iter := iterator.New(cursor)
-			iter.Advance()
-			ctx.innerSingularQueries[i] = iter.CurrentValue()
-		}
+		// A nil value means Nothing: the path does not exist in the document.
+		ctx.innerSingularQueries[i] = detachedValue(q.Evaluate(nil, clone))
 		// Scalars clone without a detach function.
 		if detach != nil {
 			detach()
@@ -114,6 +102,21 @@ func (r MainQueryRunner) computeRunContext(value iterator.Value) *RunContext {
 		}
 	}
 	return ctx
+}
+
+// detachedValue returns a value with the same contents as val that does not
+// depend on the stream val is read from, so it stays valid after that stream
+// moves on.  Scalars are self-contained; a collection is copied into memory,
+// so val must not have been started.  A nil val is returned as is.
+func detachedValue(val iterator.Value) iterator.Value {
+	if _, ok := val.(iterator.Collection); !ok {
+		return val
+	}
+	dest := token.NewAccumulatorStream()
+	val.Copy(dest)
+	iter := iterator.New(token.NewCursorFromData(dest.GetTokens()))
+	iter.Advance()
+	return iter.CurrentValue()
 }
 
 func (r MainQueryRunner) TransformValue(value iterator.Value, out token.WriteStream) {
