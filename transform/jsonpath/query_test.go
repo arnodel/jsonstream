@@ -209,6 +209,18 @@ func TestSimpleQueries(t *testing.T) {
 			query:  `$[?value(@.a) == value(@.b)]`,
 			output: `{"a": [1], "b": [1]}`,
 		},
+		{
+			name:   "length of object",
+			input:  `[{"a": {"x": 1, "y": 2}}, {"a": [1, 2]}, {"a": {}}]`,
+			query:  `$[?length(@.a) == 2]`,
+			output: `{"a": {"x": 1, "y": 2}} {"a": [1, 2]}`,
+		},
+		{
+			name:   "length of empty object",
+			input:  `[{"x": 1, "y": 2}, {}]`,
+			query:  `$[?length(@) == 0]`,
+			output: `{}`,
+		},
 	}
 	for _, c := range testCases {
 		t.Run(c.name, func(t *testing.T) {
