@@ -5,9 +5,10 @@
 //	go run ./bench run /tmp/big.json [-svg docs/benchmark.svg]
 //
 // It reports wall-clock time and peak memory of each command, with output sent
-// to /dev/null, and can draw the comparison as an SVG chart.  It is
-// deliberately simple: one file shape, one run per workload, no statistics.
-// Run it a few times and look at the trend.
+// to /dev/null, and can draw the comparison as an SVG chart.  Each command
+// runs -runs times (3 by default) and the fastest run is reported, which
+// discounts runs slowed down by whatever else the machine is doing.  It is
+// deliberately simple otherwise: one file shape, no statistics.
 package main
 
 import (
@@ -39,15 +40,16 @@ func main() {
 	case "run":
 		fs := flag.NewFlagSet("run", flag.ExitOnError)
 		svgPath := fs.String("svg", "", "write the results as an SVG chart to this file")
+		runs := fs.Int("runs", 3, "run each command this many times and keep the fastest")
 		fs.Parse(os.Args[3:])
-		run(os.Args[2], *svgPath)
+		run(os.Args[2], *svgPath, max(*runs, 1))
 	default:
 		usage()
 	}
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage:\n  bench gen N > file.json              generate a file with N items\n  bench run file.json [-svg out.svg]   time pj, jq, jaq and gojq on it")
+	fmt.Fprintln(os.Stderr, "usage:\n  bench gen N > file.json                         generate a file with N items\n  bench run file.json [-svg out.svg] [-runs N]   time pj, jq, jaq and gojq on it")
 	os.Exit(2)
 }
 
@@ -99,6 +101,7 @@ var workloads = []workload{
 	{"filter price > 190", []string{"-json-lines", "$.items[?@.price > 190]"}, []string{"-c", ".items[] | select(.price > 190)"}},
 	{"regex filter on email", []string{"-json-lines", `$.items[?match(@.email, "user1.*@example\\.com")]`}, []string{"-c", `.items[] | select(.email | test("^user1.*@example\\.com$"))`}},
 	{"first 10 items (file arg)", []string{"$.items[:10]"}, []string{".items[:10]"}},
+	{"$..email (any depth)", []string{"$..email"}, []string{`.. | objects | select(has("email")) | .email`}},
 }
 
 // A result is one measurement: wall time and peak memory, or ok=false if the
@@ -116,7 +119,7 @@ func (r result) String() string {
 	return fmt.Sprintf("%5.2fs %4.0fMB", r.seconds, r.mb)
 }
 
-func run(file string, svgPath string) {
+func run(file string, svgPath string, runs int) {
 	pj := buildJP()
 	tools := []string{"pj"}
 	paths := []string{pj}
@@ -138,10 +141,10 @@ func run(file string, svgPath string) {
 	for i, w := range workloads {
 		results[i] = make([]result, len(tools))
 		jpArgs := append([]string{"-color", "never"}, w.pj...)
-		results[i][0] = measure(pj, append(jpArgs, file))
+		results[i][0] = fastest(runs, pj, append(jpArgs, file))
 		for t := 1; t < len(tools); t++ {
 			if w.jq != nil {
-				results[i][t] = measure(paths[t], append(append([]string{}, w.jq...), file))
+				results[i][t] = fastest(runs, paths[t], append(append([]string{}, w.jq...), file))
 			}
 		}
 		fmt.Printf("%-28s", w.name)
@@ -151,7 +154,7 @@ func run(file string, svgPath string) {
 		fmt.Println()
 	}
 	if svgPath != "" {
-		if err := os.WriteFile(svgPath, []byte(chartSVG(tools, results, file)), 0o644); err != nil {
+		if err := os.WriteFile(svgPath, []byte(chartSVG(tools, results, file, runs)), 0o644); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
@@ -168,6 +171,21 @@ func buildJP() string {
 		os.Exit(1)
 	}
 	return path
+}
+
+// fastest measures the command runs times and returns the fastest run.
+func fastest(runs int, name string, args []string) result {
+	var best result
+	for range runs {
+		r := measure(name, args)
+		if !r.ok {
+			return r
+		}
+		if !best.ok || r.seconds < best.seconds {
+			best = r
+		}
+	}
+	return best
 }
 
 // measure runs the command with output to /dev/null.

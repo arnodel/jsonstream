@@ -8,7 +8,7 @@ A fast, streaming JSON processor for the command line.
 - **About 12 MB of memory** whatever the size of the input
 - **Faster than `jq`, `jaq` and `gojq`** on typical workloads
 
-![Time and peak memory by workload for pj, jq, jaq and gojq. pj takes under a second on every workload at 12 MB; the others take 1 to 4.6 seconds at 600 to 1016 MB.](docs/benchmark.svg)
+![Time and peak memory by workload for pj, jq, jaq and gojq. pj takes under a second on every workload at 12 MB; the others take 0.7 to 4.8 seconds at 590 to 1220 MB.](docs/benchmark.svg)
 
 ```bash
 # Pretty-print anything, however big: output starts immediately
@@ -283,18 +283,21 @@ items (`go run ./bench gen 500000`), on an Apple M-series laptop, against `jq`
 
 | Workload | pj | jq | jaq | gojq |
 |---|---|---|---|---|
-| Pretty-print | **0.8s**, 12 MB | 4.6s, 860 MB | 1.6s, 1016 MB | 1.3s, 843 MB |
-| `$.items[*].name` | **0.8s**, 12 MB | 1.7s, 829 MB | 1.0s, 1016 MB | 1.3s, 618 MB |
-| `$.items[?@.price > 190]` | **0.8s**, 12 MB | 1.7s, 831 MB | 1.1s, 1016 MB | 1.1s, 676 MB |
-| `$.items[?match(@.email, "user1.*@example\\.com")]` | **0.8s**, 12 MB | 3.2s, 837 MB | 2.6s, 1016 MB | 1.4s, 720 MB |
-| `$.items[:10]` (file argument) | **< 0.01s**, 5 MB | 1.5s, 829 MB | 0.7s, 1016 MB | 0.8s, 586 MB |
-| JPV output | 0.7s, 12 MB | n/a | n/a | n/a |
+| Pretty-print | **0.63s**, 12 MB | 4.54s, 860 MB | 1.52s, 1016 MB | 1.22s, 843 MB |
+| `$.items[*].name` | **0.64s**, 12 MB | 1.68s, 829 MB | 0.97s, 1016 MB | 1.34s, 618 MB |
+| `$.items[?@.price > 190]` | **0.73s**, 12 MB | 1.70s, 831 MB | 1.04s, 1016 MB | 1.01s, 668 MB |
+| `$.items[?match(@.email, "user1.*@example\\.com")]` | **0.73s**, 13 MB | 3.20s, 837 MB | 2.61s, 1016 MB | 1.36s, 720 MB |
+| `$.items[:10]` (file argument) | **0.02s**, 5 MB | 1.40s, 829 MB | 0.69s, 1016 MB | 0.79s, 586 MB |
+| `$..email` (at any depth) | **0.65s**, 13 MB | 4.59s, 829 MB | 4.40s, 1023 MB | 4.83s, 1223 MB |
+| JPV output | 0.62s, 12 MB | n/a | n/a | n/a |
 
-The `$.items[:10]` row is the early exit described above. Reproduce it all with
-`make bench`, which also redraws the chart; it uses whichever of `jq`, `jaq`
-and `gojq` are installed. One synthetic file on one machine, so treat the
-ratios as indicative. The memory difference is structural: the others load the
-whole document.
+Each time is the fastest of three runs. The `$.items[:10]` row is the early
+exit described above. For `$..email` the others run
+`.. | objects | select(has("email")) | .email`, which gives the same results.
+Reproduce it all with `make bench`, which also redraws the chart; it uses
+whichever of `jq`, `jaq` and `gojq` are installed. One synthetic file on one
+machine, so treat the ratios as indicative. The memory difference is
+structural: the others load the whole document.
 
 ## The Go library
 
