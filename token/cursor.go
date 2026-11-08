@@ -115,6 +115,13 @@ func (p *CursorPool) LiveCursors() int {
 	return len(p.cursors)
 }
 
+// Buffered returns the number of tokens the pool keeps in memory: the span
+// between its slowest and its fastest cursor.  Like LiveCursors it is meant for
+// tests, to check that a pipeline streams rather than buffers its input.
+func (p *CursorPool) Buffered() int {
+	return len(p.window)
+}
+
 // poolObserver, if set, is called with every pool created by NewCursorPool.
 var poolObserver func(*CursorPool)
 
