@@ -78,12 +78,24 @@ type DefaultPrinter struct {
 	Flusher
 	IndentSize  int
 	indentLevel int
+
+	// newLine is '\n' followed by spaces, as many as the deepest indentation
+	// written so far, so that a new line is a single write.
+	newLine []byte
 }
 
 var _ Printer = &DefaultPrinter{}
 
-func (p *DefaultPrinter) writeNL() {
-	_, err := p.Write([]byte{'\n'})
+// writeNL outputs '\n' followed by indent spaces.
+func (p *DefaultPrinter) writeNL(indent int) {
+	if n := 1 + indent; len(p.newLine) < n {
+		p.newLine = make([]byte, max(n, 2*len(p.newLine)))
+		p.newLine[0] = '\n'
+		for i := 1; i < len(p.newLine); i++ {
+			p.newLine[i] = ' '
+		}
+	}
+	_, err := p.Write(p.newLine[:1+indent])
 	if err == nil && p.Flusher != nil {
 		err = p.Flush()
 	}
@@ -98,13 +110,7 @@ func (p *DefaultPrinter) NewLine() {
 	if p.IndentSize < 0 {
 		return
 	}
-	p.writeNL()
-	for i := p.IndentSize * p.indentLevel; i > 0; i-- {
-		_, err := p.Write([]byte{' '})
-		if err != nil {
-			panic(wrapError(err))
-		}
-	}
+	p.writeNL(p.IndentSize * p.indentLevel)
 }
 
 // Indent has the effect of incrementing the indentation level and calls NewLine()
@@ -122,7 +128,7 @@ func (p *DefaultPrinter) Dedent() {
 // Reset outputs '\n' unconditionally and resets the indent level.
 func (p *DefaultPrinter) Reset() {
 	p.indentLevel = 0
-	p.writeNL()
+	p.writeNL(0)
 }
 
 // PrintBytes sends the gives bytes verbatim to the printer's writer.

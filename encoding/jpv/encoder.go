@@ -20,6 +20,10 @@ type Encoder struct {
 	AlwaysQuoteKeys bool
 
 	path []*token.Scalar // keeps track of the current path
+
+	// indexKeys[d] is the key of the items of the array at depth d of the
+	// path.  Keys are only printed, so one per depth serves for every item.
+	indexKeys []*token.Scalar
 }
 
 var _ token.StreamSink = &Encoder{}
@@ -85,8 +89,14 @@ func (e *Encoder) writeObject(obj *iterator.Object) {
 
 func (e *Encoder) writeArray(arr *iterator.Array) {
 	var index = 0
+	depth := len(e.path)
+	for len(e.indexKeys) <= depth {
+		e.indexKeys = append(e.indexKeys, token.NewKey(token.Number, nil))
+	}
+	key := e.indexKeys[depth]
 	for arr.Advance() {
-		e.pushKey(token.NewKey(token.Number, []byte(strconv.Itoa(index))))
+		key.Bytes = strconv.AppendInt(key.Bytes[:0], int64(index), 10)
+		e.pushKey(key)
 		value := arr.CurrentValue()
 		e.writeValue(value)
 		e.popKey()
@@ -117,12 +127,12 @@ func (e *Encoder) writePath() {
 		// Dot form only for a non-empty alphanumeric key; anything else is
 		// bracketed and quoted so that it can be read back.
 		if key.IsAlnum() && len(key.Bytes) > 2 && !e.AlwaysQuoteKeys {
-			e.PrintBytes([]byte{'.'})
+			e.PrintBytes(dotBytes)
 			e.PrintSuccintScalar(e.Printer, key)
 		} else {
-			e.PrintBytes([]byte{'['})
+			e.PrintBytes(openBracketBytes)
 			e.PrintScalar(e.Printer, key)
-			e.PrintBytes([]byte{']'})
+			e.PrintBytes(closeBracketBytes)
 		}
 	}
 	e.PrintBytes(pathValueSeparatorBytes)
@@ -139,6 +149,9 @@ func (e *Encoder) popKey() {
 var (
 	pathValueSeparatorBytes = []byte(" = ")
 	pathRootBytes           = []byte("$")
+	dotBytes                = []byte(".")
+	openBracketBytes        = []byte("[")
+	closeBracketBytes       = []byte("]")
 
 	emptyObjectBytes   = []byte("{}")
 	elidedBobjectBytes = []byte("{...}")
