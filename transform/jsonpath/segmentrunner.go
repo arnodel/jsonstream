@@ -56,38 +56,47 @@ func (r SegmentRunner) transformObjectRelaxed(ctx *RunContext, obj *iterator.Obj
 
 	for obj.Advance() {
 		keyScalar, value := obj.CurrentKeyVal()
-
-		var value2 iterator.Value
-		var detach func()
-
-		if r.isDescendantSegment {
-			value2, detach = value.Clone()
-		}
-
 		key := keyScalar.ToString()
-		result = dispatcher.dispatchItem(ctx, value, func(s SelectorRunner) Decision { return s.SelectsFromKey(key) }, r.followingSegment)
-		if !result {
-			if detach != nil {
-				detach()
-			}
-			return
+		selectedCount, ok := dispatcher.selectItem(ctx, value, func(s SelectorRunner) Decision { return s.SelectsFromKey(key) })
+		if !ok {
+			return false
 		}
-
-		// Lastly if this is a descendant segment, we need to dive into value
-		if r.isDescendantSegment {
-			result = r.transformValue(ctx, value2, next)
-			if detach != nil {
-				detach()
+		if !r.isDescendantSegment {
+			if !dispatcher.processItem(ctx, value, selectedCount, r.followingSegment) {
+				return false
 			}
-
-			if !result {
-				return
+			if dispatcher.exhausted() {
+				return true
 			}
-		} else if dispatcher.exhausted() {
-			return
+			continue
+		}
+		// Lastly, as this is a descendant segment, we need to dive into value
+		if !r.processAndDescend(ctx, dispatcher, value, selectedCount, next) {
+			return false
 		}
 	}
 	return true
+}
+
+// processAndDescend hands value to the selectors of the segment that select
+// it, then dives into it, as a descendant segment does with each item of a
+// collection.  Only when value is selected does it need a clone to dive into:
+// otherwise nothing else reads value, which can then be read just once, as it
+// streams by.  A clone left behind at the start of value would pin all of it
+// in memory while the descent reads it.
+func (r SegmentRunner) processAndDescend(ctx *RunContext, dispatcher *itemDispatcher, value iterator.Value, selectedCount int, next valueProcessor) bool {
+	descendInto := value
+	if selectedCount > 0 {
+		var detach func()
+		descendInto, detach = value.Clone()
+		if detach != nil {
+			defer detach()
+		}
+		if !dispatcher.processItem(ctx, value, selectedCount, r.followingSegment) {
+			return false
+		}
+	}
+	return r.transformValue(ctx, descendInto, next)
 }
 
 func (r SegmentRunner) transformArrayRelaxed(ctx *RunContext, arr *iterator.Array, next valueProcessor) (result bool) {
@@ -114,20 +123,9 @@ func (r SegmentRunner) transformArrayRelaxed(ctx *RunContext, arr *iterator.Arra
 
 	for arr.Advance() {
 		value := arr.CurrentValue()
-
-		var value2 iterator.Value
-		var detach func()
-
-		if r.isDescendantSegment {
-			value2, detach = value.Clone()
-		}
-
-		result = dispatcher.dispatchItem(ctx, value, func(s SelectorRunner) Decision { return s.SelectsFromIndex(index, negIndex) }, r.followingSegment)
-		if !result {
-			if detach != nil {
-				detach()
-			}
-			return
+		selectedCount, ok := dispatcher.selectItem(ctx, value, func(s SelectorRunner) Decision { return s.SelectsFromIndex(index, negIndex) })
+		if !ok {
+			return false
 		}
 
 		// Update the index
@@ -136,17 +134,18 @@ func (r SegmentRunner) transformArrayRelaxed(ctx *RunContext, arr *iterator.Arra
 			negIndex++
 		}
 
-		// Lastly if this is a descendant segment, we need to dive into value
-		if r.isDescendantSegment {
-			result = r.transformValue(ctx, value2, next)
-			if detach != nil {
-				detach()
+		if !r.isDescendantSegment {
+			if !dispatcher.processItem(ctx, value, selectedCount, r.followingSegment) {
+				return false
 			}
-			if !result {
-				return
+			if dispatcher.exhausted() {
+				return true
 			}
-		} else if dispatcher.exhausted() {
-			return
+			continue
+		}
+		// Lastly, as this is a descendant segment, we need to dive into value
+		if !r.processAndDescend(ctx, dispatcher, value, selectedCount, next) {
+			return false
 		}
 	}
 
@@ -330,7 +329,21 @@ func (d *itemDispatcher) flush(ctx *RunContext, result bool) bool {
 	return result
 }
 
-func (d *itemDispatcher) dispatchItem(ctx *RunContext, value iterator.Value, decide func(SelectorRunner) Decision, followingSegment *SegmentRunner) (result bool) {
+// dispatchItem hands value to the selectors that select it (see selectItem and
+// processItem).
+func (d *itemDispatcher) dispatchItem(ctx *RunContext, value iterator.Value, decide func(SelectorRunner) Decision, followingSegment *SegmentRunner) bool {
+	selectedCount, result := d.selectItem(ctx, value, decide)
+	if !result {
+		return false
+	}
+	return d.processItem(ctx, value, selectedCount, followingSegment)
+}
+
+// selectItem finds which selectors select value, the next item of the
+// collection, and emits the pending items of selectors that cannot select any
+// more.  It returns the number of selectors that select value, which it does
+// not start reading, and false if the next processor wants no more values.
+func (d *itemDispatcher) selectItem(ctx *RunContext, value iterator.Value, decide func(SelectorRunner) Decision) (selectedCount int, result bool) {
 	result = true
 
 	if len(d.selectorStates) == 0 {
@@ -339,7 +352,6 @@ func (d *itemDispatcher) dispatchItem(ctx *RunContext, value iterator.Value, dec
 
 	// First find which selectors may apply, which will be done after
 	// this round.
-	selectedCount := 0
 	firstLiveIndex := 0
 	for i := range d.selectorStates {
 		state := &d.selectorStates[i]
@@ -371,7 +383,9 @@ func (d *itemDispatcher) dispatchItem(ctx *RunContext, value iterator.Value, dec
 		}
 		d.selectorStates = d.selectorStates[firstLiveIndex:]
 		if !result || len(d.selectorStates) == 0 {
-			return
+			// Only selectors that are done selected value: they are flushed,
+			// so value goes nowhere.
+			return 0, result
 		}
 	}
 
@@ -379,10 +393,14 @@ func (d *itemDispatcher) dispatchItem(ctx *RunContext, value iterator.Value, dec
 	// Flush the first state
 	if !firstState.reversesSelection && len(firstState.pending) > 0 {
 		result = firstState.flush(ctx, result, d.next)
-		if !result {
-			return
-		}
 	}
+	return
+}
+
+// processItem hands value to the selectors selectItem found select it,
+// through followingSegment if there is one.
+func (d *itemDispatcher) processItem(ctx *RunContext, value iterator.Value, selectedCount int, followingSegment *SegmentRunner) (result bool) {
+	result = true
 
 	// Process the value if selected
 	if selectedCount > 0 {
