@@ -37,8 +37,8 @@ type Scanner struct {
 
 	err error
 
-	// Tracks how many EOFs have been read.  This is required to make
-	// Back() work after an EOF has been read.
+	// Tracks how many times Read has reported the end of input.  This is
+	// required to make Back() work after the end of input has been read.
 	eofCount int
 }
 
@@ -92,6 +92,9 @@ func (s *Scanner) fillBuf() {
 	s.err = io.ErrNoProgress
 }
 
+// Read returns the next byte of input.  At the end of input it returns
+// io.EOF: every byte value can appear in the input, so none can stand for its
+// end.
 func (s *Scanner) Read() (byte, error) {
 	if s.currentIndex >= s.fillIndex {
 		s.fillBuf()
@@ -112,7 +115,6 @@ func (s *Scanner) Read() (byte, error) {
 	}
 	if s.err == io.EOF {
 		s.eofCount++
-		return EOF, nil
 	}
 	return 0, s.err
 }
@@ -188,13 +190,6 @@ func (s *Scanner) Peek() (byte, error) {
 	if s.currentIndex < s.fillIndex {
 		return s.buf[s.currentIndex], nil
 	}
-	return s.errOrEOF()
-}
-
-func (s *Scanner) errOrEOF() (byte, error) {
-	if s.err == io.EOF {
-		return EOF, nil
-	}
 	return 0, s.err
 }
 
@@ -215,7 +210,7 @@ func (s *Scanner) SkipSpaceAndPeek() (byte, error) {
 		s.currentIndex = s.fillIndex
 		s.fillBuf()
 		if s.currentIndex >= s.fillIndex {
-			return s.errOrEOF()
+			return 0, s.err
 		}
 	}
 }
@@ -240,7 +235,7 @@ func (s *Scanner) SkipSpaceAndRead() (byte, error) {
 		s.currentIndex = s.fillIndex
 		s.fillBuf()
 		if s.currentIndex >= s.fillIndex {
-			return s.errOrEOF()
+			return 0, s.err
 		}
 	}
 }
@@ -250,6 +245,3 @@ const (
 	maxConsecutiveEmptyReads = 100
 	defaultBufSize           = 8192
 )
-
-// 0xFF is a byte that should not appear in a UTF-8 encoded stream of bytes.
-const EOF byte = 0xFF

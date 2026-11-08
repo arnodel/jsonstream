@@ -31,8 +31,11 @@ func (d *Decoder) Produce(out token.WriteStream) error {
 		d.in.Flush = token.FlushFunc(out)
 	}
 	for {
-		b, err := d.scanr.SkipSpaceAndPeek()
-		if err != nil || b == scanner.EOF {
+		_, err := d.scanr.SkipSpaceAndPeek()
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
 			return err
 		}
 		err = d.ParseValue(out)
@@ -48,9 +51,6 @@ func (d *Decoder) ParseValue(out token.WriteStream) error {
 	b, err := d.scanr.SkipSpaceAndPeek()
 	if err != nil {
 		return err
-	}
-	if b == scanner.EOF {
-		return io.EOF
 	}
 	switch b {
 	case '"':
@@ -98,22 +98,6 @@ func (d *Decoder) ParseValue(out token.WriteStream) error {
 	}
 }
 
-// checkEOF checks if there's an error or if the byte is scanner.EOF.
-// If err is not nil, it returns (b, err).
-// If b is scanner.EOF, it returns (0, io.EOF).
-// Otherwise it returns (b, nil).
-// This helper reduces the repetitive pattern of checking for scanner.EOF
-// throughout the decoder by combining error checking and EOF detection.
-func checkEOF(b byte, err error) (byte, error) {
-	if err != nil {
-		return b, err
-	}
-	if b == scanner.EOF {
-		return 0, io.EOF
-	}
-	return b, nil
-}
-
 func (d *Decoder) parseArray(out token.WriteStream) error {
 	var b byte
 	var err error
@@ -122,7 +106,7 @@ func (d *Decoder) parseArray(out token.WriteStream) error {
 		return err
 	}
 	out.Put(&token.StartArray{})
-	b, err = checkEOF(d.scanr.SkipSpaceAndPeek())
+	b, err = d.scanr.SkipSpaceAndPeek()
 	if err != nil {
 		return err
 	}
@@ -136,7 +120,7 @@ func (d *Decoder) parseArray(out token.WriteStream) error {
 		if err != nil {
 			return err
 		}
-		b, err = checkEOF(d.scanr.SkipSpaceAndPeek())
+		b, err = d.scanr.SkipSpaceAndPeek()
 		if err != nil {
 			return err
 		}
@@ -160,7 +144,7 @@ func (d *Decoder) parseObject(out token.WriteStream) error {
 		return err
 	}
 	out.Put(&token.StartObject{})
-	b, err = checkEOF(d.scanr.SkipSpaceAndPeek())
+	b, err = d.scanr.SkipSpaceAndPeek()
 	if err != nil {
 		return err
 	}
@@ -176,7 +160,7 @@ func (d *Decoder) parseObject(out token.WriteStream) error {
 		}
 		key.TypeAndFlags |= token.KeyMask
 		out.Put(key)
-		b, err = checkEOF(d.scanr.SkipSpaceAndPeek())
+		b, err = d.scanr.SkipSpaceAndPeek()
 		if err != nil {
 			return err
 		}
@@ -188,7 +172,7 @@ func (d *Decoder) parseObject(out token.WriteStream) error {
 		if err != nil {
 			return err
 		}
-		b, err = checkEOF(d.scanr.SkipSpaceAndPeek())
+		b, err = d.scanr.SkipSpaceAndPeek()
 		if err != nil {
 			return err
 		}
@@ -199,7 +183,7 @@ func (d *Decoder) parseObject(out token.WriteStream) error {
 			return nil
 		case ',':
 			d.scanr.Read()
-			b, err = checkEOF(d.scanr.SkipSpaceAndPeek())
+			b, err = d.scanr.SkipSpaceAndPeek()
 			if err != nil {
 				return err
 			}
@@ -211,10 +195,10 @@ func (d *Decoder) parseObject(out token.WriteStream) error {
 
 func ExpectByte(scanr *scanner.Scanner, xb byte) error {
 	b, err := scanr.Read()
-	if err != nil {
+	if err != nil && err != io.EOF {
 		return err
 	}
-	if b != xb {
+	if err == io.EOF || b != xb {
 		scanr.Back()
 		return UnexpectedByte(scanr, "expected %q, got", xb)
 	}
@@ -224,14 +208,20 @@ func ExpectByte(scanr *scanner.Scanner, xb byte) error {
 func UnexpectedByte(scanr *scanner.Scanner, expected string, args ...interface{}) error {
 	pos := scanr.CurrentPos()
 	b, err := scanr.Read()
-	if err != nil {
+	if err != nil && err != io.EOF {
 		return err
 	}
-	if b == scanner.EOF {
-		return fmt.Errorf("syntax error at L%d,C%d: %s: <EOF>", pos.Line+1, pos.Col+1, fmt.Sprintf(expected, args...))
-	} else {
-		return fmt.Errorf("syntax error at L%d,C%d: %s: %q", pos.Line+1, pos.Col+1, fmt.Sprintf(expected, args...), b)
+	var got string
+	switch {
+	case err == io.EOF:
+		got = "<EOF>"
+	case b >= 0x80:
+		// Not a character on its own: %q would show it as the code point.
+		got = fmt.Sprintf(`'\x%02x'`, b)
+	default:
+		got = fmt.Sprintf("%q", b)
 	}
+	return fmt.Errorf("syntax error at L%d,C%d: %s: %s", pos.Line+1, pos.Col+1, fmt.Sprintf(expected, args...), got)
 }
 
 func ParseString(scanr *scanner.Scanner) (*token.Scalar, error) {
@@ -244,7 +234,7 @@ func ParseString(scanr *scanner.Scanner) (*token.Scalar, error) {
 	isUnescaped := true
 	firstChar := true
 	for {
-		b, err := checkEOF(scanr.Read())
+		b, err := scanr.Read()
 		if err != nil {
 			return nil, err
 		}
@@ -252,7 +242,7 @@ func ParseString(scanr *scanner.Scanner) (*token.Scalar, error) {
 		case '\\':
 			isUnescaped = false
 			isAlnum = false
-			x, err := checkEOF(scanr.Read())
+			x, err := scanr.Read()
 			if err != nil {
 				return nil, err
 			}
@@ -261,7 +251,7 @@ func ParseString(scanr *scanner.Scanner) (*token.Scalar, error) {
 				continue
 			case 'u':
 				for i := 0; i < 4; i++ {
-					b, err = checkEOF(scanr.Read())
+					b, err = scanr.Read()
 					if err != nil {
 						return nil, err
 					}
@@ -312,18 +302,19 @@ func ParseNumber(scanr *scanner.Scanner) (*token.Scalar, error) {
 	if b == '-' {
 		b, err = scanr.Read()
 	}
-	b, err = checkEOF(b, err)
 	if err != nil {
 		return nil, err
 	}
 
+	// The input can end anywhere after the first digit, so from here on
+	// io.EOF is not an error: b is then 0, which ends the number.
+
 	// Integer part
 	if b == '0' {
 		b, err = scanr.Read()
-		if err != nil {
+		if err != nil && err != io.EOF {
 			return nil, err
 		}
-		// EOF after '0' is valid (the number is just "0")
 	} else if b >= '1' && b <= '9' {
 		b, _, err = ReadDigits(scanr)
 		if err != nil {
@@ -349,7 +340,7 @@ func ParseNumber(scanr *scanner.Scanner) (*token.Scalar, error) {
 	// Exponent part
 	if b == 'e' || b == 'E' {
 		b, err = scanr.Peek()
-		if err != nil {
+		if err != nil && err != io.EOF {
 			return nil, err
 		}
 		if b == '-' || b == '+' {
@@ -377,14 +368,19 @@ func endScalar(scanr *scanner.Scanner, tp token.ScalarType) *token.Scalar {
 	return token.NewScalar(tp, b)
 }
 
+// ReadDigits reads digits and the byte after them, which it returns with the
+// number of digits.  At the end of input that byte is 0.
 func ReadDigits(scanr *scanner.Scanner) (byte, int, error) {
 	var n int
 	for {
 		b, err := scanr.Read()
+		if err == io.EOF {
+			return 0, n, nil
+		}
 		if err != nil {
 			return 0, n, err
 		}
-		if b == scanner.EOF || !scanner.IsDigit(b) {
+		if !scanner.IsDigit(b) {
 			return b, n, nil
 		}
 		n++

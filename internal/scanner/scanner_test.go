@@ -1,6 +1,7 @@
 package scanner
 
 import (
+	"io"
 	"strings"
 	"testing"
 )
@@ -70,9 +71,9 @@ func TestSimple(t *testing.T) {
 	assertRead(t, scanner, 'u', nil)
 	assertRead(t, scanner, 'r', nil)
 	assertCurrentPos(t, scanner, 0, 7)
-	assertRead(t, scanner, EOF, nil)
+	assertRead(t, scanner, 0, io.EOF)
 	scanner.Back()
-	assertRead(t, scanner, EOF, nil)
+	assertRead(t, scanner, 0, io.EOF)
 	assertCurrentPos(t, scanner, 0, 7)
 	assertEndToken(t, scanner, "jour")
 }
@@ -113,4 +114,14 @@ func TestLargeInput(t *testing.T) {
 		}
 		assertEndToken(t, scanner, strings.Repeat(line, 10))
 	}
+}
+
+func TestByteFF(t *testing.T) {
+	// 0xFF is not valid UTF-8 but can be in the input; it is not its end.
+	scanner := strScanner("a\xff")
+	assertRead(t, scanner, 'a', nil)
+	assertPeek(t, scanner, 0xFF, nil)
+	assertRead(t, scanner, 0xFF, nil)
+	assertPeek(t, scanner, 0, io.EOF)
+	assertRead(t, scanner, 0, io.EOF)
 }
