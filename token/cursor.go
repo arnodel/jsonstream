@@ -156,10 +156,22 @@ func NewCursorFromData(data []Token) *Cursor {
 //  1. Find the minimum cursor position (the leftmost/earliest cursor in the stream)
 //  2. Calculate shiftRight = minPos - windowPos (number of tokens to discard from window start)
 //  3. Update windowPos to reflect the new window start position
-//  4. Either reuse the existing array (if small or well-utilized) or allocate a new smaller array
+//  4. Drop the discarded tokens, by moving the window's start or by moving the
+//     tokens kept, whichever moves fewer
+//
+// Cost:
+// Moving the kept tokens to the front of the array costs one move per token
+// kept, which can be far more than the tokens discarded: a cursor trailing
+// behind a large window discards about catchupCountThreshold tokens each time,
+// and moving the rest of the window each time would make reading the window
+// quadratic.  So when more tokens are kept than discarded, the window's start
+// moves forward in its array instead, and the discarded slots are cleared so
+// their tokens can be collected; the array goes when the window next outgrows
+// it.  Either way the cost is at most the number of tokens discarded.
 //
 // Memory Optimization Strategy:
-// The method uses different strategies based on window size and utilization:
+// When the kept tokens are moved, the method uses different strategies based
+// on window size and utilization:
 //   - For small windows (cap ≤ windowCapacityThreshold): Always reuse the existing array for efficiency
 //   - For large windows with good utilization (newLen*2 > cap): Reuse existing array
 //   - For large windows with poor utilization (newLen*2 ≤ cap): Allocate new smaller array
@@ -194,6 +206,11 @@ func (p *CursorPool) advanceWindow() {
 	newLen := len(p.window) - shiftRight
 
 	p.windowPos += shiftRight
+	if newLen > shiftRight {
+		clear(p.window[:shiftRight])
+		p.window = p.window[shiftRight:]
+		return
+	}
 	// If the reduced window is big enough, we reuse the same underlying array
 	// for the new window slice, otherwise we make a new slice so the current
 	// big slice can be GCed.
