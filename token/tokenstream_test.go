@@ -546,3 +546,43 @@ func makeTokens(n int) []Token {
 	}
 	return toks
 }
+
+// TestTrailingCursor checks that a cursor far behind another reads the right
+// tokens, and that discarding the tokens it has passed does not move the rest
+// of the window (which would make reading it quadratic).
+func TestTrailingCursor(t *testing.T) {
+	const n = 10000
+	toks := makeTokens(n)
+	ahead, behind := CloneReadStream(NewSliceReadStream(toks))
+	for range n {
+		ahead.Next()
+	}
+	pool := behind.pool
+	for i := range n {
+		capBefore, posBefore := cap(pool.window), pool.windowPos
+		assertNext(t, behind, toks[i])
+		if shift := pool.windowPos - posBefore; shift > 0 && shift < len(pool.window) && cap(pool.window) != capBefore-shift {
+			t.Fatalf("at %d: window moved (cap %d -> %d, shift %d)", i, capBefore, cap(pool.window), shift)
+		}
+		if pool.windowPos > behind.position || behind.position > pool.windowPos+len(pool.window) {
+			t.Fatalf("at %d: cursor at %d outside window [%d, %d]", i, behind.position, pool.windowPos, pool.windowPos+len(pool.window))
+		}
+	}
+	if len(pool.window) > catchupCountThreshold+1 {
+		t.Errorf("window still holds %d tokens", len(pool.window))
+	}
+}
+
+// BenchmarkTrailingCursor reads a window of b.N tokens with a cursor
+// trailing behind the one that filled it.
+func BenchmarkTrailingCursor(b *testing.B) {
+	toks := makeTokens(b.N)
+	ahead, behind := CloneReadStream(NewSliceReadStream(toks))
+	for range b.N {
+		ahead.Next()
+	}
+	b.ResetTimer()
+	for range b.N {
+		behind.Next()
+	}
+}
