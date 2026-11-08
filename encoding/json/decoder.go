@@ -275,8 +275,7 @@ func ParseString(scanr *scanner.Scanner) (*token.Scalar, error) {
 				return nil, UnexpectedByte(scanr, "invalid escape character in string")
 			}
 		case '"':
-			stringBytes := scanr.EndToken()
-			scalar := token.NewScalar(token.String, stringBytes)
+			scalar := endScalar(scanr, token.String)
 			// An empty string is not alphanumeric: it cannot be written as a
 			// shorthand name in a path.
 			if isAlnum && !firstChar {
@@ -366,7 +365,16 @@ func ParseNumber(scanr *scanner.Scanner) (*token.Scalar, error) {
 		}
 	}
 	scanr.Back()
-	return token.NewScalar(token.Number, scanr.EndToken()), nil
+	return endScalar(scanr, token.Number), nil
+}
+
+// endScalar ends the token being read by scanr and returns it as a scalar.
+func endScalar(scanr *scanner.Scanner, tp token.ScalarType) *token.Scalar {
+	b, borrowed := scanr.EndTokenBorrowed()
+	if borrowed {
+		return token.CopyScalar(tp, b)
+	}
+	return token.NewScalar(tp, b)
 }
 
 func ReadDigits(scanr *scanner.Scanner) (byte, int, error) {
