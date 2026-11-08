@@ -153,6 +153,18 @@ func (s *Scanner) EndToken() []byte {
 	return tokBytes
 }
 
+// EndTokenBorrowed is like EndToken, but when it can it returns the token's
+// bytes in the scanner's buffer rather than a copy (borrowed is then true):
+// they are only valid until the next read.
+func (s *Scanner) EndTokenBorrowed() (b []byte, borrowed bool) {
+	if s.tokenStartIndex >= 0 && s.tokenParts == nil {
+		b = s.buf[s.tokenStartIndex:s.currentIndex]
+		s.tokenStartIndex = -1
+		return b, true
+	}
+	return s.EndToken(), false
+}
+
 func (s *Scanner) Back() {
 	if s.currentIndex <= 0 || s.currentIndex <= s.tokenStartIndex {
 		panic("cannot go back from start")
