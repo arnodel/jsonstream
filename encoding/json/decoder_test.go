@@ -130,6 +130,12 @@ func TestDecoderStrings(t *testing.T) {
 			input:    `"hello 😀 world"`,
 			expected: `"hello 😀 world"`,
 		},
+		{
+			// Not valid UTF-8, but the decoder doesn't check that.
+			name:     "string with byte 0xFF",
+			input:    "\"caf\xff\"",
+			expected: "\"caf\xff\"",
+		},
 	}
 
 	for _, tt := range tests {
@@ -389,6 +395,8 @@ func TestDecoderErrors(t *testing.T) {
 		{"missing comma in array", `[1 2]`},
 		{"missing comma in object", `{"a": 1 "b": 2}`},
 		{"control char in string", "\"hello\x00world\""},
+		{"byte 0xFF between values", "1 \xff 2"},
+		{"byte 0xFF after a number", "1\xff"},
 	}
 
 	for _, tt := range tests {

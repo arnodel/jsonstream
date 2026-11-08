@@ -52,8 +52,11 @@ func (d *Decoder) Produce(out token.WriteStream) error {
 		unwindPath(d.lastPath, false, out)
 	}()
 	for {
-		b, err := d.scanr.SkipSpaceAndPeek()
-		if err != nil || b == scanner.EOF {
+		_, err := d.scanr.SkipSpaceAndPeek()
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
 			return err
 		}
 		err = d.parseLine(out)
@@ -74,7 +77,7 @@ func (d *Decoder) parseLine(out token.WriteStream) error {
 	}
 	// Peek rather than read and push back: parsePath may already have pushed
 	// this byte back, and the scanner cannot go back twice.
-	b, err := checkEOF(d.scanr.SkipSpaceAndPeek())
+	b, err := d.scanr.SkipSpaceAndPeek()
 	if err != nil {
 		return err
 	}
@@ -158,33 +161,17 @@ func followPath(path []*token.Scalar, inCollection bool, out token.WriteStream) 
 	}
 }
 
-// checkEOF checks if there's an error or if the byte is scanner.EOF.
-// If err is not nil, it returns (b, err).
-// If b is scanner.EOF, it returns (0, io.EOF).
-// Otherwise it returns (b, nil).
-// This helper reduces the repetitive pattern of checking for scanner.EOF
-// throughout the decoder by combining error checking and EOF detection.
-func checkEOF(b byte, err error) (byte, error) {
-	if err != nil {
-		return b, err
-	}
-	if b == scanner.EOF {
-		return 0, io.EOF
-	}
-	return b, nil
-}
-
 func parsePath(scanr *scanner.Scanner) ([]*token.Scalar, error) {
 	var path []*token.Scalar
 	for {
-		b, err := checkEOF(scanr.Read())
+		b, err := scanr.Read()
 		if err != nil {
 			// That's ok because paths are followed by a value
 			return nil, err
 		}
 		switch {
 		case b == '[':
-			b, err = checkEOF(scanr.Peek())
+			b, err = scanr.Peek()
 			if err != nil {
 				return nil, err
 			}
@@ -195,7 +182,7 @@ func parsePath(scanr *scanner.Scanner) ([]*token.Scalar, error) {
 				}
 				s.TypeAndFlags |= token.KeyMask
 				path = append(path, s)
-				b, err = checkEOF(scanr.Read())
+				b, err = scanr.Read()
 				if err != nil {
 					return nil, err
 				}
@@ -214,7 +201,7 @@ func parsePath(scanr *scanner.Scanner) ([]*token.Scalar, error) {
 				// from the token, then read it again.
 				scanr.Back()
 				path = append(path, token.NewKey(token.Number, scanr.EndToken()))
-				b, err = checkEOF(scanr.Read())
+				b, err = scanr.Read()
 				if err != nil {
 					return nil, err
 				}
@@ -224,7 +211,7 @@ func parsePath(scanr *scanner.Scanner) ([]*token.Scalar, error) {
 			}
 		case b == '.':
 			scanr.StartToken()
-			b, err = checkEOF(scanr.Read())
+			b, err = scanr.Read()
 			if err != nil {
 				return nil, err
 			}
@@ -233,7 +220,7 @@ func parsePath(scanr *scanner.Scanner) ([]*token.Scalar, error) {
 				return nil, json.UnexpectedByte(scanr, "expected a-z/A-Z/_, got")
 			}
 			for {
-				b, err = checkEOF(scanr.Read())
+				b, err = scanr.Read()
 				if err != nil {
 					return nil, err
 				}
