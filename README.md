@@ -8,7 +8,7 @@ A fast, streaming JSON processor for the command line.
 - **About 12 MB of memory** whatever the size of the input
 - **Faster than `jq`, `jaq` and `gojq`** on typical workloads
 
-![Time and peak memory by workload for pj, jq, jaq and gojq. pj takes under a second on every workload at 12 MB; the others take 0.7 to 4.8 seconds at 590 to 1220 MB.](docs/benchmark.svg)
+[![Time and peak memory by workload for pj, jq, jaq and gojq. pj takes under a second on every workload at 12 MB; the others take 0.7 to 4.9 seconds at 590 to 1240 MB.](docs/benchmark.svg)](#performance)
 
 ```bash
 # Pretty-print anything, however big: output starts immediately
@@ -283,21 +283,32 @@ items (`go run ./bench gen 500000`), on an Apple M-series laptop, against `jq`
 
 | Workload | pj | jq | jaq | gojq |
 |---|---|---|---|---|
-| Pretty-print | **0.63s**, 12 MB | 4.54s, 860 MB | 1.52s, 1016 MB | 1.22s, 843 MB |
-| `$.items[*].name` | **0.64s**, 12 MB | 1.68s, 829 MB | 0.97s, 1016 MB | 1.34s, 618 MB |
-| `$.items[?@.price > 190]` | **0.73s**, 12 MB | 1.70s, 831 MB | 1.04s, 1016 MB | 1.01s, 668 MB |
-| `$.items[?match(@.email, "user1.*@example\\.com")]` | **0.73s**, 13 MB | 3.20s, 837 MB | 2.61s, 1016 MB | 1.36s, 720 MB |
-| `$.items[:10]` (file argument) | **0.02s**, 5 MB | 1.40s, 829 MB | 0.69s, 1016 MB | 0.79s, 586 MB |
-| `$..email` (at any depth) | **0.65s**, 13 MB | 4.59s, 829 MB | 4.40s, 1023 MB | 4.83s, 1223 MB |
+| pretty-print | **0.63s**, 12 MB | 4.53s, 860 MB | 1.56s, 1016 MB | 1.22s, 837 MB |
+| $.items[*].name | **0.64s**, 12 MB | 1.68s, 829 MB | 0.97s, 1016 MB | 1.29s, 618 MB |
+| filter price > 190 | **0.70s**, 13 MB | 1.75s, 831 MB | 1.06s, 1016 MB | 1.04s, 669 MB |
+| regex filter on email | **0.77s**, 13 MB | 3.24s, 837 MB | 2.62s, 1016 MB | 1.37s, 720 MB |
+| first 10 items (file arg) | **0.02s**, 5 MB | 1.40s, 829 MB | 0.70s, 1016 MB | 0.80s, 586 MB |
+| $..email (any depth) | **0.66s**, 12 MB | 4.59s, 829 MB | 4.27s, 1024 MB | 4.88s, 1241 MB |
 | JPV output | 0.62s, 12 MB | n/a | n/a | n/a |
 
-Each time is the fastest of three runs. The `$.items[:10]` row is the early
-exit described above. For `$..email` the others run
-`.. | objects | select(has("email")) | .email`, which gives the same results.
-Reproduce it all with `make bench`, which also redraws the chart; it uses
-whichever of `jq`, `jaq` and `gojq` are installed. One synthetic file on one
-machine, so treat the ratios as indicative. The memory difference is
-structural: the others load the whole document.
+These are the exact commands, with output sent to `/dev/null`; `jaq` and
+`gojq` take the same arguments as `jq`, and each pair gives the same results:
+
+| Workload | pj | jq, jaq, gojq |
+|---|---|---|
+| pretty-print | `pj -color never big.json` | `jq . big.json` |
+| JPV output | `pj -color never -out jpv big.json` | n/a |
+| $.items[*].name | `pj -color never '$.items[*].name' big.json` | `jq '.items[].name' big.json` |
+| filter price > 190 | `pj -color never -json-lines '$.items[?@.price > 190]' big.json` | `jq -c '.items[] \| select(.price > 190)' big.json` |
+| regex filter on email | `pj -color never -json-lines '$.items[?match(@.email, "user1.*@example\\.com")]' big.json` | `jq -c '.items[] \| select(.email \| test("^user1.*@example\\.com$"))' big.json` |
+| first 10 items (file arg) | `pj -color never '$.items[:10]' big.json` | `jq '.items[:10][]' big.json` |
+| $..email (any depth) | `pj -color never '$..email' big.json` | `jq '.. \| objects \| select(has("email")) \| .email' big.json` |
+
+Each time is the fastest of three runs. The first 10 items row is the early
+exit described above. Reproduce it all with `make bench`, which also redraws
+the chart; it uses whichever of `jq`, `jaq` and `gojq` are installed. One
+synthetic file on one machine, so treat the ratios as indicative. The memory
+difference is structural: the others load the whole document.
 
 ## The Go library
 

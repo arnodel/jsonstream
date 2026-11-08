@@ -3,12 +3,14 @@
 //
 //	go run ./bench gen 500000 > /tmp/big.json
 //	go run ./bench run /tmp/big.json [-svg docs/benchmark.svg]
+//	go run ./bench commands
 //
 // It reports wall-clock time and peak memory of each command, with output sent
 // to /dev/null, and can draw the comparison as an SVG chart.  Each command
 // runs -runs times (3 by default) and the fastest run is reported, which
 // discounts runs slowed down by whatever else the machine is doing.  It is
-// deliberately simple otherwise: one file shape, no statistics.
+// deliberately simple otherwise: one file shape, no statistics.  The commands
+// subcommand prints the exact command lines as the README's markdown table.
 package main
 
 import (
@@ -21,12 +23,18 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 )
 
 func main() {
+	if len(os.Args) == 2 && os.Args[1] == "commands" {
+		fmt.Print(commandsTable())
+		return
+	}
 	if len(os.Args) < 3 {
 		usage()
 	}
@@ -49,7 +57,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage:\n  bench gen N > file.json                         generate a file with N items\n  bench run file.json [-svg out.svg] [-runs N]   time pj, jq, jaq and gojq on it")
+	fmt.Fprintln(os.Stderr, "usage:\n  bench gen N > file.json                         generate a file with N items\n  bench run file.json [-svg out.svg] [-runs N]   time pj, jq, jaq and gojq on it\n  bench commands                                  print the command lines as a markdown table")
 	os.Exit(2)
 }
 
@@ -94,13 +102,27 @@ type workload struct {
 // jqLikeTools are jq implementations with the same command line.
 var jqLikeTools = []string{"jq", "jaq", "gojq"}
 
+// pjArgs are the arguments pj runs with on the file.
+func (w workload) pjArgs(file string) []string {
+	return slices.Concat([]string{"-color", "never"}, w.pj, []string{file})
+}
+
+// jqArgs are the arguments the jq-like tools run with on the file, or nil if
+// they have no equivalent.
+func (w workload) jqArgs(file string) []string {
+	if w.jq == nil {
+		return nil
+	}
+	return slices.Concat(w.jq, []string{file})
+}
+
 var workloads = []workload{
 	{"pretty-print", []string{}, []string{"."}},
 	{"JPV output", []string{"-out", "jpv"}, nil},
 	{"$.items[*].name", []string{"$.items[*].name"}, []string{".items[].name"}},
 	{"filter price > 190", []string{"-json-lines", "$.items[?@.price > 190]"}, []string{"-c", ".items[] | select(.price > 190)"}},
 	{"regex filter on email", []string{"-json-lines", `$.items[?match(@.email, "user1.*@example\\.com")]`}, []string{"-c", `.items[] | select(.email | test("^user1.*@example\\.com$"))`}},
-	{"first 10 items (file arg)", []string{"$.items[:10]"}, []string{".items[:10]"}},
+	{"first 10 items (file arg)", []string{"$.items[:10]"}, []string{".items[:10][]"}},
 	{"$..email (any depth)", []string{"$..email"}, []string{`.. | objects | select(has("email")) | .email`}},
 }
 
@@ -140,11 +162,10 @@ func run(file string, svgPath string, runs int) {
 	fmt.Println()
 	for i, w := range workloads {
 		results[i] = make([]result, len(tools))
-		jpArgs := append([]string{"-color", "never"}, w.pj...)
-		results[i][0] = fastest(runs, pj, append(jpArgs, file))
+		results[i][0] = fastest(runs, pj, w.pjArgs(file))
 		for t := 1; t < len(tools); t++ {
-			if w.jq != nil {
-				results[i][t] = fastest(runs, paths[t], append(append([]string{}, w.jq...), file))
+			if args := w.jqArgs(file); args != nil {
+				results[i][t] = fastest(runs, paths[t], args)
 			}
 		}
 		fmt.Printf("%-28s", w.name)
@@ -206,4 +227,38 @@ func measure(name string, args []string) result {
 		rss *= 1024 // Linux reports KB, macOS bytes
 	}
 	return result{seconds: elapsed.Seconds(), mb: float64(rss) / (1 << 20), ok: true}
+}
+
+// commandsTable is a markdown table of the command line each tool runs for
+// each workload, as a shell would take it, on a file called big.json.
+func commandsTable() string {
+	var b strings.Builder
+	b.WriteString("| Workload | pj | jq, jaq, gojq |\n|---|---|---|\n")
+	for _, w := range workloads {
+		jq := "n/a"
+		if args := w.jqArgs("big.json"); args != nil {
+			jq = markdownCode("jq " + shellJoin(args))
+		}
+		fmt.Fprintf(&b, "| %s | %s | %s |\n", w.name, markdownCode("pj "+shellJoin(w.pjArgs("big.json"))), jq)
+	}
+	return b.String()
+}
+
+// shellJoin joins arguments into a command line, single-quoting those that
+// need it.
+func shellJoin(args []string) string {
+	quoted := make([]string, len(args))
+	for i, arg := range args {
+		if arg != "" && strings.Trim(arg, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_./") == "" {
+			quoted[i] = arg
+		} else {
+			quoted[i] = "'" + strings.ReplaceAll(arg, "'", `'\''`) + "'"
+		}
+	}
+	return strings.Join(quoted, " ")
+}
+
+// markdownCode is s as a code span in a table cell, where | must be escaped.
+func markdownCode(s string) string {
+	return "`" + strings.ReplaceAll(s, "|", `\|`) + "`"
 }
