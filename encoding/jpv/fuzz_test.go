@@ -3,7 +3,6 @@ package jpv
 import (
 	"bytes"
 	"errors"
-	"fmt"
 	"strings"
 	"testing"
 	"testing/iotest"
@@ -46,16 +45,43 @@ func fuzzTokensEqual(a, b []token.Token) bool {
 	return true
 }
 
-// FuzzJPVDecoder checks that the JPV decoder never panics on any input.
+// FuzzJPVDecoder checks that the JPV decoder never panics, that it reports
+// errors at the right line and column, reading one byte at a time, and that
+// the two kinds of error for what it rejects on purpose (see
+// errLineEndsBeforeEquals and errMoreAfterValue) are what they say.
 func FuzzJPVDecoder(f *testing.F) {
 	for _, seed := range []string{
 		"$ = 1\n", "$.a = 1\n$.b = [2]\n", `$["a b"][0] = "x"` + "\n", "$.a[0] = 1\n$.a[1] = 2\n$.b.c = null\n",
 		"$.a = {}\n$.b = []\n", "$[0 = 1\n", "$.a\n", "= 1\n", "$.a = \n", "$.a.b = 1\n$.a = 2\n", "$[1] = 1\n$[0] = 2\n",
+		"$.a = 1 $.b = 2\n", "$.a\n= 1\n", "$.a =\n1\n", "$.a = [1,\n2]\n$.b = 3", "\n\n  $.a = 1  \r\n\t$.b = 2",
+		`$["é"] = "\ud800"` + "\n", "$[\"\xff\"] = \"\xff\"\n", `$["a\"]"] = 1`, `$["]"] = 1`, "$.a = 01\n",
+		"$[007] = 1\n", "$.a = 1\n$.a = 2\n", "$.a = 1 \n", "$.a = 1x\n", "$.a = \"x\n", "$.a = [\n\n", "$.é = 1\n",
+		"$.a = 1\r\n$.b = 2\r\n", "$ = {\"a\":\n1}\n", `$ = "a" "b"`, "$.a =", "$.a = 1\n$", "$.a.b = 1\n$.a.c = 2",
 	} {
 		f.Add(seed)
 	}
 	f.Fuzz(func(t *testing.T, input string) {
-		fuzzDecodeJPV(input) // must not panic; errors are fine
+		acc := token.NewAccumulatorStream()
+		err := NewDecoder(iotest.OneByteReader(strings.NewReader(input))).Produce(acc)
+		var serr *json.SyntaxError
+		if !errors.As(err, &serr) {
+			return
+		}
+		if line, col := position(input, serr.Offset); serr.Line != line || serr.Column != col {
+			t.Fatalf("input %q: error at L%d,C%d, want L%d,C%d: %v", input, serr.Line, serr.Column, line, col, err)
+		}
+		rest, _, _ := strings.Cut(input[serr.Offset:], "\n")
+		rest = strings.Trim(rest, " \t\r")
+		switch {
+		case errors.Is(err, errLineEndsBeforeEquals):
+			if rest != "" || !strings.Contains(input[serr.Offset:], "\n") {
+				t.Fatalf("input %q: %v, but the line does not end there", input, err)
+			}
+		case errors.Is(err, errMoreAfterValue):
+			if rest == "" {
+				t.Fatalf("input %q: %v, but the rest of the line is blank", input, err)
+			}
+		}
 	})
 }
 
@@ -143,89 +169,4 @@ func hasDuplicateKeys(toks []token.Token) bool {
 func position(input string, offset int64) (line, col int64) {
 	before := input[:offset]
 	return int64(strings.Count(before, "\n")) + 1, offset - int64(strings.LastIndexByte(before, '\n'))
-}
-
-// sameJPVToken reports whether a, from the decoder, and b, from the scanner
-// decoder, are the same token.  The scanner decoder did not mark the names
-// in paths such as $.name as unescaped, though they are.
-func sameJPVToken(a, b token.Token) bool {
-	x, ok := a.(*token.Scalar)
-	if !ok {
-		return fmt.Sprintf("%T", a) == fmt.Sprintf("%T", b)
-	}
-	y, ok := b.(*token.Scalar)
-	if !ok {
-		return false
-	}
-	yFlags := y.TypeAndFlags
-	if y.IsKey() && y.IsAlnum() {
-		yFlags |= token.UnescapedMask
-	}
-	return x.TypeAndFlags == yFlags && bytes.Equal(x.Bytes, y.Bytes)
-}
-
-// FuzzJPVMatchesScanner checks that the JPV decoder decodes inputs as the
-// one built on internal/scanner did, apart from the two things that it
-// rejects on purpose: a line break between a path and its '=', and anything
-// after a value on its line, such as another entry.  It also checks the
-// position of each error, reading one byte at a time.
-func FuzzJPVMatchesScanner(f *testing.F) {
-	for _, seed := range []string{
-		"$ = 1\n", "$.a = 1\n$.b = [2]\n", `$["a b"][0] = "x"` + "\n", "$.a[0] = 1\n$.a[1] = 2\n$.b.c = null\n",
-		"$.a = {}\n$.b = []\n", "$[0 = 1\n", "$.a\n", "= 1\n", "$.a = \n", "$.a.b = 1\n$.a = 2\n", "$[1] = 1\n$[0] = 2\n",
-		"$.a = 1 $.b = 2\n", "$.a\n= 1\n", "$.a =\n1\n", "$.a = [1,\n2]\n$.b = 3", "\n\n  $.a = 1  \r\n\t$.b = 2",
-		`$["é"] = "\ud800"` + "\n", "$[\"\xff\"] = \"\xff\"\n", `$["a\"]"] = 1`, `$["]"] = 1`, "$.a = 01\n",
-		"$[007] = 1\n", "$.a = 1\n$.a = 2\n", "$.a = 1 \n", "$.a = 1x\n", "$.a = \"x\n", "$.a = [\n\n", "$.é = 1\n",
-		"$.a = 1\r\n$.b = 2\r\n", "$ = {\"a\":\n1}\n", `$ = "a" "b"`, "$.a =", "$.a = 1\n$", "$.a.b = 1\n$.a.c = 2",
-	} {
-		f.Add(seed)
-	}
-	f.Fuzz(func(t *testing.T, input string) {
-		acc := token.NewAccumulatorStream()
-		err := NewDecoder(iotest.OneByteReader(strings.NewReader(input))).Produce(acc)
-		got := acc.GetTokens()
-		acc = token.NewAccumulatorStream()
-		wantErr := newScannerDecoder(strings.NewReader(input)).Produce(acc)
-		want := acc.GetTokens()
-
-		var serr *json.SyntaxError
-		if errors.As(err, &serr) {
-			if line, col := position(input, serr.Offset); serr.Line != line || serr.Column != col {
-				t.Fatalf("input %q: error at L%d,C%d, want L%d,C%d: %v", input, serr.Line, serr.Column, line, col, err)
-			}
-		}
-		switch {
-		case err != nil && wantErr != nil:
-			return
-		case err != nil:
-			// The two rejections on purpose must be what they say.
-			restOfLine := func() string {
-				rest, _, _ := strings.Cut(input[serr.Offset:], "\n")
-				return strings.Trim(rest, " \t\r")
-			}
-			switch {
-			case errors.Is(err, errLineEndsBeforeEquals):
-				if restOfLine() != "" || !strings.Contains(input[serr.Offset:], "\n") {
-					t.Fatalf("input %q: %v, but the line does not end there", input, err)
-				}
-				return
-			case errors.Is(err, errMoreAfterValue):
-				if restOfLine() == "" {
-					t.Fatalf("input %q: %v, but the rest of the line is blank", input, err)
-				}
-				return
-			}
-			t.Fatalf("input %q\njsontext error: %v\nscanner accepts it: %v", input, err, want)
-		case wantErr != nil:
-			t.Fatalf("input %q\njsontext accepts it: %v\nscanner error: %v", input, got, wantErr)
-		}
-		if len(got) != len(want) {
-			t.Fatalf("input %q\njsontext: %d tokens %v\nscanner:  %d tokens %v", input, len(got), got, len(want), want)
-		}
-		for i := range got {
-			if !sameJPVToken(got[i], want[i]) {
-				t.Fatalf("input %q: token %d differs\njsontext: %#v\nscanner:  %#v", input, i, got[i], want[i])
-			}
-		}
-	})
 }

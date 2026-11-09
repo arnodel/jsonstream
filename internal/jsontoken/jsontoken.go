@@ -8,7 +8,7 @@ import (
 	"errors"
 	"io"
 
-	"github.com/arnodel/jsonstream/internal/scanner"
+	"github.com/arnodel/jsonstream/internal/ascii"
 	"github.com/arnodel/jsonstream/token"
 )
 
@@ -99,11 +99,11 @@ func StringScalar(v jsontext.Value) *token.Scalar {
 
 // IsName reports whether b can be written as a shorthand name in a path.
 func IsName(b []byte) bool {
-	if len(b) == 0 || !scanner.IsAlpha(b[0]) {
+	if len(b) == 0 || !ascii.IsAlpha(b[0]) {
 		return false
 	}
 	for _, c := range b[1:] {
-		if !scanner.IsAlnum(c) {
+		if !ascii.IsAlnum(c) {
 			return false
 		}
 	}

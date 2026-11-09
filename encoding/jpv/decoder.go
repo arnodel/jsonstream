@@ -9,8 +9,8 @@ import (
 	"io"
 
 	"github.com/arnodel/jsonstream/encoding/json"
+	"github.com/arnodel/jsonstream/internal/ascii"
 	"github.com/arnodel/jsonstream/internal/jsontoken"
-	"github.com/arnodel/jsonstream/internal/scanner"
 	"github.com/arnodel/jsonstream/token"
 )
 
@@ -148,7 +148,7 @@ func (d *Decoder) parsePath(line []byte, i int) ([]*token.Scalar, int, error) {
 				i = end
 			} else {
 				j := i
-				for j < len(line) && scanner.IsDigit(line[j]) {
+				for j < len(line) && ascii.IsDigit(line[j]) {
 					j++
 				}
 				if j == i {
@@ -165,9 +165,9 @@ func (d *Decoder) parsePath(line []byte, i int) ([]*token.Scalar, int, error) {
 		case '.':
 			i++
 			j := i
-			if j < len(line) && scanner.IsAlpha(line[j]) {
+			if j < len(line) && ascii.IsAlpha(line[j]) {
 				j++
-				for j < len(line) && scanner.IsAlnum(line[j]) {
+				for j < len(line) && ascii.IsAlnum(line[j]) {
 					j++
 				}
 			}

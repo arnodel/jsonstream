@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/arnodel/jsonstream/internal/scanner"
+	"github.com/arnodel/jsonstream/internal/ascii"
 	"github.com/arnodel/jsonstream/token"
 )
 
@@ -102,12 +102,12 @@ func fieldToScalar(field string, isHeader bool) *token.Scalar {
 		if b == '"' || b == '\n' || b == '\\' {
 			escapeCount++
 		} else if i == 0 {
-			fieldIsAlnum = scanner.IsAlpha(b)
+			fieldIsAlnum = ascii.IsAlpha(b)
 		} else {
-			fieldIsAlnum = fieldIsAlnum && scanner.IsAlnum(b)
+			fieldIsAlnum = fieldIsAlnum && ascii.IsAlnum(b)
 		}
 		if fieldCouldBeNumber {
-			fieldCouldBeNumber = scanner.IsDigit(b) || b == '.' || b == 'e' || b == 'E' || b == '+' || b == '-'
+			fieldCouldBeNumber = ascii.IsDigit(b) || b == '.' || b == 'e' || b == 'E' || b == '+' || b == '-'
 		}
 	}
 	if escapeCount > 0 {
