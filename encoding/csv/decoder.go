@@ -2,11 +2,10 @@ package csv
 
 import (
 	"encoding/csv"
+	"encoding/json/jsontext"
 	"fmt"
 	"io"
-	"strings"
 
-	"github.com/arnodel/jsonstream/encoding/json"
 	"github.com/arnodel/jsonstream/internal/scanner"
 	"github.com/arnodel/jsonstream/token"
 )
@@ -114,13 +113,9 @@ func fieldToScalar(field string, isHeader bool) *token.Scalar {
 	if escapeCount > 0 {
 		return csvFieldToStringScalar(field, escapeCount)
 	}
-	if fieldCouldBeNumber {
-		reader := strings.NewReader(field)
-		scanr := scanner.NewScanner(reader)
-		scalar, err := json.ParseNumber(scanr)
-		if err == nil && reader.Len() == 0 {
-			return scalar
-		}
+	// With only those characters, a field that is valid JSON is a number.
+	if fieldCouldBeNumber && jsontext.Value(field).IsValid() {
+		return token.NewScalar(token.Number, []byte(field))
 	}
 	scalar := simpleCSVFieldToStringScalar(field)
 	if fieldIsAlnum {
