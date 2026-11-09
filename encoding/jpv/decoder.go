@@ -92,12 +92,12 @@ func (d *Decoder) parseLine(line []byte, out token.WriteStream) error {
 		return err
 	}
 	i = skipSpace(line, i)
-	if i == len(line) || line[i] == '\n' {
+	if i < len(line) && line[i] == '\n' {
 		err := d.lineError(line, i, "expected '=', got %s", describeByte(line, i))
 		err.Err = errLineEndsBeforeEquals
 		return err
 	}
-	if line[i] != '=' {
+	if i == len(line) || line[i] != '=' {
 		return d.lineError(line, i, "expected '=', got %s", describeByte(line, i))
 	}
 	if err := d.paths.update(path, out); err != nil {
