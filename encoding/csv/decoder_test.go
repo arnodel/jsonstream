@@ -358,7 +358,7 @@ func TestDecoderNumberEdgeCases(t *testing.T) {
 		{
 			name:       "leading zero",
 			input:      "0123",
-			expectType: token.Number,
+			expectType: token.String, // Not a JSON number: a zip code keeps its 0
 		},
 		{
 			name:       "decimal point only",
@@ -373,7 +373,7 @@ func TestDecoderNumberEdgeCases(t *testing.T) {
 		{
 			name:       "number-like but invalid",
 			input:      "1.2.3",
-			expectType: token.Number, // Parses as 1.2, rest is ignored by CSV field parser
+			expectType: token.String, // Not a JSON number, so kept whole
 		},
 		{
 			name:       "zero",
@@ -404,6 +404,14 @@ func TestDecoderNumberEdgeCases(t *testing.T) {
 
 			if scalar.Type() != tt.expectType {
 				t.Errorf("expected type %v, got %v (value: %s)", tt.expectType, scalar.Type(), string(scalar.Bytes))
+			}
+			// The field is kept whole, as a number or as a string.
+			want := tt.input
+			if tt.expectType == token.String {
+				want = `"` + want + `"`
+			}
+			if string(scalar.Bytes) != want {
+				t.Errorf("expected %s, got %s", want, scalar.Bytes)
 			}
 		})
 	}
