@@ -37,6 +37,7 @@ jobs:
           - { name: FuzzDecoderMatchesScanner, pkg: ./encoding/json }
           - { name: FuzzJPVDecoder, pkg: ./encoding/jpv }
           - { name: FuzzJPVRoundTrip, pkg: ./encoding/jpv }
+          - { name: FuzzJPVMatchesScanner, pkg: ./encoding/jpv }
           - { name: FuzzParseQueryString, pkg: ./internal/jsonpath }
           - { name: FuzzQuery, pkg: ./transform/jsonpath }
     name: ${{ matrix.target.name }}
