@@ -1,11 +1,11 @@
 package jpv
 
 import (
+	"fmt"
 	"io"
 	"strings"
 	"testing"
 
-	"github.com/arnodel/jsonstream/internal/scanner"
 	"github.com/arnodel/jsonstream/token"
 )
 
@@ -347,7 +347,7 @@ func decodeJPV(t *testing.T, input string) []token.Token {
 // number literals, without the closing bracket.  (This used to go unnoticed
 // because the literal parser stopped at the first token.)
 func TestIndexScalarBytes(t *testing.T) {
-	path, err := parsePath(scanner.NewScanner(strings.NewReader(`.a[10][2] = 1`)))
+	path, _, err := new(Decoder).parsePath([]byte(`.a[10][2] = 1`), 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -383,5 +383,20 @@ func TestPathFollowedByGarbage(t *testing.T) {
 		if err := NewDecoder(strings.NewReader(input)).Produce(acc); err == nil {
 			t.Errorf("%q: expected an error", input)
 		}
+	}
+}
+
+// TestErrorLeavesValueOpen checks that after a syntax error the decoder does
+// not close the objects and arrays it is in: the last path's key has no value,
+// so closing them would make an invalid stream.
+func TestErrorLeavesValueOpen(t *testing.T) {
+	acc := token.NewAccumulatorStream()
+	err := NewDecoder(strings.NewReader("$.a = 1\n$.b[0] = x\n")).Produce(acc)
+	if err == nil {
+		t.Fatal("expected an error")
+	}
+	got := fmt.Sprint(acc.GetTokens())
+	if want := `[StartObject Scalar("a") Scalar(1) Scalar("b") StartArray]`; got != want {
+		t.Errorf("got %s, want %s", got, want)
 	}
 }

@@ -4,11 +4,10 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json/jsontext"
-	"errors"
 	"fmt"
 	"io"
 
-	"github.com/arnodel/jsonstream/internal/scanner"
+	"github.com/arnodel/jsonstream/internal/jsontoken"
 	"github.com/arnodel/jsonstream/token"
 )
 
@@ -23,137 +22,47 @@ func newTextDecoder(in io.Reader) *textDecoder {
 	// jsontext reads 4KB at a time, and each read of a FlushingReader sends
 	// on a partial batch of tokens.
 	lines := &lineCounter{r: bufio.NewReaderSize(in, 64<<10)}
-	return &textDecoder{lines: lines, dec: jsontext.NewDecoder(lines,
-		// Accept what the JSON grammar accepts: jsontext is stricter by
-		// default.
-		jsontext.AllowDuplicateNames(true),
-		jsontext.AllowInvalidUTF8(true),
-	)}
+	return &textDecoder{lines: lines, dec: jsontext.NewDecoder(lines, jsontoken.Options...)}
 }
 
 func (d *textDecoder) produce(out token.WriteStream) error {
-	if err := d.produceTokens(out); err != nil {
+	if err := jsontoken.Put(d.dec, out, false); err != nil {
 		return d.syntaxError(err)
 	}
 	return nil
 }
 
-func (d *textDecoder) produceTokens(out token.WriteStream) error {
-	dec := d.dec
-	for {
-		var tok token.Token
-		switch dec.PeekKind() {
-		case jsontext.KindBeginObject:
-			tok = &token.StartObject{}
-		case jsontext.KindEndObject:
-			tok = &token.EndObject{}
-		case jsontext.KindBeginArray:
-			tok = &token.StartArray{}
-		case jsontext.KindEndArray:
-			tok = &token.EndArray{}
-		case jsontext.KindNull:
-			tok = nullInstance
-		case jsontext.KindTrue:
-			tok = trueInstance
-		case jsontext.KindFalse:
-			tok = falseInstance
-		case jsontext.KindString:
-			v, err := dec.ReadValue()
-			if err != nil {
-				return err
-			}
-			s := stringScalar(v)
-			// Once a name is read its object has an odd number of tokens.
-			if kind, n := dec.StackIndex(dec.StackDepth()); kind == jsontext.KindBeginObject && n%2 == 1 {
-				s.TypeAndFlags |= token.KeyMask
-			}
-			out.Put(s)
-			continue
-		case jsontext.KindNumber:
-			v, err := dec.ReadValue()
-			if err != nil {
-				return err
-			}
-			out.Put(token.CopyScalar(token.Number, v))
-			continue
-		default:
-			// An error, or the end of the input.
-			_, err := dec.ReadToken()
-			if err == io.EOF {
-				return nil
-			}
-			return err
-		}
-		if _, err := dec.ReadToken(); err != nil {
-			return err
-		}
-		out.Put(tok)
-	}
-}
-
-// stringScalar makes a string scalar from the literal v, which is only valid
-// until the next read.
-func stringScalar(v jsontext.Value) *token.Scalar {
-	s := token.CopyScalar(token.String, v)
-	body := s.Bytes[1 : len(s.Bytes)-1]
-	if bytes.IndexByte(body, '\\') < 0 {
-		s.TypeAndFlags |= token.UnescapedMask
-		if isName(body) {
-			s.TypeAndFlags |= token.AlnumMask
-		}
-	}
-	return s
-}
-
-// isName reports whether b can be written as a shorthand name in a path.
-func isName(b []byte) bool {
-	if len(b) == 0 || !scanner.IsAlpha(b[0]) {
-		return false
-	}
-	for _, c := range b[1:] {
-		if !scanner.IsAlnum(c) {
-			return false
-		}
-	}
-	return true
-}
-
-// A SyntaxError is invalid JSON in the input of a Decoder.  It wraps the
-// error reported by jsontext; the end of the input inside a value wraps
-// io.ErrUnexpectedEOF.
+// A SyntaxError is invalid input to a Decoder, or to the decoder of another
+// format that contains JSON.
 type SyntaxError struct {
-	Line, Column int64 // 1-based position of the error in bytes, 0 if unknown
-	Offset       int64 // byte offset of the error
-	msg          string
-	err          error
+	Line, Column int64  // 1-based position of the error in bytes, 0 if unknown
+	Offset       int64  // byte offset of the error
+	Msg          string // what is wrong
+	Err          error  // the error it comes from, if any; the end of the input inside a value wraps io.ErrUnexpectedEOF
 }
 
 func (e *SyntaxError) Error() string {
 	if e.Line == 0 {
-		return fmt.Sprintf("syntax error at offset %d: %s", e.Offset, e.msg)
+		return fmt.Sprintf("syntax error at offset %d: %s", e.Offset, e.Msg)
 	}
-	return fmt.Sprintf("syntax error at L%d,C%d: %s", e.Line, e.Column, e.msg)
+	return fmt.Sprintf("syntax error at L%d,C%d: %s", e.Line, e.Column, e.Msg)
 }
 
 func (e *SyntaxError) Unwrap() error {
-	return e.err
+	return e.Err
 }
 
 // syntaxError turns a jsontext error into a *SyntaxError.
 func (d *textDecoder) syntaxError(err error) error {
-	var serr *jsontext.SyntacticError
-	if !errors.As(err, &serr) {
+	msg, ptr, offset, ok := jsontoken.DescribeError(err)
+	if !ok {
 		return err
 	}
-	msg := serr.Err.Error()
-	if errors.Is(serr.Err, io.ErrUnexpectedEOF) {
-		msg = "unexpected end of input"
+	if ptr != "" {
+		msg += " within " + string(ptr)
 	}
-	if serr.JSONPointer != "" {
-		msg += " within " + string(serr.JSONPointer)
-	}
-	line, col, _ := d.lines.position(serr.ByteOffset)
-	return &SyntaxError{Line: line, Column: col, Offset: serr.ByteOffset, msg: msg, err: serr}
+	line, col, _ := d.lines.position(offset)
+	return &SyntaxError{Line: line, Column: col, Offset: offset, Msg: msg, Err: err}
 }
 
 // lineCounter passes input through and remembers where its newlines are, so
