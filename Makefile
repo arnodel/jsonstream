@@ -19,6 +19,7 @@ fuzz:
 	go test -run=^$$ -fuzz=^FuzzDecoderMatchesScanner$$ -fuzztime=$(FUZZTIME) ./encoding/json
 	go test -run=^$$ -fuzz=^FuzzJPVDecoder$$ -fuzztime=$(FUZZTIME) ./encoding/jpv
 	go test -run=^$$ -fuzz=^FuzzJPVRoundTrip$$ -fuzztime=$(FUZZTIME) ./encoding/jpv
+	go test -run=^$$ -fuzz=^FuzzJPVMatchesScanner$$ -fuzztime=$(FUZZTIME) ./encoding/jpv
 	go test -run=^$$ -fuzz=^FuzzParseQueryString$$ -fuzztime=$(FUZZTIME) ./internal/jsonpath
 	go test -run=^$$ -fuzz=^FuzzQuery$$ -fuzztime=$(FUZZTIME) ./transform/jsonpath
 
