@@ -2,10 +2,14 @@ package json
 
 import (
 	"bytes"
+	"errors"
+	"fmt"
 	"strings"
 	"testing"
+	"testing/iotest"
 
 	"github.com/arnodel/jsonstream/format"
+	"github.com/arnodel/jsonstream/internal/scanner"
 	"github.com/arnodel/jsonstream/token"
 )
 
@@ -124,6 +128,82 @@ func FuzzDecoder(f *testing.F) {
 		}
 		if !tokensEqual(toks, again) {
 			t.Fatalf("round trip changed the tokens\ninput: %q\noutput: %q", input, encodeCompact(toks))
+		}
+	})
+}
+
+// decodeOneByteAtATime decodes the input read one byte at a time.
+func decodeOneByteAtATime(input string) ([]token.Token, error) {
+	acc := token.NewAccumulatorStream()
+	err := NewDecoder(iotest.OneByteReader(strings.NewReader(input))).Produce(acc)
+	return acc.GetTokens(), err
+}
+
+// position returns the 1-based line and byte column of offset in input.
+func position(input string, offset int64) (line, col int64) {
+	before := input[:offset]
+	return int64(strings.Count(before, "\n")) + 1, offset - int64(strings.LastIndexByte(before, '\n'))
+}
+
+// decodeWithScanner decodes the input with the decoder that the jpv format
+// uses, which parses JSON with internal/scanner rather than jsontext.
+func decodeWithScanner(input string) ([]token.Token, error) {
+	acc := token.NewAccumulatorStream()
+	err := NewDecoderFromScanner(scanner.NewScanner(strings.NewReader(input))).Produce(acc)
+	return acc.GetTokens(), err
+}
+
+// sameToken reports whether a and b are the same token, scalars with the same
+// type, flags and bytes.
+func sameToken(a, b token.Token) bool {
+	x, ok := a.(*token.Scalar)
+	if !ok {
+		return fmt.Sprintf("%T", a) == fmt.Sprintf("%T", b)
+	}
+	y, ok := b.(*token.Scalar)
+	return ok && x.TypeAndFlags == y.TypeAndFlags && bytes.Equal(x.Bytes, y.Bytes)
+}
+
+// FuzzDecoderMatchesScanner checks that the jsontext decoder and the scanner
+// decoder accept the same inputs and decode them to the same tokens, and that
+// the jsontext decoder reports errors at the right line and column.  It
+// reads one byte at a time, as the input from a pipe can arrive in any
+// pieces.
+func FuzzDecoderMatchesScanner(f *testing.F) {
+	for _, seed := range []string{
+		`{}`, `[]`, `null`, `"a"`, `-0.5e-3`, `[1, [2, [3]]]`, `{"a": {"b": [true, false, null]}}`,
+		`{"a": 1} {"b": 2}` + "\n" + `[3]`, `"é😀\n\\\""`, `{"": ""}`, `[1,]`, `{"a" 1}`,
+		`123456789012345678901234567890`, `1e`, `"unterminated`, `[`, `tru`, "\x00", ` `, `"\0"`, `{"0": 0, "\0": 0}`,
+		`01`, `1 2`, `12`, `"a""b"`, `{}{}`, `[1]2`, `truefalse`, `1-`, `-`, `1.`, `.5`, `1e+`, `+1`,
+		`"\ud800"`, `"\udc00\ud800"`, `"é"`, "\"\xff\"", "\"\xc3\"", "{\"\xff\": 1}", "\xff",
+		"\ufeff{}", "\t\r\n 1 \t\r\n", `{"a": 1, "a": 2}`, `{"x1": 1, "1x": 2, "_": 3, "a b": 4}`,
+		`[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[1]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]`, `1/`, `/* */ 1`, `NaN`,
+	} {
+		f.Add(seed)
+	}
+	f.Fuzz(func(t *testing.T, input string) {
+		got, err := decodeOneByteAtATime(input)
+		want, wantErr := decodeWithScanner(input)
+		if (err == nil) != (wantErr == nil) {
+			t.Fatalf("input %q\njsontext error: %v\nscanner error:  %v", input, err, wantErr)
+		}
+		if err != nil {
+			var serr *SyntaxError
+			if !errors.As(err, &serr) {
+				t.Fatalf("input %q: not a *SyntaxError: %v", input, err)
+			}
+			if line, col := position(input, serr.Offset); serr.Line != line || serr.Column != col {
+				t.Fatalf("input %q: error at L%d,C%d, want L%d,C%d: %v", input, serr.Line, serr.Column, line, col, err)
+			}
+			return
+		}
+		if len(got) != len(want) {
+			t.Fatalf("input %q\njsontext: %d tokens %v\nscanner:  %d tokens %v", input, len(got), got, len(want), want)
+		}
+		for i := range got {
+			if !sameToken(got[i], want[i]) {
+				t.Fatalf("input %q: token %d differs\njsontext: %#v\nscanner:  %#v", input, i, got[i], want[i])
+			}
 		}
 	})
 }
