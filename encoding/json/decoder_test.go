@@ -1,6 +1,7 @@
 package json
 
 import (
+	"errors"
 	"io"
 	"strings"
 	"testing"
@@ -543,9 +544,9 @@ func TestDecoderUnclosedStructures(t *testing.T) {
 			err := decoder.Produce(token.ChannelWriteStream(out))
 			close(out)
 
-			// Should get io.EOF when the reader runs out of input while parsing
-			if err != io.EOF {
-				t.Errorf("expected io.EOF for unclosed structure, got %v", err)
+			// The input ends inside a value.
+			if !errors.Is(err, io.ErrUnexpectedEOF) {
+				t.Errorf("expected io.ErrUnexpectedEOF for unclosed structure, got %v", err)
 			}
 
 			// Drain the channel
@@ -678,5 +679,30 @@ func TestInvalidEscapes(t *testing.T) {
 		if _, err := decodeAll(input); err != nil {
 			t.Errorf("%s: unexpected error %v", input, err)
 		}
+	}
+}
+
+// The decoder keeps the positions of recent newlines only, which must still
+// give the line and column of an error far into the input.
+func TestDecoderErrorPositionFarIn(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		input     string
+		line, col int64
+	}{
+		{"after many lines", strings.Repeat("1\n", 1<<20) + "x", 1<<20 + 1, 1},
+		{"after a long line", "1\n" + strings.Repeat(" ", 3<<20) + "x", 2, 3<<20 + 1},
+		{"long line after many lines", strings.Repeat("1\n", 1<<20) + strings.Repeat(" ", 3<<20) + "x", 1<<20 + 1, 3<<20 + 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := decodeAll(tc.input)
+			var serr *SyntaxError
+			if !errors.As(err, &serr) {
+				t.Fatalf("expected a *SyntaxError, got %v", err)
+			}
+			if serr.Line != tc.line || serr.Column != tc.col {
+				t.Errorf("error at L%d,C%d, want L%d,C%d", serr.Line, serr.Column, tc.line, tc.col)
+			}
+		})
 	}
 }

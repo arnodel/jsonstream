@@ -42,7 +42,7 @@ what you need, `jq` or `jaq` is the right tool, and the two combine well
 ```bash
 brew install arnodel/tap/pj                                                      # Homebrew (macOS, Linux)
 nix-env -f https://github.com/arnodel/nur-packages/archive/main.tar.gz -iA pj   # Nix
-go install github.com/arnodel/jsonstream/cmd/pj@latest                          # Go 1.25 or later
+go install github.com/arnodel/jsonstream/cmd/pj@latest                          # Go 1.27 or later
 ```
 
 Pre-built binaries for Linux, macOS and Windows are on the
