@@ -13,7 +13,9 @@ func TestReadmeCommands(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := commandsTable(); !strings.Contains(string(readme), want) {
-		t.Errorf("README.md does not contain the benchmark commands; replace its table with the output of go run ./bench commands:\n%s", want)
+	for _, s := range suites {
+		if want := commandsTable(s); !strings.Contains(string(readme), want) {
+			t.Errorf("README.md does not contain the commands of bench %s; replace its table with the matching output of go run ./bench commands:\n%s", s.command, want)
+		}
 	}
 }

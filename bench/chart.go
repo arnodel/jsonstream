@@ -3,7 +3,9 @@ package main
 import (
 	"fmt"
 	"math"
+	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -13,6 +15,9 @@ import (
 // rounded data end and a 2px gap between neighbours.
 var (
 	seriesColors = []string{"#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4"}
+	// seriesTools are the tools in the order they take the colours, so that a
+	// tool has the same colour in every chart.
+	seriesTools  = []string{"pj", "jq", "jaq", "gojq", "gron"}
 	surface      = "#fcfcfb"
 	inkPrimary   = "#0b0b0b"
 	inkSecondary = "#52514e"
@@ -39,7 +44,7 @@ const (
 // chartSVG draws two panels of grouped horizontal bars, time and peak memory,
 // one group per workload that at least two tools ran, one bar per tool that
 // ran it.  A tool keeps its colour whichever bars a group has.
-func chartSVG(tools []string, results [][]result, file string, runs int) string {
+func chartSVG(tools, workloads []string, results [][]result, file string, runs int) string {
 	// A group is a workload, the tools that ran it and where it starts.
 	type group struct {
 		workload int
@@ -72,10 +77,10 @@ func chartSVG(tools []string, results [][]result, file string, runs int) string 
 
 	// Title, subtitle and legend.
 	w(`<text x="%.0f" y="28" fill="%s" font-size="15" font-weight="600">Time and peak memory by workload, lower is better</text>`, marginX, inkPrimary)
-	w(`<text x="%.0f" y="48" fill="%s">%s, output to /dev/null, %s</text>`, marginX, inkSecondary, filepath.Base(file), runsNote(runs))
+	w(`<text x="%.0f" y="48" fill="%s">%s (%s), output to /dev/null, %s</text>`, marginX, inkSecondary, filepath.Base(file), fileSize(file), runsNote(runs))
 	x := marginX
 	for t, tool := range tools {
-		w(`<rect x="%.0f" y="62" width="10" height="10" rx="2" fill="%s"/>`, x, seriesColors[t%len(seriesColors)])
+		w(`<rect x="%.0f" y="62" width="10" height="10" rx="2" fill="%s"/>`, x, toolColor(tools[t]))
 		w(`<text x="%.0f" y="71" fill="%s">%s</text>`, x+15, inkPrimary, escape(tool))
 		x += 15 + 7.5*float64(len(tool)) + 22
 	}
@@ -124,7 +129,7 @@ func chartSVG(tools []string, results [][]result, file string, runs int) string 
 				y := plotTop + g.top + groupAir/2 + float64(k)*(barThickness+barGap)
 				bw := scale(p.value(r)) - p.x0
 				if bw > 0 {
-					w(`<path d="%s" fill="%s"/>`, barPath(p.x0, y, bw, barThickness, 4), seriesColors[t%len(seriesColors)])
+					w(`<path d="%s" fill="%s"/>`, barPath(p.x0, y, bw, barThickness, 4), toolColor(tools[t]))
 				}
 				// Every bar carries its tool's name on its left and its value
 				// on its right; pj's are bold, as it is the series the chart is
@@ -141,7 +146,7 @@ func chartSVG(tools []string, results [][]result, file string, runs int) string 
 	// Workload labels, vertically centred on each group.
 	for _, g := range groups {
 		gy := plotTop + g.top + groupAir/2 + groupHeight(len(g.tools))/2 + 4
-		w(`<text x="%.0f" y="%.1f" fill="%s" text-anchor="end">%s</text>`, marginX+labelColumn-toolColumn-14, gy, inkPrimary, escape(workloads[g.workload].name))
+		w(`<text x="%.0f" y="%.1f" fill="%s" text-anchor="end">%s</text>`, marginX+labelColumn-toolColumn-14, gy, inkPrimary, escape(workloads[g.workload]))
 	}
 	w(`</svg>`)
 	return b.String()
@@ -188,6 +193,27 @@ func formatTick(v float64) string {
 
 func escape(s string) string {
 	return strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;").Replace(s)
+}
+
+// toolColor is the colour of a tool's bars.
+func toolColor(tool string) string {
+	if i := slices.Index(seriesTools, tool); i >= 0 {
+		return seriesColors[i]
+	}
+	return inkMuted
+}
+
+// fileSize is the size of file in MB, to one decimal place below 10 MB.
+func fileSize(file string) string {
+	info, err := os.Stat(file)
+	if err != nil {
+		return "size unknown"
+	}
+	mb := float64(info.Size()) / 1e6
+	if mb < 10 {
+		return fmt.Sprintf("%.1f MB", mb)
+	}
+	return fmt.Sprintf("%.0f MB", mb)
 }
 
 // runsNote says which run of each command the chart shows.

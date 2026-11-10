@@ -1,8 +1,11 @@
-// Command bench generates a large JSON file and times pj, and whichever of jq,
-// jaq, gojq and gron are installed, on a few typical workloads.
+// Command bench generates a JSON file and times pj against other tools on it:
+// whichever of jq, jaq and gojq are installed on a few typical queries, and
+// gron on turning JSON into lines and back.
 //
 //	go run ./bench gen 500000 > /tmp/big.json
 //	go run ./bench run /tmp/big.json [-svg docs/benchmark.svg]
+//	go run ./bench gen 5000 > /tmp/small.json
+//	go run ./bench jpv /tmp/small.json [-svg docs/benchmark-jpv.svg]
 //	go run ./bench commands
 //
 // It reports wall-clock time and peak memory of each command, with output sent
@@ -10,7 +13,7 @@
 // runs -runs times (3 by default) and the fastest run is reported, which
 // discounts runs slowed down by whatever else the machine is doing.  It is
 // deliberately simple otherwise: one file shape, no statistics.  The commands
-// subcommand prints the exact command lines as the README's markdown table.
+// subcommand prints the exact command lines as the README's markdown tables.
 package main
 
 import (
@@ -32,7 +35,12 @@ import (
 
 func main() {
 	if len(os.Args) == 2 && os.Args[1] == "commands" {
-		fmt.Print(commandsTable())
+		for i, s := range suites {
+			if i > 0 {
+				fmt.Println()
+			}
+			fmt.Print(commandsTable(s))
+		}
 		return
 	}
 	if len(os.Args) < 3 {
@@ -45,19 +53,21 @@ func main() {
 			usage()
 		}
 		gen(n)
-	case "run":
-		fs := flag.NewFlagSet("run", flag.ExitOnError)
+	default:
+		i := slices.IndexFunc(suites, func(s suite) bool { return s.command == os.Args[1] })
+		if i < 0 {
+			usage()
+		}
+		fs := flag.NewFlagSet(os.Args[1], flag.ExitOnError)
 		svgPath := fs.String("svg", "", "write the results as an SVG chart to this file")
 		runs := fs.Int("runs", 3, "run each command this many times and keep the fastest")
 		fs.Parse(os.Args[3:])
-		run(os.Args[2], *svgPath, max(*runs, 1))
-	default:
-		usage()
+		run(suites[i], os.Args[2], *svgPath, max(*runs, 1))
 	}
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage:\n  bench gen N > file.json                         generate a file with N items\n  bench run file.json [-svg out.svg] [-runs N]   time pj, jq, jaq, gojq and gron on it\n  bench commands                                  print the command lines as a markdown table")
+	fmt.Fprintln(os.Stderr, "usage:\n  bench gen N > file.json                         generate a file with N items\n  bench run file.json [-svg out.svg] [-runs N]   time pj, jq, jaq and gojq on queries\n  bench jpv file.json [-svg out.svg] [-runs N]   time pj and gron on JSON to lines and back\n  bench commands                                  print the command lines as markdown tables")
 	os.Exit(2)
 }
 
@@ -91,62 +101,71 @@ func gen(n int) {
 	out.WriteString("]}\n")
 }
 
-// A workload is a query in pj's syntax and the equivalent in jq's, which jaq
-// and gojq share, and in gron's; nil where a tool has no equivalent.  A flat
-// workload reads the JPV form of the file instead of the JSON.
-type workload struct {
-	name string
-	pj   []string
-	jq   []string
-	gron []string
-	flat bool
+// A suite compares pj with other tools that share a command line, on a set of
+// workloads, run by the bench subcommand of the same name.
+type suite struct {
+	command   string
+	others    []string
+	workloads []workload
 }
 
-// jqLikeTools are jq implementations with the same command line.
-var jqLikeTools = []string{"jq", "jaq", "gojq"}
+// A workload is a command in pj's syntax and the equivalent in the other
+// tools', nil if they have none.  A flat workload reads each tool's line-based
+// form of the file instead of the JSON, written by writeFlat.
+type workload struct {
+	name  string
+	pj    []string
+	other []string
+	flat  bool
+}
 
 // args are the arguments tool runs with for the workload on file, or nil if
 // it has no equivalent.
 func (w workload) args(tool, file string) []string {
-	var args []string
-	switch tool {
-	case "pj":
+	args := w.other
+	if tool == "pj" {
 		args = slices.Concat([]string{"-color", "never"}, w.pj)
-	case "gron":
-		args = w.gron
-	default:
-		args = w.jq
 	}
 	if args == nil {
 		return nil
 	}
-	return slices.Concat(args, []string{w.input(tool, file)})
-}
-
-// input is the file tool reads for the workload: file itself, or for a flat
-// workload, its JPV form, written by writeJPV.
-func (w workload) input(tool, file string) string {
-	if !w.flat {
-		return file
+	if w.flat {
+		file = flatFile(tool, file)
 	}
-	return jpvFile(file)
+	return slices.Concat(args, []string{file})
 }
 
-func jpvFile(file string) string {
-	return strings.TrimSuffix(file, filepath.Ext(file)) + ".jpv"
+// flatArgs are the arguments that make a tool write its line-based form of a
+// JSON file.
+var flatArgs = map[string][]string{
+	"pj":   {"-color", "never", "-out", "jpv"},
+	"gron": {"--no-sort"},
 }
 
-var workloads = []workload{
-	{"pretty-print", []string{}, []string{"."}, nil, false},
-	{"$.items[*].name", []string{"$.items[*].name"}, []string{".items[].name"}, nil, false},
-	{"filter price > 190", []string{"-json-lines", "$.items[?@.price > 190]"}, []string{"-c", ".items[] | select(.price > 190)"}, nil, false},
-	{"regex filter on email", []string{"-json-lines", `$.items[?match(@.email, "user1.*@example\\.com")]`}, []string{"-c", `.items[] | select(.email | test("^user1.*@example\\.com$"))`}, nil, false},
-	{"first 10 items (file arg)", []string{"$.items[:10]"}, []string{".items[:10][]"}, nil, false},
-	{"$..email (any depth)", []string{"$..email"}, []string{`.. | objects | select(has("email")) | .email`}, nil, false},
-	{"JSON to lines", []string{"-out", "jpv"}, nil, []string{"--no-sort"}, false},
-	// gron -u has no figure: on the 208 MB gron form of a 76 MB file, it was
-	// killed after 86 seconds at 26 GB of memory.
-	{"lines to JSON", []string{"-in", "jpv"}, nil, nil, true},
+// flatFile is where tool's line-based form of file is written.
+func flatFile(tool, file string) string {
+	ext := ".jpv"
+	if tool != "pj" {
+		ext = "." + tool
+	}
+	return strings.TrimSuffix(file, filepath.Ext(file)) + ext
+}
+
+var suites = []suite{
+	{"run", []string{"jq", "jaq", "gojq"}, []workload{
+		{"pretty-print", []string{}, []string{"."}, false},
+		{"$.items[*].name", []string{"$.items[*].name"}, []string{".items[].name"}, false},
+		{"filter price > 190", []string{"-json-lines", "$.items[?@.price > 190]"}, []string{"-c", ".items[] | select(.price > 190)"}, false},
+		{"regex filter on email", []string{"-json-lines", `$.items[?match(@.email, "user1.*@example\\.com")]`}, []string{"-c", `.items[] | select(.email | test("^user1.*@example\\.com$"))`}, false},
+		{"first 10 items (file arg)", []string{"$.items[:10]"}, []string{".items[:10][]"}, false},
+		{"$..email (any depth)", []string{"$..email"}, []string{`.. | objects | select(has("email")) | .email`}, false},
+	}},
+	// gron -u's memory grows much faster than its input (4.4 GB for a 0.7 MB
+	// file, 23 GB for 3 MB), so this suite runs on a small file.
+	{"jpv", []string{"gron"}, []workload{
+		{"JSON to lines", []string{"-out", "jpv"}, []string{"--no-sort"}, false},
+		{"lines to JSON", []string{"-in", "jpv"}, []string{"-u"}, true},
+	}},
 }
 
 // A result is one measurement: wall time and peak memory, or ok=false if the
@@ -168,11 +187,11 @@ func (r result) String() string {
 	return fmt.Sprintf("%5.2fs %4.0fMB", r.seconds, r.mb)
 }
 
-func run(file string, svgPath string, runs int) {
+func run(s suite, file string, svgPath string, runs int) {
 	pj := buildJP()
 	tools := []string{"pj"}
 	paths := []string{pj}
-	for _, name := range append(slices.Clone(jqLikeTools), "gron") {
+	for _, name := range s.others {
 		if path, err := exec.LookPath(name); err == nil {
 			tools = append(tools, name)
 			paths = append(paths, path)
@@ -180,15 +199,19 @@ func run(file string, svgPath string, runs int) {
 			fmt.Fprintf(os.Stderr, "%s not found, skipping\n", name)
 		}
 	}
-	writeJPV(pj, file)
+	if slices.ContainsFunc(s.workloads, func(w workload) bool { return w.flat }) {
+		writeFlat(tools, paths, file)
+	}
 	// results[w][t] is the result of tool t on workload w.
-	results := make([][]result, len(workloads))
+	results := make([][]result, len(s.workloads))
 	fmt.Printf("%-28s", "workload")
 	for _, tool := range tools {
 		fmt.Printf(" %13s", tool)
 	}
 	fmt.Println()
-	for i, w := range workloads {
+	names := make([]string, len(s.workloads))
+	for i, w := range s.workloads {
+		names[i] = w.name
 		results[i] = make([]result, len(tools))
 		for t, tool := range tools {
 			if args := w.args(tool, file); args != nil {
@@ -202,7 +225,7 @@ func run(file string, svgPath string, runs int) {
 		fmt.Println()
 	}
 	if svgPath != "" {
-		if err := os.WriteFile(svgPath, []byte(chartSVG(tools, results, file, runs)), 0o644); err != nil {
+		if err := os.WriteFile(svgPath, []byte(chartSVG(tools, names, results, file, runs)), 0o644); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
@@ -210,22 +233,25 @@ func run(file string, svgPath string, runs int) {
 	}
 }
 
-// writeJPV writes the JPV form of file, which flat workloads read.
-func writeJPV(pj, file string) {
-	path := jpvFile(file)
-	out, err := os.Create(path)
-	if err == nil {
-		cmd := exec.Command(pj, "-color", "never", "-out", "jpv", file)
-		cmd.Stdout = out
-		cmd.Stderr = os.Stderr
-		err = cmd.Run()
-		if cerr := out.Close(); err == nil {
-			err = cerr
+// writeFlat writes each tool's line-based form of file, which flat workloads
+// read.
+func writeFlat(tools, paths []string, file string) {
+	for t, tool := range tools {
+		path := flatFile(tool, file)
+		out, err := os.Create(path)
+		if err == nil {
+			cmd := exec.Command(paths[t], slices.Concat(flatArgs[tool], []string{file})...)
+			cmd.Stdout = out
+			cmd.Stderr = os.Stderr
+			err = cmd.Run()
+			if cerr := out.Close(); err == nil {
+				err = cerr
+			}
 		}
-	}
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "writing %s: %v\n", path, err)
-		os.Exit(1)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "writing %s: %v\n", path, err)
+			os.Exit(1)
+		}
 	}
 }
 
@@ -275,14 +301,15 @@ func measure(name string, args []string) result {
 	return result{seconds: elapsed.Seconds(), mb: float64(rss) / (1 << 20), ok: true}
 }
 
-// commandsTable is a markdown table of the command line each tool runs for
-// each workload, as a shell would take it, on a file called big.json.
-func commandsTable() string {
+// commandsTable is a markdown table of the command line each tool of the
+// suite runs for each workload, as a shell would take it, on a file called
+// big.json.
+func commandsTable(s suite) string {
 	var b strings.Builder
-	b.WriteString("| Workload | pj | jq, jaq, gojq | gron |\n|---|---|---|---|\n")
-	for _, w := range workloads {
+	fmt.Fprintf(&b, "| Workload | pj | %s |\n|---|---|---|\n", strings.Join(s.others, ", "))
+	for _, w := range s.workloads {
 		fmt.Fprintf(&b, "| %s", w.name)
-		for _, tool := range []string{"pj", "jq", "gron"} {
+		for _, tool := range []string{"pj", s.others[0]} {
 			cell := "n/a"
 			if args := w.args(tool, "big.json"); args != nil {
 				cell = markdownCode(tool + " " + shellJoin(args))
