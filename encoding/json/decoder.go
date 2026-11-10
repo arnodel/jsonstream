@@ -10,16 +10,19 @@ import (
 
 // A Decoder reads JSON input and streams it into a JSON stream.
 type Decoder struct {
-	scanr *scanner.Scanner
+	text  *textDecoder          // nil when created from a scanner
+	scanr *scanner.Scanner      // nil when created with NewDecoder
 	in    *token.FlushingReader // nil when created from a scanner
 }
 
 var _ token.StreamSource = &Decoder{}
 
-// NewDecoder sets up a new Decoder instance to read from the given input.
+// NewDecoder sets up a new Decoder instance to read from the given input.  It
+// parses with encoding/json/jsontext, and on invalid input Produce returns a
+// *SyntaxError.
 func NewDecoder(in io.Reader) *Decoder {
 	fr := &token.FlushingReader{Reader: in}
-	return &Decoder{scanr: scanner.NewScanner(fr), in: fr}
+	return &Decoder{text: newTextDecoder(fr), in: fr}
 }
 
 // Produce reads a stream of JSON values and streams them, until it runs
@@ -29,6 +32,9 @@ func (d *Decoder) Produce(out token.WriteStream) error {
 	if d.in != nil {
 		// Send the tokens produced so far before blocking on input.
 		d.in.Flush = token.FlushFunc(out)
+	}
+	if d.text != nil {
+		return d.text.produce(out)
 	}
 	for {
 		_, err := d.scanr.SkipSpaceAndPeek()
@@ -408,8 +414,11 @@ var (
 	nullInstance  = token.NewScalar(token.Null, nullBytes)
 )
 
-// NewDecoderFromScanner creates a decoder using an existing scanner. 
+// NewDecoderFromScanner creates a decoder using an existing scanner.
 // This is useful for format decoders that need to parse JSON values inline.
+// Unlike a decoder from NewDecoder, which reads with encoding/json/jsontext,
+// it parses with the scanner, and accepts and rejects the same inputs (see
+// FuzzDecoderMatchesScanner).
 func NewDecoderFromScanner(scanr *scanner.Scanner) *Decoder {
 	return &Decoder{scanr: scanr}
 }
