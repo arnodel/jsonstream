@@ -41,10 +41,11 @@ func main() {
 	// Do not handle SIGPIPE, we'll do it ourselves (see error handling at the bottom of main).
 	signal.Ignore(syscall.SIGPIPE)
 
-	// Display a stack trace on panic
+	// Display a stack trace on panic, and fail as an unrecovered panic would.
 	defer func() {
 		if e := recover(); e != nil {
 			fmt.Fprintf(os.Stderr, "%s: %s", e, debug.Stack())
+			os.Exit(2)
 		}
 	}()
 

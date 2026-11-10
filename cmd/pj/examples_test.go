@@ -903,3 +903,13 @@ func TestInvalidInput(t *testing.T) {
 		t.Errorf("got exit %d, stdout %q, stderr %q", exitCode, stdout, stderr)
 	}
 }
+
+// TestInvalidJPVInput checks that a syntax error in JPV input makes pj fail.
+// It used to make pj panic (the decoder closed the object around a key that
+// had no value), and pj then exited with status 0.
+func TestInvalidJPVInput(t *testing.T) {
+	_, stderr, exitCode := runPJ(t, "$.a = 1\n$.c = x\n", "-in", "jpv")
+	if exitCode == 0 {
+		t.Errorf("exit code 0, stderr %q", stderr)
+	}
+}
