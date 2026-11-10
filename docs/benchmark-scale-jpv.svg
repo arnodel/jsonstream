@@ -1,0 +1,128 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="820" height="460" viewBox="0 0 820 460" font-family='system-ui, -apple-system, "Segoe UI", sans-serif' font-size="12">
+<title>Benchmark: how the time and memory of pj and gron grow with the size of the file</title>
+<rect width="100%" height="100%" fill="#fcfcfb"/>
+<text x="20" y="28" fill="#0b0b0b" font-size="15" font-weight="600">Time and peak memory as the file grows, lower is better</text>
+<text x="20" y="48" fill="#52514e">Generated files of 0.045 MB to 0.73 MB, output to /dev/null, fastest of 3 runs</text>
+<rect x="20" y="62" width="10" height="10" rx="2" fill="#2a78d6"/>
+<text x="35" y="71" fill="#0b0b0b">pj</text>
+<rect x="72" y="62" width="10" height="10" rx="2" fill="#e87ba4"/>
+<text x="87" y="71" fill="#0b0b0b">gron</text>
+<text x="20" y="112" fill="#0b0b0b" font-weight="600">JSON to lines</text>
+<text x="314" y="112" fill="#52514e" font-size="11" text-anchor="end">Time (seconds)</text>
+<line x1="64.0" y1="232.0" x2="314.0" y2="232.0" stroke="#e1e0d9" stroke-width="1"/>
+<text x="58.0" y="235.5" fill="#898781" font-size="10" text-anchor="end">0</text>
+<line x1="64.0" y1="204.5" x2="314.0" y2="204.5" stroke="#e1e0d9" stroke-width="1"/>
+<text x="58.0" y="208.0" fill="#898781" font-size="10" text-anchor="end">0.02</text>
+<line x1="64.0" y1="177.0" x2="314.0" y2="177.0" stroke="#e1e0d9" stroke-width="1"/>
+<text x="58.0" y="180.5" fill="#898781" font-size="10" text-anchor="end">0.04</text>
+<line x1="64.0" y1="149.5" x2="314.0" y2="149.5" stroke="#e1e0d9" stroke-width="1"/>
+<text x="58.0" y="153.0" fill="#898781" font-size="10" text-anchor="end">0.06</text>
+<line x1="64.0" y1="122.0" x2="314.0" y2="122.0" stroke="#e1e0d9" stroke-width="1"/>
+<text x="58.0" y="125.5" fill="#898781" font-size="10" text-anchor="end">0.08</text>
+<line x1="64.0" y1="232.0" x2="314.0" y2="232.0" stroke="#c3c2b7" stroke-width="1"/>
+<text x="64.0" y="248.0" fill="#898781" font-size="10" text-anchor="middle">0</text>
+<text x="132.2" y="248.0" fill="#898781" font-size="10" text-anchor="middle">0.2</text>
+<text x="200.4" y="248.0" fill="#898781" font-size="10" text-anchor="middle">0.4</text>
+<text x="268.7" y="248.0" fill="#898781" font-size="10" text-anchor="middle">0.6 MB</text>
+<polyline points="79.3,207.5 94.6,207.3 125.7,206.4 188.4,203.4 314.0,199.9" fill="none" stroke="#2a78d6" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="79.3" cy="207.5" r="4" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>pj, 0.045 MB: 0.02s</title></circle>
+<circle cx="94.6" cy="207.3" r="4" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>pj, 0.09 MB: 0.02s</title></circle>
+<circle cx="125.7" cy="206.4" r="4" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>pj, 0.18 MB: 0.02s</title></circle>
+<circle cx="188.4" cy="203.4" r="4" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>pj, 0.36 MB: 0.02s</title></circle>
+<circle cx="314.0" cy="199.9" r="4" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>pj, 0.73 MB: 0.02s</title></circle>
+<polyline points="79.3,219.7 94.6,214.0 125.7,200.7 188.4,174.0 314.0,130.5" fill="none" stroke="#e87ba4" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="79.3" cy="219.7" r="4" fill="#e87ba4" stroke="#fcfcfb" stroke-width="2"><title>gron, 0.045 MB: &lt; 0.01s</title></circle>
+<circle cx="94.6" cy="214.0" r="4" fill="#e87ba4" stroke="#fcfcfb" stroke-width="2"><title>gron, 0.09 MB: 0.01s</title></circle>
+<circle cx="125.7" cy="200.7" r="4" fill="#e87ba4" stroke="#fcfcfb" stroke-width="2"><title>gron, 0.18 MB: 0.02s</title></circle>
+<circle cx="188.4" cy="174.0" r="4" fill="#e87ba4" stroke="#fcfcfb" stroke-width="2"><title>gron, 0.36 MB: 0.04s</title></circle>
+<circle cx="314.0" cy="130.5" r="4" fill="#e87ba4" stroke="#fcfcfb" stroke-width="2"><title>gron, 0.73 MB: 0.07s</title></circle>
+<text x="324.0" y="134.5" fill="#52514e" font-size="11" font-weight="normal">gron 0.07s</text>
+<text x="324.0" y="203.9" fill="#0b0b0b" font-size="11" font-weight="600">pj 0.02s</text>
+<text x="704" y="112" fill="#52514e" font-size="11" text-anchor="end">Peak memory (MB)</text>
+<line x1="454.0" y1="232.0" x2="704.0" y2="232.0" stroke="#e1e0d9" stroke-width="1"/>
+<text x="448.0" y="235.5" fill="#898781" font-size="10" text-anchor="end">0</text>
+<line x1="454.0" y1="195.3" x2="704.0" y2="195.3" stroke="#e1e0d9" stroke-width="1"/>
+<text x="448.0" y="198.8" fill="#898781" font-size="10" text-anchor="end">20</text>
+<line x1="454.0" y1="158.7" x2="704.0" y2="158.7" stroke="#e1e0d9" stroke-width="1"/>
+<text x="448.0" y="162.2" fill="#898781" font-size="10" text-anchor="end">40</text>
+<line x1="454.0" y1="122.0" x2="704.0" y2="122.0" stroke="#e1e0d9" stroke-width="1"/>
+<text x="448.0" y="125.5" fill="#898781" font-size="10" text-anchor="end">60</text>
+<line x1="454.0" y1="232.0" x2="704.0" y2="232.0" stroke="#c3c2b7" stroke-width="1"/>
+<text x="454.0" y="248.0" fill="#898781" font-size="10" text-anchor="middle">0</text>
+<text x="522.2" y="248.0" fill="#898781" font-size="10" text-anchor="middle">0.2</text>
+<text x="590.4" y="248.0" fill="#898781" font-size="10" text-anchor="middle">0.4</text>
+<text x="658.7" y="248.0" fill="#898781" font-size="10" text-anchor="middle">0.6 MB</text>
+<polyline points="469.3,221.2 484.6,220.2 515.7,218.2 578.4,214.1 704.0,211.4" fill="none" stroke="#2a78d6" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="469.3" cy="221.2" r="4" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>pj, 0.045 MB: 6 MB</title></circle>
+<circle cx="484.6" cy="220.2" r="4" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>pj, 0.09 MB: 6 MB</title></circle>
+<circle cx="515.7" cy="218.2" r="4" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>pj, 0.18 MB: 8 MB</title></circle>
+<circle cx="578.4" cy="214.1" r="4" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>pj, 0.36 MB: 10 MB</title></circle>
+<circle cx="704.0" cy="211.4" r="4" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>pj, 0.73 MB: 11 MB</title></circle>
+<polyline points="469.3,211.6 484.6,206.8 515.7,198.5 578.4,184.3 704.0,155.1" fill="none" stroke="#e87ba4" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="469.3" cy="211.6" r="4" fill="#e87ba4" stroke="#fcfcfb" stroke-width="2"><title>gron, 0.045 MB: 11 MB</title></circle>
+<circle cx="484.6" cy="206.8" r="4" fill="#e87ba4" stroke="#fcfcfb" stroke-width="2"><title>gron, 0.09 MB: 14 MB</title></circle>
+<circle cx="515.7" cy="198.5" r="4" fill="#e87ba4" stroke="#fcfcfb" stroke-width="2"><title>gron, 0.18 MB: 18 MB</title></circle>
+<circle cx="578.4" cy="184.3" r="4" fill="#e87ba4" stroke="#fcfcfb" stroke-width="2"><title>gron, 0.36 MB: 26 MB</title></circle>
+<circle cx="704.0" cy="155.1" r="4" fill="#e87ba4" stroke="#fcfcfb" stroke-width="2"><title>gron, 0.73 MB: 42 MB</title></circle>
+<text x="714.0" y="159.1" fill="#52514e" font-size="11" font-weight="normal">gron 42 MB</text>
+<text x="714.0" y="215.4" fill="#0b0b0b" font-size="11" font-weight="600">pj 11 MB</text>
+<text x="20" y="294" fill="#0b0b0b" font-weight="600">lines to JSON</text>
+<text x="314" y="294" fill="#52514e" font-size="11" text-anchor="end">Time (seconds)</text>
+<line x1="64.0" y1="414.0" x2="314.0" y2="414.0" stroke="#e1e0d9" stroke-width="1"/>
+<text x="58.0" y="417.5" fill="#898781" font-size="10" text-anchor="end">0</text>
+<line x1="64.0" y1="386.5" x2="314.0" y2="386.5" stroke="#e1e0d9" stroke-width="1"/>
+<text x="58.0" y="390.0" fill="#898781" font-size="10" text-anchor="end">0.25</text>
+<line x1="64.0" y1="359.0" x2="314.0" y2="359.0" stroke="#e1e0d9" stroke-width="1"/>
+<text x="58.0" y="362.5" fill="#898781" font-size="10" text-anchor="end">0.5</text>
+<line x1="64.0" y1="331.5" x2="314.0" y2="331.5" stroke="#e1e0d9" stroke-width="1"/>
+<text x="58.0" y="335.0" fill="#898781" font-size="10" text-anchor="end">0.75</text>
+<line x1="64.0" y1="304.0" x2="314.0" y2="304.0" stroke="#e1e0d9" stroke-width="1"/>
+<text x="58.0" y="307.5" fill="#898781" font-size="10" text-anchor="end">1</text>
+<line x1="64.0" y1="414.0" x2="314.0" y2="414.0" stroke="#c3c2b7" stroke-width="1"/>
+<text x="64.0" y="430.0" fill="#898781" font-size="10" text-anchor="middle">0</text>
+<text x="132.2" y="430.0" fill="#898781" font-size="10" text-anchor="middle">0.2</text>
+<text x="200.4" y="430.0" fill="#898781" font-size="10" text-anchor="middle">0.4</text>
+<text x="268.7" y="430.0" fill="#898781" font-size="10" text-anchor="middle">0.6 MB</text>
+<polyline points="79.3,411.9 94.6,411.9 125.7,411.6 188.4,411.1 314.0,410.3" fill="none" stroke="#2a78d6" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="79.3" cy="411.9" r="4" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>pj, 0.045 MB: 0.02s</title></circle>
+<circle cx="94.6" cy="411.9" r="4" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>pj, 0.09 MB: 0.02s</title></circle>
+<circle cx="125.7" cy="411.6" r="4" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>pj, 0.18 MB: 0.02s</title></circle>
+<circle cx="188.4" cy="411.1" r="4" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>pj, 0.36 MB: 0.03s</title></circle>
+<circle cx="314.0" cy="410.3" r="4" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>pj, 0.73 MB: 0.03s</title></circle>
+<polyline points="79.3,411.9 94.6,409.8 125.7,403.3 188.4,386.1 314.0,324.5" fill="none" stroke="#e87ba4" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="79.3" cy="411.9" r="4" fill="#e87ba4" stroke="#fcfcfb" stroke-width="2"><title>gron, 0.045 MB: 0.02s</title></circle>
+<circle cx="94.6" cy="409.8" r="4" fill="#e87ba4" stroke="#fcfcfb" stroke-width="2"><title>gron, 0.09 MB: 0.04s</title></circle>
+<circle cx="125.7" cy="403.3" r="4" fill="#e87ba4" stroke="#fcfcfb" stroke-width="2"><title>gron, 0.18 MB: 0.10s</title></circle>
+<circle cx="188.4" cy="386.1" r="4" fill="#e87ba4" stroke="#fcfcfb" stroke-width="2"><title>gron, 0.36 MB: 0.25s</title></circle>
+<circle cx="314.0" cy="324.5" r="4" fill="#e87ba4" stroke="#fcfcfb" stroke-width="2"><title>gron, 0.73 MB: 0.81s</title></circle>
+<text x="324.0" y="328.5" fill="#52514e" font-size="11" font-weight="normal">gron 0.81s</text>
+<text x="324.0" y="414.3" fill="#0b0b0b" font-size="11" font-weight="600">pj 0.03s</text>
+<text x="704" y="294" fill="#52514e" font-size="11" text-anchor="end">Peak memory (MB)</text>
+<line x1="454.0" y1="414.0" x2="704.0" y2="414.0" stroke="#e1e0d9" stroke-width="1"/>
+<text x="448.0" y="417.5" fill="#898781" font-size="10" text-anchor="end">0</text>
+<line x1="454.0" y1="377.3" x2="704.0" y2="377.3" stroke="#e1e0d9" stroke-width="1"/>
+<text x="448.0" y="380.8" fill="#898781" font-size="10" text-anchor="end">2000</text>
+<line x1="454.0" y1="340.7" x2="704.0" y2="340.7" stroke="#e1e0d9" stroke-width="1"/>
+<text x="448.0" y="344.2" fill="#898781" font-size="10" text-anchor="end">4000</text>
+<line x1="454.0" y1="304.0" x2="704.0" y2="304.0" stroke="#e1e0d9" stroke-width="1"/>
+<text x="448.0" y="307.5" fill="#898781" font-size="10" text-anchor="end">6000</text>
+<line x1="454.0" y1="414.0" x2="704.0" y2="414.0" stroke="#c3c2b7" stroke-width="1"/>
+<text x="454.0" y="430.0" fill="#898781" font-size="10" text-anchor="middle">0</text>
+<text x="522.2" y="430.0" fill="#898781" font-size="10" text-anchor="middle">0.2</text>
+<text x="590.4" y="430.0" fill="#898781" font-size="10" text-anchor="middle">0.4</text>
+<text x="658.7" y="430.0" fill="#898781" font-size="10" text-anchor="middle">0.6 MB</text>
+<polyline points="469.3,413.9 484.6,413.9 515.7,413.8 578.4,413.8 704.0,413.8" fill="none" stroke="#2a78d6" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="469.3" cy="413.9" r="4" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>pj, 0.045 MB: 7 MB</title></circle>
+<circle cx="484.6" cy="413.9" r="4" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>pj, 0.09 MB: 7 MB</title></circle>
+<circle cx="515.7" cy="413.8" r="4" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>pj, 0.18 MB: 10 MB</title></circle>
+<circle cx="578.4" cy="413.8" r="4" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>pj, 0.36 MB: 11 MB</title></circle>
+<circle cx="704.0" cy="413.8" r="4" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"><title>pj, 0.73 MB: 12 MB</title></circle>
+<polyline points="469.3,413.4 484.6,412.5 515.7,408.2 578.4,394.5 704.0,338.0" fill="none" stroke="#e87ba4" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="469.3" cy="413.4" r="4" fill="#e87ba4" stroke="#fcfcfb" stroke-width="2"><title>gron, 0.045 MB: 31 MB</title></circle>
+<circle cx="484.6" cy="412.5" r="4" fill="#e87ba4" stroke="#fcfcfb" stroke-width="2"><title>gron, 0.09 MB: 82 MB</title></circle>
+<circle cx="515.7" cy="408.2" r="4" fill="#e87ba4" stroke="#fcfcfb" stroke-width="2"><title>gron, 0.18 MB: 315 MB</title></circle>
+<circle cx="578.4" cy="394.5" r="4" fill="#e87ba4" stroke="#fcfcfb" stroke-width="2"><title>gron, 0.36 MB: 1062 MB</title></circle>
+<circle cx="704.0" cy="338.0" r="4" fill="#e87ba4" stroke="#fcfcfb" stroke-width="2"><title>gron, 0.73 MB: 4147 MB</title></circle>
+<text x="714.0" y="342.0" fill="#52514e" font-size="11" font-weight="normal">gron 4147 MB</text>
+<text x="714.0" y="417.8" fill="#0b0b0b" font-size="11" font-weight="600">pj 12 MB</text>
+</svg>
