@@ -15,8 +15,11 @@ A fast, streaming JSON processor for the command line.
 # Pretty-print anything, however big: output starts immediately
 cat huge.json | pj | less
 
-# Query with JSONPath; a .json file argument stops reading as soon as it has the answer
+# Query with JSONPath
 pj '$.items[?@.price > 100].name' data.json
+
+# Stop reading once the answer is complete: instant even on a huge file
+pj '$.items[:10]' huge.json
 
 # Edit JSON with Unix tools via JPV, then turn it back into JSON
 pj -out jpv config.json | grep -v password | sed 's/"dev"/"prod"/' | pj
@@ -298,7 +301,7 @@ items (`go run ./bench gen 500000`), on an Apple M-series laptop, against `jq`
 | $.items[*].name | **0.50s**, 14 MB | 1.68s, 829 MB | 0.97s, 1016 MB | 1.29s, 618 MB |
 | filter price > 190 | **0.55s**, 14 MB | 1.69s, 831 MB | 1.03s, 1016 MB | 1.01s, 668 MB |
 | regex filter on email | **0.63s**, 14 MB | 3.21s, 836 MB | 2.60s, 1016 MB | 1.36s, 720 MB |
-| first 10 items (file arg) | **0.02s**, 6 MB | 1.40s, 829 MB | 0.70s, 1016 MB | 0.80s, 586 MB |
+| first 10 items | **0.02s**, 6 MB | 1.40s, 829 MB | 0.70s, 1016 MB | 0.80s, 586 MB |
 | $..email (any depth) | **0.52s**, 13 MB | 4.59s, 829 MB | 4.34s, 1024 MB | 4.84s, 1195 MB |
 
 These are the exact commands, with output sent to `/dev/null`; `jaq` and
@@ -310,7 +313,7 @@ These are the exact commands, with output sent to `/dev/null`; `jaq` and
 | $.items[*].name | `pj -color never '$.items[*].name' big.json` | `jq '.items[].name' big.json` |
 | filter price > 190 | `pj -color never -json-lines '$.items[?@.price > 190]' big.json` | `jq -c '.items[] \| select(.price > 190)' big.json` |
 | regex filter on email | `pj -color never -json-lines '$.items[?match(@.email, "user1.*@example\\.com")]' big.json` | `jq -c '.items[] \| select(.email \| test("^user1.*@example\\.com$"))' big.json` |
-| first 10 items (file arg) | `pj -color never '$.items[:10]' big.json` | `jq '.items[:10][]' big.json` |
+| first 10 items | `pj -color never '$.items[:10]' big.json` | `jq '.items[:10][]' big.json` |
 | $..email (any depth) | `pj -color never '$..email' big.json` | `jq '.. \| objects \| select(has("email")) \| .email' big.json` |
 
 Each time is the fastest of three runs. The first 10 items row is the early
