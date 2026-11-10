@@ -24,6 +24,8 @@ fuzz:
 bench:
 	go run ./bench gen 500000 > /tmp/pj-bench.json
 	go run ./bench run /tmp/pj-bench.json -svg docs/benchmark.svg
+	go run ./bench gen 5000 > /tmp/pj-bench-small.json
+	go run ./bench jpv /tmp/pj-bench-small.json -svg docs/benchmark-jpv.svg
 
 # Fetch cts.json from a commit of the compliance test suite (the tip of main
 # by default, or e.g. CTS_REF=<sha>) and record that commit in cts.version.

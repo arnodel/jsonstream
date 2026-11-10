@@ -5,10 +5,10 @@ A fast, streaming JSON processor for the command line.
 - **JSONPath queries**, the full [RFC 9535](https://datatracker.ietf.org/doc/rfc9535/)
 - **JPV**, a line-based form of JSON that `grep`, `sed` and `diff` understand
 - **A pretty-printer worth having**
-- **About 12 MB of memory** whatever the size of the input
+- **About 14 MB of memory** whatever the size of the input
 - **Faster than `jq`, `jaq` and `gojq`** on typical workloads
 
-[![Time and peak memory by workload for pj, jq, jaq and gojq. pj takes under a second on every workload at 12 MB; the others take 0.7 to 4.9 seconds at 590 to 1240 MB.](docs/benchmark.svg)](#performance)
+[![Time and peak memory by workload for pj, jq, jaq and gojq. pj takes under a second on every workload at 14 MB or less; the others take 0.7 to 4.8 seconds at 590 to 1200 MB.](docs/benchmark.svg)](#performance)
 
 ```bash
 # Pretty-print anything, however big: output starts immediately
@@ -276,20 +276,19 @@ yes '{"x": 1}' | pj join '$[:3]'      # like head: exits after three values
 ## Performance
 
 `pj` never holds more than a small window of the input in memory, so its memory
-use does not depend on the size of the file. On a 73 MB file with 500,000
+use does not depend on the size of the file. On a 76 MB file with 500,000
 items (`go run ./bench gen 500000`), on an Apple M-series laptop, against `jq`
 1.7.1 and its faster reimplementations [`jaq`](https://github.com/01mf02/jaq)
 3.1 (Rust) and [`gojq`](https://github.com/itchyny/gojq) 0.12 (Go):
 
 | Workload | pj | jq | jaq | gojq |
 |---|---|---|---|---|
-| pretty-print | **0.51s**, 13 MB | 4.53s, 860 MB | 1.58s, 1016 MB | 1.26s, 837 MB |
-| $.items[*].name | **0.50s**, 14 MB | 1.70s, 829 MB | 0.96s, 1016 MB | 1.28s, 618 MB |
-| filter price > 190 | **0.55s**, 14 MB | 1.67s, 831 MB | 1.03s, 1016 MB | 1.01s, 668 MB |
-| regex filter on email | **0.63s**, 13 MB | 3.23s, 837 MB | 2.60s, 1016 MB | 1.37s, 721 MB |
-| first 10 items (file arg) | **0.02s**, 6 MB | 1.43s, 829 MB | 0.73s, 1016 MB | 0.80s, 586 MB |
-| $..email (any depth) | **0.52s**, 13 MB | 4.59s, 829 MB | 4.34s, 1024 MB | 4.86s, 1243 MB |
-| JPV output | 0.58s, 13 MB | n/a | n/a | n/a |
+| pretty-print | **0.53s**, 13 MB | 4.54s, 860 MB | 1.53s, 1016 MB | 1.23s, 837 MB |
+| $.items[*].name | **0.50s**, 14 MB | 1.68s, 829 MB | 0.97s, 1016 MB | 1.29s, 618 MB |
+| filter price > 190 | **0.55s**, 14 MB | 1.69s, 831 MB | 1.03s, 1016 MB | 1.01s, 668 MB |
+| regex filter on email | **0.63s**, 14 MB | 3.21s, 836 MB | 2.60s, 1016 MB | 1.36s, 720 MB |
+| first 10 items (file arg) | **0.02s**, 6 MB | 1.40s, 829 MB | 0.70s, 1016 MB | 0.80s, 586 MB |
+| $..email (any depth) | **0.52s**, 13 MB | 4.59s, 829 MB | 4.34s, 1024 MB | 4.84s, 1195 MB |
 
 These are the exact commands, with output sent to `/dev/null`; `jaq` and
 `gojq` take the same arguments as `jq`, and each pair gives the same results:
@@ -297,7 +296,6 @@ These are the exact commands, with output sent to `/dev/null`; `jaq` and
 | Workload | pj | jq, jaq, gojq |
 |---|---|---|
 | pretty-print | `pj -color never big.json` | `jq . big.json` |
-| JPV output | `pj -color never -out jpv big.json` | n/a |
 | $.items[*].name | `pj -color never '$.items[*].name' big.json` | `jq '.items[].name' big.json` |
 | filter price > 190 | `pj -color never -json-lines '$.items[?@.price > 190]' big.json` | `jq -c '.items[] \| select(.price > 190)' big.json` |
 | regex filter on email | `pj -color never -json-lines '$.items[?match(@.email, "user1.*@example\\.com")]' big.json` | `jq -c '.items[] \| select(.email \| test("^user1.*@example\\.com$"))' big.json` |
@@ -306,9 +304,37 @@ These are the exact commands, with output sent to `/dev/null`; `jaq` and
 
 Each time is the fastest of three runs. The first 10 items row is the early
 exit described above. Reproduce it all with `make bench`, which also redraws
-the chart; it uses whichever of `jq`, `jaq` and `gojq` are installed. One
-synthetic file on one machine, so treat the ratios as indicative. The memory
-difference is structural: the others load the whole document.
+the charts; it uses whichever of `jq`, `jaq`, `gojq` and `gron` are installed.
+One synthetic file on one machine, so treat the ratios as indicative. The
+memory difference is structural: the others load the whole document.
+
+### JPV against gron
+
+[`gron`](https://github.com/tomnomnom/gron) 0.7.1 does the same job as JPV. It
+is compared on a smaller file, 0.7 MB with 5,000 items (`go run ./bench gen
+5000`), because the memory it needs to turn its lines back into JSON grows
+much faster than the input:
+
+| Workload | pj | gron |
+|---|---|---|
+| JSON to lines | **0.02s**, 11 MB | 0.07s, 46 MB |
+| lines to JSON | **0.03s**, 12 MB | 0.81s, 4094 MB |
+
+[![Time and peak memory for pj and gron on a 0.7 MB file. Turning JSON into lines takes 0.02s and 11 MB with pj, 0.07s and 46 MB with gron; turning the lines back into JSON takes 0.03s and 12 MB with pj, 0.81s and 4094 MB with gron.](docs/benchmark-jpv.svg)](#jpv-against-gron)
+
+| Workload | pj | gron |
+|---|---|---|
+| JSON to lines | `pj -color never -out jpv big.json` | `gron --no-sort big.json` |
+| lines to JSON | `pj -color never -in jpv big.jpv` | `gron -u big.gron` |
+
+Lines to JSON reads the lines that each tool wrote, JPV for `pj` and gron's own
+format for gron, which runs with `--no-sort`, its faster mode. At this size,
+`pj`'s times are mostly process start-up.
+
+`gron -u` needs 203 MB of memory for 1,000 items (0.14 MB of JSON), 4.1 GB for
+5,000 (0.7 MB) and 23 GB for 20,000 (3 MB). On the 76 MB file above, it was
+killed after 86 seconds at 26 GB. `pj` stays flat: on that file it turns JSON
+into lines in 0.55s and 13 MB, where gron takes 6.6s and 3.7 GB.
 
 ## The Go library
 
