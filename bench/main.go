@@ -1,5 +1,5 @@
 // Command bench generates a large JSON file and times pj, and whichever of jq,
-// jaq and gojq are installed, on a few typical workloads.
+// jaq, gojq and gron are installed, on a few typical workloads.
 //
 //	go run ./bench gen 500000 > /tmp/big.json
 //	go run ./bench run /tmp/big.json [-svg docs/benchmark.svg]
@@ -57,7 +57,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage:\n  bench gen N > file.json                         generate a file with N items\n  bench run file.json [-svg out.svg] [-runs N]   time pj, jq, jaq and gojq on it\n  bench commands                                  print the command lines as a markdown table")
+	fmt.Fprintln(os.Stderr, "usage:\n  bench gen N > file.json                         generate a file with N items\n  bench run file.json [-svg out.svg] [-runs N]   time pj, jq, jaq, gojq and gron on it\n  bench commands                                  print the command lines as a markdown table")
 	os.Exit(2)
 }
 
@@ -92,49 +92,76 @@ func gen(n int) {
 }
 
 // A workload is a query in pj's syntax and the equivalent in jq's, which jaq
-// and gojq share.
+// and gojq share, and in gron's; nil where a tool has no equivalent.  A flat
+// workload reads the JPV form of the file instead of the JSON.
 type workload struct {
 	name string
 	pj   []string
 	jq   []string
+	gron []string
+	flat bool
 }
 
 // jqLikeTools are jq implementations with the same command line.
 var jqLikeTools = []string{"jq", "jaq", "gojq"}
 
-// pjArgs are the arguments pj runs with on the file.
-func (w workload) pjArgs(file string) []string {
-	return slices.Concat([]string{"-color", "never"}, w.pj, []string{file})
-}
-
-// jqArgs are the arguments the jq-like tools run with on the file, or nil if
-// they have no equivalent.
-func (w workload) jqArgs(file string) []string {
-	if w.jq == nil {
+// args are the arguments tool runs with for the workload on file, or nil if
+// it has no equivalent.
+func (w workload) args(tool, file string) []string {
+	var args []string
+	switch tool {
+	case "pj":
+		args = slices.Concat([]string{"-color", "never"}, w.pj)
+	case "gron":
+		args = w.gron
+	default:
+		args = w.jq
+	}
+	if args == nil {
 		return nil
 	}
-	return slices.Concat(w.jq, []string{file})
+	return slices.Concat(args, []string{w.input(tool, file)})
+}
+
+// input is the file tool reads for the workload: file itself, or for a flat
+// workload, its JPV form, written by writeJPV.
+func (w workload) input(tool, file string) string {
+	if !w.flat {
+		return file
+	}
+	return jpvFile(file)
+}
+
+func jpvFile(file string) string {
+	return strings.TrimSuffix(file, filepath.Ext(file)) + ".jpv"
 }
 
 var workloads = []workload{
-	{"pretty-print", []string{}, []string{"."}},
-	{"JPV output", []string{"-out", "jpv"}, nil},
-	{"$.items[*].name", []string{"$.items[*].name"}, []string{".items[].name"}},
-	{"filter price > 190", []string{"-json-lines", "$.items[?@.price > 190]"}, []string{"-c", ".items[] | select(.price > 190)"}},
-	{"regex filter on email", []string{"-json-lines", `$.items[?match(@.email, "user1.*@example\\.com")]`}, []string{"-c", `.items[] | select(.email | test("^user1.*@example\\.com$"))`}},
-	{"first 10 items (file arg)", []string{"$.items[:10]"}, []string{".items[:10][]"}},
-	{"$..email (any depth)", []string{"$..email"}, []string{`.. | objects | select(has("email")) | .email`}},
+	{"pretty-print", []string{}, []string{"."}, nil, false},
+	{"$.items[*].name", []string{"$.items[*].name"}, []string{".items[].name"}, nil, false},
+	{"filter price > 190", []string{"-json-lines", "$.items[?@.price > 190]"}, []string{"-c", ".items[] | select(.price > 190)"}, nil, false},
+	{"regex filter on email", []string{"-json-lines", `$.items[?match(@.email, "user1.*@example\\.com")]`}, []string{"-c", `.items[] | select(.email | test("^user1.*@example\\.com$"))`}, nil, false},
+	{"first 10 items (file arg)", []string{"$.items[:10]"}, []string{".items[:10][]"}, nil, false},
+	{"$..email (any depth)", []string{"$..email"}, []string{`.. | objects | select(has("email")) | .email`}, nil, false},
+	{"JSON to lines", []string{"-out", "jpv"}, nil, []string{"--no-sort"}, false},
+	// gron -u has no figure: on the 208 MB gron form of a 76 MB file, it was
+	// killed after 86 seconds at 26 GB of memory.
+	{"lines to JSON", []string{"-in", "jpv"}, nil, nil, true},
 }
 
 // A result is one measurement: wall time and peak memory, or ok=false if the
-// tool was not run on this workload.
+// tool was not run on this workload or failed.
 type result struct {
 	seconds float64
 	mb      float64
 	ok      bool
+	failed  bool
 }
 
 func (r result) String() string {
+	if r.failed {
+		return "failed"
+	}
 	if !r.ok {
 		return "n/a"
 	}
@@ -145,7 +172,7 @@ func run(file string, svgPath string, runs int) {
 	pj := buildJP()
 	tools := []string{"pj"}
 	paths := []string{pj}
-	for _, name := range jqLikeTools {
+	for _, name := range append(slices.Clone(jqLikeTools), "gron") {
 		if path, err := exec.LookPath(name); err == nil {
 			tools = append(tools, name)
 			paths = append(paths, path)
@@ -153,6 +180,7 @@ func run(file string, svgPath string, runs int) {
 			fmt.Fprintf(os.Stderr, "%s not found, skipping\n", name)
 		}
 	}
+	writeJPV(pj, file)
 	// results[w][t] is the result of tool t on workload w.
 	results := make([][]result, len(workloads))
 	fmt.Printf("%-28s", "workload")
@@ -162,9 +190,8 @@ func run(file string, svgPath string, runs int) {
 	fmt.Println()
 	for i, w := range workloads {
 		results[i] = make([]result, len(tools))
-		results[i][0] = fastest(runs, pj, w.pjArgs(file))
-		for t := 1; t < len(tools); t++ {
-			if args := w.jqArgs(file); args != nil {
+		for t, tool := range tools {
+			if args := w.args(tool, file); args != nil {
 				results[i][t] = fastest(runs, paths[t], args)
 			}
 		}
@@ -180,6 +207,25 @@ func run(file string, svgPath string, runs int) {
 			os.Exit(1)
 		}
 		fmt.Fprintln(os.Stderr, "chart written to", svgPath)
+	}
+}
+
+// writeJPV writes the JPV form of file, which flat workloads read.
+func writeJPV(pj, file string) {
+	path := jpvFile(file)
+	out, err := os.Create(path)
+	if err == nil {
+		cmd := exec.Command(pj, "-color", "never", "-out", "jpv", file)
+		cmd.Stdout = out
+		cmd.Stderr = os.Stderr
+		err = cmd.Run()
+		if cerr := out.Close(); err == nil {
+			err = cerr
+		}
+	}
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "writing %s: %v\n", path, err)
+		os.Exit(1)
 	}
 }
 
@@ -220,7 +266,7 @@ func measure(name string, args []string) result {
 	err := cmd.Run()
 	elapsed := time.Since(start)
 	if err != nil {
-		return result{}
+		return result{failed: true}
 	}
 	rss := cmd.ProcessState.SysUsage().(*syscall.Rusage).Maxrss
 	if runtime.GOOS != "darwin" {
@@ -233,13 +279,17 @@ func measure(name string, args []string) result {
 // each workload, as a shell would take it, on a file called big.json.
 func commandsTable() string {
 	var b strings.Builder
-	b.WriteString("| Workload | pj | jq, jaq, gojq |\n|---|---|---|\n")
+	b.WriteString("| Workload | pj | jq, jaq, gojq | gron |\n|---|---|---|---|\n")
 	for _, w := range workloads {
-		jq := "n/a"
-		if args := w.jqArgs("big.json"); args != nil {
-			jq = markdownCode("jq " + shellJoin(args))
+		fmt.Fprintf(&b, "| %s", w.name)
+		for _, tool := range []string{"pj", "jq", "gron"} {
+			cell := "n/a"
+			if args := w.args(tool, "big.json"); args != nil {
+				cell = markdownCode(tool + " " + shellJoin(args))
+			}
+			fmt.Fprintf(&b, " | %s", cell)
 		}
-		fmt.Fprintf(&b, "| %s | %s | %s |\n", w.name, markdownCode("pj "+shellJoin(w.pjArgs("big.json"))), jq)
+		b.WriteString(" |\n")
 	}
 	return b.String()
 }

@@ -7,12 +7,12 @@ import (
 	"strings"
 )
 
-// Chart colours and chrome follow a validated categorical palette: four slots in
-// a fixed order (blue, orange, aqua, yellow), text in ink tokens rather than
+// Chart colours and chrome follow a validated categorical palette: five slots in
+// a fixed order (blue, orange, aqua, yellow, magenta), text in ink tokens rather than
 // series colours, hairline solid gridlines, bars at most 24px thick with a 4px
 // rounded data end and a 2px gap between neighbours.
 var (
-	seriesColors = []string{"#2a78d6", "#eb6834", "#1baf7a", "#eda100"}
+	seriesColors = []string{"#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4"}
 	surface      = "#fcfcfb"
 	inkPrimary   = "#0b0b0b"
 	inkSecondary = "#52514e"
@@ -37,23 +37,30 @@ const (
 )
 
 // chartSVG draws two panels of grouped horizontal bars, time and peak memory,
-// one group per workload that every tool ran, one bar per tool.
+// one group per workload that at least two tools ran, one bar per tool that
+// ran it.  A tool keeps its colour whichever bars a group has.
 func chartSVG(tools []string, results [][]result, file string, runs int) string {
-	// Keep the workloads every tool ran.
-	var rows []int
-	for i := range results {
-		all := true
-		for _, r := range results[i] {
-			all = all && r.ok
-		}
-		if all {
-			rows = append(rows, i)
-		}
+	// A group is a workload, the tools that ran it and where it starts.
+	type group struct {
+		workload int
+		tools    []int
+		top      float64
 	}
-	n := len(tools)
-	groupHeight := float64(n)*barThickness + float64(n-1)*barGap
-	rowPitch := groupHeight + groupAir
-	plotHeight := float64(len(rows)) * rowPitch
+	var groups []group
+	plotHeight := 0.0
+	for i := range results {
+		var ran []int
+		for t, r := range results[i] {
+			if r.ok {
+				ran = append(ran, t)
+			}
+		}
+		if len(ran) < 2 {
+			continue
+		}
+		groups = append(groups, group{i, ran, plotHeight})
+		plotHeight += groupHeight(len(ran)) + groupAir
+	}
 	width := marginX + labelColumn + panelWidth + panelGap + panelWidth + valueRoom + marginX
 	height := headerHeight + plotHeight + axisBand
 
@@ -94,9 +101,9 @@ func chartSVG(tools []string, results [][]result, file string, runs int) string 
 	for _, p := range panels {
 		// Axis scale: nice ticks up to just above the largest value.
 		maxVal := 0.0
-		for _, i := range rows {
-			for _, r := range results[i] {
-				maxVal = math.Max(maxVal, p.value(r))
+		for _, g := range groups {
+			for _, t := range g.tools {
+				maxVal = math.Max(maxVal, p.value(results[g.workload][t]))
 			}
 		}
 		step, top := niceTicks(maxVal)
@@ -111,10 +118,10 @@ func chartSVG(tools []string, results [][]result, file string, runs int) string 
 		// Baseline on top of the gridlines.
 		w(`<line x1="%.1f" y1="%.0f" x2="%.1f" y2="%.0f" stroke="%s" stroke-width="1"/>`, p.x0, plotTop, p.x0, plotTop+plotHeight, axisLine)
 
-		for row, i := range rows {
-			gy := plotTop + float64(row)*rowPitch + groupAir/2
-			for t, r := range results[i] {
-				y := gy + float64(t)*(barThickness+barGap)
+		for _, g := range groups {
+			for k, t := range g.tools {
+				r := results[g.workload][t]
+				y := plotTop + g.top + groupAir/2 + float64(k)*(barThickness+barGap)
 				bw := scale(p.value(r)) - p.x0
 				if bw > 0 {
 					w(`<path d="%s" fill="%s"/>`, barPath(p.x0, y, bw, barThickness, 4), seriesColors[t%len(seriesColors)])
@@ -132,12 +139,17 @@ func chartSVG(tools []string, results [][]result, file string, runs int) string 
 		}
 	}
 	// Workload labels, vertically centred on each group.
-	for row, i := range rows {
-		gy := plotTop + float64(row)*rowPitch + groupAir/2 + groupHeight/2 + 4
-		w(`<text x="%.0f" y="%.1f" fill="%s" text-anchor="end">%s</text>`, marginX+labelColumn-toolColumn-14, gy, inkPrimary, escape(workloads[i].name))
+	for _, g := range groups {
+		gy := plotTop + g.top + groupAir/2 + groupHeight(len(g.tools))/2 + 4
+		w(`<text x="%.0f" y="%.1f" fill="%s" text-anchor="end">%s</text>`, marginX+labelColumn-toolColumn-14, gy, inkPrimary, escape(workloads[g.workload].name))
 	}
 	w(`</svg>`)
 	return b.String()
+}
+
+// groupHeight is the height of a group of n bars.
+func groupHeight(n int) float64 {
+	return float64(n)*barThickness + float64(n-1)*barGap
 }
 
 // barPath is a horizontal bar growing from x with rounded corners at the data

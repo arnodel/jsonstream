@@ -5,10 +5,10 @@ A fast, streaming JSON processor for the command line.
 - **JSONPath queries**, the full [RFC 9535](https://datatracker.ietf.org/doc/rfc9535/)
 - **JPV**, a line-based form of JSON that `grep`, `sed` and `diff` understand
 - **A pretty-printer worth having**
-- **About 12 MB of memory** whatever the size of the input
+- **About 14 MB of memory** whatever the size of the input
 - **Faster than `jq`, `jaq` and `gojq`** on typical workloads
 
-[![Time and peak memory by workload for pj, jq, jaq and gojq. pj takes under a second on every workload at 12 MB; the others take 0.7 to 4.9 seconds at 590 to 1240 MB.](docs/benchmark.svg)](#performance)
+[![Time and peak memory by workload for pj, jq, jaq, gojq and gron. pj takes under a second on every workload at 14 MB or less; the others take 0.7 to 6.6 seconds at 590 MB to 3.7 GB.](docs/benchmark.svg)](#performance)
 
 ```bash
 # Pretty-print anything, however big: output starts immediately
@@ -276,39 +276,47 @@ yes '{"x": 1}' | pj join '$[:3]'      # like head: exits after three values
 ## Performance
 
 `pj` never holds more than a small window of the input in memory, so its memory
-use does not depend on the size of the file. On a 73 MB file with 500,000
+use does not depend on the size of the file. On a 76 MB file with 500,000
 items (`go run ./bench gen 500000`), on an Apple M-series laptop, against `jq`
 1.7.1 and its faster reimplementations [`jaq`](https://github.com/01mf02/jaq)
-3.1 (Rust) and [`gojq`](https://github.com/itchyny/gojq) 0.12 (Go):
+3.1 (Rust) and [`gojq`](https://github.com/itchyny/gojq) 0.12 (Go), and for
+JPV against [`gron`](https://github.com/tomnomnom/gron) 0.7.1:
 
-| Workload | pj | jq | jaq | gojq |
-|---|---|---|---|---|
-| pretty-print | **0.51s**, 13 MB | 4.53s, 860 MB | 1.58s, 1016 MB | 1.26s, 837 MB |
-| $.items[*].name | **0.50s**, 14 MB | 1.70s, 829 MB | 0.96s, 1016 MB | 1.28s, 618 MB |
-| filter price > 190 | **0.55s**, 14 MB | 1.67s, 831 MB | 1.03s, 1016 MB | 1.01s, 668 MB |
-| regex filter on email | **0.63s**, 13 MB | 3.23s, 837 MB | 2.60s, 1016 MB | 1.37s, 721 MB |
-| first 10 items (file arg) | **0.02s**, 6 MB | 1.43s, 829 MB | 0.73s, 1016 MB | 0.80s, 586 MB |
-| $..email (any depth) | **0.52s**, 13 MB | 4.59s, 829 MB | 4.34s, 1024 MB | 4.86s, 1243 MB |
-| JPV output | 0.58s, 13 MB | n/a | n/a | n/a |
+| Workload | pj | jq | jaq | gojq | gron |
+|---|---|---|---|---|---|
+| pretty-print | **0.48s**, 13 MB | 4.54s, 860 MB | 1.51s, 1016 MB | 1.23s, 837 MB | n/a |
+| $.items[*].name | **0.50s**, 13 MB | 1.67s, 829 MB | 0.95s, 1016 MB | 1.29s, 618 MB | n/a |
+| filter price > 190 | **0.55s**, 14 MB | 1.67s, 831 MB | 1.02s, 1016 MB | 1.02s, 668 MB | n/a |
+| regex filter on email | **0.63s**, 14 MB | 3.18s, 836 MB | 2.59s, 1016 MB | 1.37s, 721 MB | n/a |
+| first 10 items (file arg) | **0.02s**, 6 MB | 1.36s, 829 MB | 0.67s, 1016 MB | 0.78s, 586 MB | n/a |
+| $..email (any depth) | **0.51s**, 14 MB | 4.58s, 829 MB | 4.36s, 1024 MB | 4.83s, 1222 MB | n/a |
+| JSON to lines | **0.55s**, 13 MB | n/a | n/a | n/a | 6.64s, 3747 MB |
+| lines to JSON | 1.57s, 13 MB | n/a | n/a | n/a | out of memory |
 
 These are the exact commands, with output sent to `/dev/null`; `jaq` and
-`gojq` take the same arguments as `jq`, and each pair gives the same results:
+`gojq` take the same arguments as `jq`, and the commands on each row give the
+same results, in gron's own line format for gron:
 
-| Workload | pj | jq, jaq, gojq |
-|---|---|---|
-| pretty-print | `pj -color never big.json` | `jq . big.json` |
-| JPV output | `pj -color never -out jpv big.json` | n/a |
-| $.items[*].name | `pj -color never '$.items[*].name' big.json` | `jq '.items[].name' big.json` |
-| filter price > 190 | `pj -color never -json-lines '$.items[?@.price > 190]' big.json` | `jq -c '.items[] \| select(.price > 190)' big.json` |
-| regex filter on email | `pj -color never -json-lines '$.items[?match(@.email, "user1.*@example\\.com")]' big.json` | `jq -c '.items[] \| select(.email \| test("^user1.*@example\\.com$"))' big.json` |
-| first 10 items (file arg) | `pj -color never '$.items[:10]' big.json` | `jq '.items[:10][]' big.json` |
-| $..email (any depth) | `pj -color never '$..email' big.json` | `jq '.. \| objects \| select(has("email")) \| .email' big.json` |
+| Workload | pj | jq, jaq, gojq | gron |
+|---|---|---|---|
+| pretty-print | `pj -color never big.json` | `jq . big.json` | n/a |
+| $.items[*].name | `pj -color never '$.items[*].name' big.json` | `jq '.items[].name' big.json` | n/a |
+| filter price > 190 | `pj -color never -json-lines '$.items[?@.price > 190]' big.json` | `jq -c '.items[] \| select(.price > 190)' big.json` | n/a |
+| regex filter on email | `pj -color never -json-lines '$.items[?match(@.email, "user1.*@example\\.com")]' big.json` | `jq -c '.items[] \| select(.email \| test("^user1.*@example\\.com$"))' big.json` | n/a |
+| first 10 items (file arg) | `pj -color never '$.items[:10]' big.json` | `jq '.items[:10][]' big.json` | n/a |
+| $..email (any depth) | `pj -color never '$..email' big.json` | `jq '.. \| objects \| select(has("email")) \| .email' big.json` | n/a |
+| JSON to lines | `pj -color never -out jpv big.json` | n/a | `gron --no-sort big.json` |
+| lines to JSON | `pj -color never -in jpv big.jpv` | n/a | n/a |
 
 Each time is the fastest of three runs. The first 10 items row is the early
-exit described above. Reproduce it all with `make bench`, which also redraws
-the chart; it uses whichever of `jq`, `jaq` and `gojq` are installed. One
-synthetic file on one machine, so treat the ratios as indicative. The memory
-difference is structural: the others load the whole document.
+exit described above. Lines to JSON reads the 150 MB JPV file that `pj -out
+jpv` writes. `gron -u` could not turn its own 208 MB output for the same file
+back into JSON: it was killed after 86 seconds at 26 GB of memory.
+
+Reproduce it all with `make bench`, which also redraws the chart; it uses
+whichever of `jq`, `jaq`, `gojq` and `gron` are installed. One synthetic file
+on one machine, so treat the ratios as indicative. The memory difference is
+structural: the others load the whole document.
 
 ## The Go library
 
