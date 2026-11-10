@@ -36,7 +36,7 @@ const (
 
 // chartSVG draws two panels of grouped horizontal bars, time and peak memory,
 // one group per workload that every tool ran, one bar per tool.
-func chartSVG(tools []string, results [][]result, file string) string {
+func chartSVG(tools []string, results [][]result, file string, runs int) string {
 	// Keep the workloads every tool ran.
 	var rows []int
 	for i := range results {
@@ -63,7 +63,7 @@ func chartSVG(tools []string, results [][]result, file string) string {
 
 	// Title, subtitle and legend.
 	w(`<text x="%.0f" y="28" fill="%s" font-size="15" font-weight="600">Time and peak memory by workload, lower is better</text>`, marginX, inkPrimary)
-	w(`<text x="%.0f" y="48" fill="%s">%s, output to /dev/null, one run each</text>`, marginX, inkSecondary, filepath.Base(file))
+	w(`<text x="%.0f" y="48" fill="%s">%s, output to /dev/null, %s</text>`, marginX, inkSecondary, filepath.Base(file), runsNote(runs))
 	x := marginX
 	for t, tool := range tools {
 		w(`<rect x="%.0f" y="62" width="10" height="10" rx="2" fill="%s"/>`, x, seriesColors[t%len(seriesColors)])
@@ -170,4 +170,12 @@ func formatTick(v float64) string {
 
 func escape(s string) string {
 	return strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;").Replace(s)
+}
+
+// runsNote says which run of each command the chart shows.
+func runsNote(runs int) string {
+	if runs == 1 {
+		return "one run each"
+	}
+	return fmt.Sprintf("fastest of %d runs", runs)
 }

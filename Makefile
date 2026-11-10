@@ -1,3 +1,5 @@
+.PHONY: install run debug test fuzz bench
+
 install:
 	go install ./cmd/pj
 
