@@ -283,13 +283,13 @@ items (`go run ./bench gen 500000`), on an Apple M-series laptop, against `jq`
 
 | Workload | pj | jq | jaq | gojq |
 |---|---|---|---|---|
-| pretty-print | **0.63s**, 12 MB | 4.53s, 860 MB | 1.56s, 1016 MB | 1.22s, 837 MB |
-| $.items[*].name | **0.64s**, 12 MB | 1.68s, 829 MB | 0.97s, 1016 MB | 1.29s, 618 MB |
-| filter price > 190 | **0.70s**, 13 MB | 1.75s, 831 MB | 1.06s, 1016 MB | 1.04s, 669 MB |
-| regex filter on email | **0.77s**, 13 MB | 3.24s, 837 MB | 2.62s, 1016 MB | 1.37s, 720 MB |
-| first 10 items (file arg) | **0.02s**, 5 MB | 1.40s, 829 MB | 0.70s, 1016 MB | 0.80s, 586 MB |
-| $..email (any depth) | **0.66s**, 12 MB | 4.59s, 829 MB | 4.27s, 1024 MB | 4.88s, 1241 MB |
-| JPV output | 0.62s, 12 MB | n/a | n/a | n/a |
+| pretty-print | **0.51s**, 13 MB | 4.53s, 860 MB | 1.58s, 1016 MB | 1.26s, 837 MB |
+| $.items[*].name | **0.50s**, 14 MB | 1.70s, 829 MB | 0.96s, 1016 MB | 1.28s, 618 MB |
+| filter price > 190 | **0.55s**, 14 MB | 1.67s, 831 MB | 1.03s, 1016 MB | 1.01s, 668 MB |
+| regex filter on email | **0.63s**, 13 MB | 3.23s, 837 MB | 2.60s, 1016 MB | 1.37s, 721 MB |
+| first 10 items (file arg) | **0.02s**, 6 MB | 1.43s, 829 MB | 0.73s, 1016 MB | 0.80s, 586 MB |
+| $..email (any depth) | **0.52s**, 13 MB | 4.59s, 829 MB | 4.34s, 1024 MB | 4.86s, 1243 MB |
+| JPV output | 0.58s, 13 MB | n/a | n/a | n/a |
 
 These are the exact commands, with output sent to `/dev/null`; `jaq` and
 `gojq` take the same arguments as `jq`, and each pair gives the same results:
