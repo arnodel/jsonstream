@@ -706,3 +706,24 @@ func TestDecoderErrorPositionFarIn(t *testing.T) {
 		})
 	}
 }
+
+func TestDecoderErrorPointer(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		input string
+		msg   string
+	}{
+		{"shallow", `{"a": [1, x]}`, `syntax error at L1,C11: invalid character 'x' at start of value within /a/1`},
+		{"escaped name", `{"a/b": x}`, `syntax error at L1,C9: invalid character 'x' at start of value within /a~1b`},
+		{"nine levels", strings.Repeat(`{"n":`, 9) + "x", `syntax error at L1,C46: invalid character 'x' at start of value within /n/n/n/n/n/n/n/n/n`},
+		{"ten levels", strings.Repeat(`{"n":`, 10) + "x", `syntax error at L1,C51: invalid character 'x' at start of value within /n/n/n/n/.../n/n/n/n (10 levels deep)`},
+		{"too deep", strings.Repeat(`{"nested":`, 10001), `syntax error at L1,C100001: exceeded max depth within /nested/nested/nested/nested/.../nested/nested/nested/nested (10000 levels deep)`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := decodeAll(tc.input)
+			if err == nil || err.Error() != tc.msg {
+				t.Errorf("got error %v\nwant %s", err, tc.msg)
+			}
+		})
+	}
+}

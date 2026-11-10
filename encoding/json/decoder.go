@@ -6,6 +6,7 @@ import (
 	"encoding/json/jsontext"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/arnodel/jsonstream/internal/jsontoken"
 	"github.com/arnodel/jsonstream/token"
@@ -70,10 +71,28 @@ func (d *Decoder) syntaxError(err error) error {
 		return err
 	}
 	if ptr != "" {
-		msg += " within " + string(ptr)
+		msg += " within " + shortPointer(string(ptr))
 	}
 	line, col, _ := d.lines.position(offset)
 	return &SyntaxError{Line: line, Column: col, Offset: offset, Msg: msg, Err: err}
+}
+
+// pointerEnds is how many names shortPointer keeps at each end of a pointer.
+const pointerEnds = 4
+
+// shortPointer is the JSON Pointer ptr with its middle names left out if it
+// has many, saying how deep it goes instead: an error deep in a document would
+// otherwise repeat thousands of names.  A name cannot contain '/', which is
+// escaped as ~1, so splitting on it is safe.
+func shortPointer(ptr string) string {
+	names := strings.Split(ptr, "/")[1:]
+	if len(names) <= 2*pointerEnds+1 {
+		return ptr
+	}
+	return fmt.Sprintf("/%s/.../%s (%d levels deep)",
+		strings.Join(names[:pointerEnds], "/"),
+		strings.Join(names[len(names)-pointerEnds:], "/"),
+		len(names))
 }
 
 // lineCounter passes input through and remembers where its newlines are, so
