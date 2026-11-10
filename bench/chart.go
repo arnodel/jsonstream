@@ -29,6 +29,7 @@ const (
 	labelColumn  = 190.0
 	panelWidth   = 290.0
 	panelGap     = 56.0
+	valueRoom    = 56.0 // right of the last panel, for the labels of its longest bars
 	marginX      = 20.0
 	headerHeight = 104.0
 	axisBand     = 36.0
@@ -52,7 +53,7 @@ func chartSVG(tools []string, results [][]result, file string, runs int) string 
 	groupHeight := float64(n)*barThickness + float64(n-1)*barGap
 	rowPitch := groupHeight + groupAir
 	plotHeight := float64(len(rows)) * rowPitch
-	width := marginX + labelColumn + panelWidth + panelGap + panelWidth + marginX
+	width := marginX + labelColumn + panelWidth + panelGap + panelWidth + valueRoom + marginX
 	height := headerHeight + plotHeight + axisBand
 
 	var b strings.Builder
@@ -117,9 +118,11 @@ func chartSVG(tools []string, results [][]result, file string, runs int) string 
 				if bw > 0 {
 					w(`<path d="%s" fill="%s"/>`, barPath(p.x0, y, bw, barThickness, 4), seriesColors[t%len(seriesColors)])
 				}
-				// Direct labels on pj only: it is the series the chart is about;
-				// the other values are on the axis and in the README table.
+				// Every bar carries its value; pj's are bold, as it is the series
+				// the chart is about.
 				if t == 0 {
+					w(`<text x="%.1f" y="%.1f" fill="%s" font-size="11" font-weight="600">%s</text>`, p.x0+bw+6, y+barThickness-3.5, inkPrimary, escape(p.label(r)))
+				} else {
 					w(`<text x="%.1f" y="%.1f" fill="%s" font-size="11">%s</text>`, p.x0+bw+6, y+barThickness-3.5, inkSecondary, escape(p.label(r)))
 				}
 			}
