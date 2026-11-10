@@ -174,7 +174,7 @@ var suites = []suite{
 		{"$.items[*].name", []string{"$.items[*].name"}, []string{".items[].name"}, false},
 		{"filter price > 190", []string{"-json-lines", "$.items[?@.price > 190]"}, []string{"-c", ".items[] | select(.price > 190)"}, false},
 		{"regex filter on email", []string{"-json-lines", `$.items[?match(@.email, "user1.*@example\\.com")]`}, []string{"-c", `.items[] | select(.email | test("^user1.*@example\\.com$"))`}, false},
-		{"first 10 items (file arg)", []string{"$.items[:10]"}, []string{".items[:10][]"}, false},
+		{"first 10 items", []string{"$.items[:10]"}, []string{".items[:10][]"}, false},
 		{"$..email (any depth)", []string{"$..email"}, []string{`.. | objects | select(has("email")) | .email`}, false},
 	}, []int{31250, 62500, 125000, 250000, 500000, 1000000}},
 	// gron -u's memory grows much faster than its input (4.4 GB for a 0.7 MB
