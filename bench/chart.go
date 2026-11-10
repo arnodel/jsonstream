@@ -27,8 +27,9 @@ const (
 	barGap       = 2.0
 	groupAir     = 22.0
 	labelColumn  = 190.0
+	toolColumn   = 36.0 // left of each panel, for the tool names of its bars
 	panelWidth   = 290.0
-	panelGap     = 56.0
+	panelGap     = 80.0 // room for one panel's value labels and the next one's tool names
 	valueRoom    = 56.0 // right of the last panel, for the labels of its longest bars
 	marginX      = 20.0
 	headerHeight = 104.0
@@ -118,20 +119,22 @@ func chartSVG(tools []string, results [][]result, file string, runs int) string 
 				if bw > 0 {
 					w(`<path d="%s" fill="%s"/>`, barPath(p.x0, y, bw, barThickness, 4), seriesColors[t%len(seriesColors)])
 				}
-				// Every bar carries its value; pj's are bold, as it is the series
-				// the chart is about.
+				// Every bar carries its tool's name on its left and its value
+				// on its right; pj's are bold, as it is the series the chart is
+				// about.
+				ink, weight := inkSecondary, "normal"
 				if t == 0 {
-					w(`<text x="%.1f" y="%.1f" fill="%s" font-size="11" font-weight="600">%s</text>`, p.x0+bw+6, y+barThickness-3.5, inkPrimary, escape(p.label(r)))
-				} else {
-					w(`<text x="%.1f" y="%.1f" fill="%s" font-size="11">%s</text>`, p.x0+bw+6, y+barThickness-3.5, inkSecondary, escape(p.label(r)))
+					ink, weight = inkPrimary, "600"
 				}
+				w(`<text x="%.1f" y="%.1f" fill="%s" font-size="11" font-weight="%s" text-anchor="end">%s</text>`, p.x0-6, y+barThickness-3.5, ink, weight, escape(tools[t]))
+				w(`<text x="%.1f" y="%.1f" fill="%s" font-size="11" font-weight="%s">%s</text>`, p.x0+bw+6, y+barThickness-3.5, ink, weight, escape(p.label(r)))
 			}
 		}
 	}
 	// Workload labels, vertically centred on each group.
 	for row, i := range rows {
 		gy := plotTop + float64(row)*rowPitch + groupAir/2 + groupHeight/2 + 4
-		w(`<text x="%.0f" y="%.1f" fill="%s" text-anchor="end">%s</text>`, marginX+labelColumn-14, gy, inkPrimary, escape(workloads[i].name))
+		w(`<text x="%.0f" y="%.1f" fill="%s" text-anchor="end">%s</text>`, marginX+labelColumn-toolColumn-14, gy, inkPrimary, escape(workloads[i].name))
 	}
 	w(`</svg>`)
 	return b.String()
