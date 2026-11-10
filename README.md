@@ -2,9 +2,10 @@
 
 A fast, streaming JSON processor for the command line.
 
+- **Streaming**: output starts at once, and the input never has to end
 - **JSONPath queries**, the full [RFC 9535](https://datatracker.ietf.org/doc/rfc9535/)
-- **JPV**, a line-based form of JSON that `grep`, `sed` and `diff` understand
-- **A pretty-printer worth having**
+- **JSON or JPV output**: JPV puts each value on its own line with its path, for `grep`, `sed` and `diff`
+- **A smart pretty-printer**: short arrays and objects stay on one line
 - **About 14 MB of memory** whatever the size of the input
 - **Faster than `jq`, `jaq` and `gojq`** on typical workloads
 
@@ -52,7 +53,8 @@ macOS a downloaded binary is not code-signed; Homebrew handles that, or run
 
 ## JPV: JSON for Unix tools
 
-JPV writes a JSON document as one line per value, each with its JSONPath:
+Output is JSON by default. With `-out jpv` it is JPV instead, which writes a
+document as one line per value, each with its JSONPath:
 
 ```bash
 $ echo '{"name": "Alice", "tags": ["a", "b"], "address": {"city": "Boston"}}' | pj -out jpv
@@ -271,6 +273,15 @@ more input.
 tail -f app.log | pj join '$[?@.level == "error"]' '$.message'
 curl -N https://stream-api.example.com/events | pj
 yes '{"x": 1}' | pj join '$[:3]'      # like head: exits after three values
+```
+
+This holds inside a single document too: `pj` needs neither the end of the
+input nor the end of the value it is in. Here the array never closes, and the
+results still appear at once, where `jq '.events[].a'` waits for the end of
+the document and prints nothing:
+
+```bash
+(echo '{"events": ['; yes '{"a": 1},') | pj '$.events[*].a'
 ```
 
 ## Performance
