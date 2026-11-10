@@ -208,10 +208,21 @@ func (r SliceSelectorRunner) SelectsFromIndex(index, negIndex int64) Decision {
 	if endOffset >= 0 {
 		return No | NoMoreAfter
 	}
+	decision := No
+	gap := int64(1) // to the next index the slice could select
 	if startOffset >= 0 && startOffset%r.step == 0 {
-		return Yes
+		decision = Yes
+		gap = r.step
 	}
-	return No
+	// When the end is counted from the start, the slice also knows when index
+	// is the last one it can select.  Saying so now lets a query stop as soon
+	// as this item is read, rather than when the next one starts, which may
+	// never come: behind a filter, say, or in a stream that pauses.  An end
+	// counted from the back is only known near the end of the array.
+	if r.end >= 0 && r.end-index <= gap {
+		decision |= NoMoreAfter
+	}
+	return decision
 }
 
 // SliceSelectorRunner implements the selector that selects a slice of an array.

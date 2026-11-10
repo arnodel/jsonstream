@@ -198,3 +198,47 @@ func TestInputMode_InfiniteInput(t *testing.T) {
 		}
 	}
 }
+
+// stallingSource returns a stream that sends tokens and then never sends
+// anything again, nor ends: like a stream that pauses for good, or the
+// matches of a filter that will not match again.
+func stallingSource(tokens ...token.Token) token.Stream {
+	ch := make(chan []token.Token)
+	go func() {
+		ch <- tokens
+		select {}
+	}()
+	return ch
+}
+
+// A slice whose end is counted from the start knows which item is the last it
+// can select, so it must not wait for the next item to start before stopping.
+func TestSliceStopsAfterItsLastItem(t *testing.T) {
+	ints := func(ns ...int64) []token.Token {
+		toks := []token.Token{&token.StartArray{}}
+		for _, n := range ns {
+			toks = append(toks, token.Int64Scalar(n))
+		}
+		return toks
+	}
+	cases := []struct {
+		query string
+		items []int64
+		want  string
+	}{
+		{"$[:1]", []int64{1}, "1"},
+		{"$[:2]", []int64{1, 2}, "1 2"},
+		{"$[1:3]", []int64{1, 2, 3}, "2 3"},
+		{"$[:4:2]", []int64{1, 2, 3}, "1 3"},
+		{"$[0, 2:3]", []int64{1, 2, 3}, "1 3"},
+	}
+	for _, c := range cases {
+		t.Run(c.query, func(t *testing.T) {
+			got := collectOrTimeout(t, c.query, stallingSource(ints(c.items...)...),
+				jsonpathtransformer.WithInputMode(jsonpathtransformer.SingleValueInput))
+			if got != c.want {
+				t.Errorf("got %q, want %q", got, c.want)
+			}
+		})
+	}
+}
