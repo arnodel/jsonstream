@@ -8,7 +8,7 @@ A fast, streaming JSON processor for the command line.
 - **About 14 MB of memory** whatever the size of the input
 - **Faster than `jq`, `jaq` and `gojq`** on typical workloads
 
-[![Time and peak memory by workload for pj, jq, jaq, gojq and gron. pj takes under a second on every workload at 14 MB or less; the others take 0.7 to 6.6 seconds at 590 MB to 3.7 GB.](docs/benchmark.svg)](#performance)
+[![Time and peak memory by workload for pj, jq, jaq and gojq. pj takes under a second on every workload at 14 MB or less; the others take 0.7 to 4.8 seconds at 590 to 1200 MB.](docs/benchmark.svg)](#performance)
 
 ```bash
 # Pretty-print anything, however big: output starts immediately
@@ -279,44 +279,62 @@ yes '{"x": 1}' | pj join '$[:3]'      # like head: exits after three values
 use does not depend on the size of the file. On a 76 MB file with 500,000
 items (`go run ./bench gen 500000`), on an Apple M-series laptop, against `jq`
 1.7.1 and its faster reimplementations [`jaq`](https://github.com/01mf02/jaq)
-3.1 (Rust) and [`gojq`](https://github.com/itchyny/gojq) 0.12 (Go), and for
-JPV against [`gron`](https://github.com/tomnomnom/gron) 0.7.1:
+3.1 (Rust) and [`gojq`](https://github.com/itchyny/gojq) 0.12 (Go):
 
-| Workload | pj | jq | jaq | gojq | gron |
-|---|---|---|---|---|---|
-| pretty-print | **0.48s**, 13 MB | 4.54s, 860 MB | 1.51s, 1016 MB | 1.23s, 837 MB | n/a |
-| $.items[*].name | **0.50s**, 13 MB | 1.67s, 829 MB | 0.95s, 1016 MB | 1.29s, 618 MB | n/a |
-| filter price > 190 | **0.55s**, 14 MB | 1.67s, 831 MB | 1.02s, 1016 MB | 1.02s, 668 MB | n/a |
-| regex filter on email | **0.63s**, 14 MB | 3.18s, 836 MB | 2.59s, 1016 MB | 1.37s, 721 MB | n/a |
-| first 10 items (file arg) | **0.02s**, 6 MB | 1.36s, 829 MB | 0.67s, 1016 MB | 0.78s, 586 MB | n/a |
-| $..email (any depth) | **0.51s**, 14 MB | 4.58s, 829 MB | 4.36s, 1024 MB | 4.83s, 1222 MB | n/a |
-| JSON to lines | **0.55s**, 13 MB | n/a | n/a | n/a | 6.64s, 3747 MB |
-| lines to JSON | 1.57s, 13 MB | n/a | n/a | n/a | out of memory |
+| Workload | pj | jq | jaq | gojq |
+|---|---|---|---|---|
+| pretty-print | **0.53s**, 13 MB | 4.54s, 860 MB | 1.53s, 1016 MB | 1.23s, 837 MB |
+| $.items[*].name | **0.50s**, 14 MB | 1.68s, 829 MB | 0.97s, 1016 MB | 1.29s, 618 MB |
+| filter price > 190 | **0.55s**, 14 MB | 1.69s, 831 MB | 1.03s, 1016 MB | 1.01s, 668 MB |
+| regex filter on email | **0.63s**, 14 MB | 3.21s, 836 MB | 2.60s, 1016 MB | 1.36s, 720 MB |
+| first 10 items (file arg) | **0.02s**, 6 MB | 1.40s, 829 MB | 0.70s, 1016 MB | 0.80s, 586 MB |
+| $..email (any depth) | **0.52s**, 13 MB | 4.59s, 829 MB | 4.34s, 1024 MB | 4.84s, 1195 MB |
 
 These are the exact commands, with output sent to `/dev/null`; `jaq` and
-`gojq` take the same arguments as `jq`, and the commands on each row give the
-same results, in gron's own line format for gron:
+`gojq` take the same arguments as `jq`, and each pair gives the same results:
 
-| Workload | pj | jq, jaq, gojq | gron |
-|---|---|---|---|
-| pretty-print | `pj -color never big.json` | `jq . big.json` | n/a |
-| $.items[*].name | `pj -color never '$.items[*].name' big.json` | `jq '.items[].name' big.json` | n/a |
-| filter price > 190 | `pj -color never -json-lines '$.items[?@.price > 190]' big.json` | `jq -c '.items[] \| select(.price > 190)' big.json` | n/a |
-| regex filter on email | `pj -color never -json-lines '$.items[?match(@.email, "user1.*@example\\.com")]' big.json` | `jq -c '.items[] \| select(.email \| test("^user1.*@example\\.com$"))' big.json` | n/a |
-| first 10 items (file arg) | `pj -color never '$.items[:10]' big.json` | `jq '.items[:10][]' big.json` | n/a |
-| $..email (any depth) | `pj -color never '$..email' big.json` | `jq '.. \| objects \| select(has("email")) \| .email' big.json` | n/a |
-| JSON to lines | `pj -color never -out jpv big.json` | n/a | `gron --no-sort big.json` |
-| lines to JSON | `pj -color never -in jpv big.jpv` | n/a | n/a |
+| Workload | pj | jq, jaq, gojq |
+|---|---|---|
+| pretty-print | `pj -color never big.json` | `jq . big.json` |
+| $.items[*].name | `pj -color never '$.items[*].name' big.json` | `jq '.items[].name' big.json` |
+| filter price > 190 | `pj -color never -json-lines '$.items[?@.price > 190]' big.json` | `jq -c '.items[] \| select(.price > 190)' big.json` |
+| regex filter on email | `pj -color never -json-lines '$.items[?match(@.email, "user1.*@example\\.com")]' big.json` | `jq -c '.items[] \| select(.email \| test("^user1.*@example\\.com$"))' big.json` |
+| first 10 items (file arg) | `pj -color never '$.items[:10]' big.json` | `jq '.items[:10][]' big.json` |
+| $..email (any depth) | `pj -color never '$..email' big.json` | `jq '.. \| objects \| select(has("email")) \| .email' big.json` |
 
 Each time is the fastest of three runs. The first 10 items row is the early
-exit described above. Lines to JSON reads the 150 MB JPV file that `pj -out
-jpv` writes. `gron -u` could not turn its own 208 MB output for the same file
-back into JSON: it was killed after 86 seconds at 26 GB of memory.
+exit described above. Reproduce it all with `make bench`, which also redraws
+the charts; it uses whichever of `jq`, `jaq`, `gojq` and `gron` are installed.
+One synthetic file on one machine, so treat the ratios as indicative. The
+memory difference is structural: the others load the whole document.
 
-Reproduce it all with `make bench`, which also redraws the chart; it uses
-whichever of `jq`, `jaq`, `gojq` and `gron` are installed. One synthetic file
-on one machine, so treat the ratios as indicative. The memory difference is
-structural: the others load the whole document.
+### JPV against gron
+
+[`gron`](https://github.com/tomnomnom/gron) 0.7.1 does the same job as JPV. It
+is compared on a smaller file, 0.7 MB with 5,000 items (`go run ./bench gen
+5000`), because the memory it needs to turn its lines back into JSON grows
+much faster than the input:
+
+| Workload | pj | gron |
+|---|---|---|
+| JSON to lines | **0.02s**, 11 MB | 0.07s, 46 MB |
+| lines to JSON | **0.03s**, 12 MB | 0.81s, 4094 MB |
+
+[![Time and peak memory for pj and gron on a 0.7 MB file. Turning JSON into lines takes 0.02s and 11 MB with pj, 0.07s and 46 MB with gron; turning the lines back into JSON takes 0.03s and 12 MB with pj, 0.81s and 4094 MB with gron.](docs/benchmark-jpv.svg)](#jpv-against-gron)
+
+| Workload | pj | gron |
+|---|---|---|
+| JSON to lines | `pj -color never -out jpv big.json` | `gron --no-sort big.json` |
+| lines to JSON | `pj -color never -in jpv big.jpv` | `gron -u big.gron` |
+
+Lines to JSON reads the lines that each tool wrote, JPV for `pj` and gron's own
+format for gron, which runs with `--no-sort`, its faster mode. At this size,
+`pj`'s times are mostly process start-up.
+
+`gron -u` needs 203 MB of memory for 1,000 items (0.14 MB of JSON), 4.1 GB for
+5,000 (0.7 MB) and 23 GB for 20,000 (3 MB). On the 76 MB file above, it was
+killed after 86 seconds at 26 GB. `pj` stays flat: on that file it turns JSON
+into lines in 0.55s and 13 MB, where gron takes 6.6s and 3.7 GB.
 
 ## The Go library
 
