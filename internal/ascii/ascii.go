@@ -1,4 +1,6 @@
-package scanner
+// Package ascii classifies ASCII bytes the way names in JSONPath shorthand
+// (such as $.name) need: '_' counts as a letter.
+package ascii
 
 func IsAlpha[T byte | rune](b T) bool {
 	return b >= 'a' && b <= 'z' || b >= 'A' && b <= 'Z' || b == '_'
@@ -10,8 +12,4 @@ func IsDigit[T byte | rune](b T) bool {
 
 func IsAlnum[T byte | rune](b T) bool {
 	return IsAlpha(b) || IsDigit(b)
-}
-
-func IsCtrl[T byte | rune](b T) bool {
-	return b < 32
 }
