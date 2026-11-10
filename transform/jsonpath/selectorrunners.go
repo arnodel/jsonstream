@@ -214,11 +214,8 @@ func (r SliceSelectorRunner) SelectsFromIndex(index, negIndex int64) Decision {
 		decision = Yes
 		gap = r.step
 	}
-	// When the end is counted from the start, the slice also knows when index
-	// is the last one it can select.  Saying so now lets a query stop as soon
-	// as this item is read, rather than when the next one starts, which may
-	// never come: behind a filter, say, or in a stream that pauses.  An end
-	// counted from the back is only known near the end of the array.
+	// With an end counted from the start, say when this is the last index the
+	// slice can select, so the query need not wait for the next item.
 	if r.end >= 0 && r.end-index <= gap {
 		decision |= NoMoreAfter
 	}
