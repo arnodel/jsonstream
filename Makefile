@@ -1,4 +1,4 @@
-.PHONY: install run debug test fuzz bench
+.PHONY: install run debug test fuzz bench bench-scale
 
 install:
 	go install ./cmd/pj
@@ -26,6 +26,11 @@ bench:
 	go run ./bench run /tmp/pj-bench.json -svg docs/benchmark.svg
 	go run ./bench gen 5000 > /tmp/pj-bench-small.json
 	go run ./bench jpv /tmp/pj-bench-small.json -svg docs/benchmark-jpv.svg
+
+# How time and memory grow with the size of the input; takes about 10 minutes.
+bench-scale:
+	go run ./bench scale run -svg docs/benchmark-scale.svg
+	go run ./bench scale jpv -svg docs/benchmark-scale-jpv.svg
 
 # Fetch cts.json from a commit of the compliance test suite (the tip of main
 # by default, or e.g. CTS_REF=<sha>) and record that commit in cts.version.

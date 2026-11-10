@@ -188,7 +188,7 @@ func formatTick(v float64) string {
 	if v == math.Trunc(v) {
 		return fmt.Sprintf("%.0f", v)
 	}
-	return fmt.Sprintf("%g", v)
+	return fmt.Sprintf("%.4g", v)
 }
 
 func escape(s string) string {

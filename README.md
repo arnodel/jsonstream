@@ -319,6 +319,16 @@ the charts; it uses whichever of `jq`, `jaq`, `gojq` and `gron` are installed.
 One synthetic file on one machine, so treat the ratios as indicative. The
 memory difference is structural: the others load the whole document.
 
+### As the file grows
+
+The same workloads on generated files from 4.7 MB to 153 MB (`make
+bench-scale`). Every tool's time grows in proportion to the file, and so does
+the others' memory, at 8 to 16 times the file's size, while `pj` stays at
+13 MB. At that rate a 5 GB file would need about 55 GB of memory with `jq`;
+`pj` would need the same 13 MB.
+
+[![Time and peak memory of pj, jq, jaq and gojq on files from 4.7 MB to 153 MB, one chart per workload. Every tool's time grows in a straight line, pj's least steeply: at 153 MB it takes about 1 second where the others take 1.4 to 9.7 seconds. The others' memory also grows in a straight line, to 1.2 to 2.4 GB at 153 MB, while pj's stays flat at 13 MB.](docs/benchmark-scale.svg)](#as-the-file-grows)
+
 ### JPV against gron
 
 [`gron`](https://github.com/tomnomnom/gron) 0.7.1 does the same job as JPV. It
@@ -345,7 +355,10 @@ format for gron, which runs with `--no-sort`, its faster mode. At this size,
 `gron -u` needs 203 MB of memory for 1,000 items (0.14 MB of JSON), 4.1 GB for
 5,000 (0.7 MB) and 23 GB for 20,000 (3 MB). On the 76 MB file above, it was
 killed after 86 seconds at 26 GB. `pj` stays flat: on that file it turns JSON
-into lines in 0.55s and 13 MB, where gron takes 6.6s and 3.7 GB.
+into lines in 0.55s and 13 MB, where gron takes 6.6s and 3.7 GB. On files from
+0.045 MB to 0.7 MB (`make bench-scale`), gron's lines to JSON curves upwards:
+
+[![Time and peak memory of pj and gron on files from 0.045 MB to 0.7 MB. Turning JSON into lines, both stay under 0.1 seconds, and gron's memory grows to 42 MB while pj's stays near 11 MB. Turning lines back into JSON, gron's time curves up to 0.81 seconds and its memory to 4.1 GB, while pj stays at 0.03 seconds and 12 MB.](docs/benchmark-scale-jpv.svg)](#jpv-against-gron)
 
 ## The Go library
 
