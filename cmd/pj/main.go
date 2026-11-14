@@ -41,6 +41,9 @@ func main() {
 	// Do not handle SIGPIPE, we'll do it ourselves (see error handling at the bottom of main).
 	signal.Ignore(syscall.SIGPIPE)
 
+	// Built with -tags pprof, this writes the CPU profiles make pgo uses.
+	defer startProfile()()
+
 	// Display a stack trace on panic, and fail as an unrecovered panic would.
 	defer func() {
 		if e := recover(); e != nil {
