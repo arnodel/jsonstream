@@ -170,7 +170,9 @@ func main() {
 			if err != nil {
 				fatalError("%s", err)
 			}
-			defer f.Close()
+			// Not closed: when a query finishes before the end of the input,
+			// the decoder may still be reading it as pj exits, and closing it
+			// would make that read fail with an error.
 			readers = append(readers, f)
 		}
 		input = io.MultiReader(readers...)
