@@ -843,7 +843,7 @@ func TestOutputFlushedWhenInputStalls(t *testing.T) {
 // TestRawOutput checks -raw and -r: string results as plain text, other
 // values as JSON, and a clear error with JPV output.
 func TestRawOutput(t *testing.T) {
-	input := `{"users": [{"name": "bo"}, {"name": "café"}, {"name": 3}]}`
+	input := `{"users": [{"name": "bo"}, {"name": "caf\u00e9"}, {"name": 3}]}`
 	for _, flag := range []string{"-raw", "-r"} {
 		stdout, stderr, exitCode := runPJ(t, input, flag, "$.users[*].name")
 		if exitCode != 0 {

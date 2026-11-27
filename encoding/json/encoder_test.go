@@ -373,7 +373,7 @@ func encodeWithEncoder(t *testing.T, encoder *Encoder, tokens []token.Token) str
 }
 
 func TestEncoderRawStrings(t *testing.T) {
-	toks, err := decodeAll(`"plain" "café \"q\" \\ tab\t" "" 42 null ["a"] {"k": "v"}`)
+	toks, err := decodeAll(`"plain" "caf\u00e9 \"q\" \\ tab\t" "" 42 null ["a"] {"k": "v"}`)
 	if err != nil {
 		t.Fatal(err)
 	}

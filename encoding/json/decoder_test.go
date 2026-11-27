@@ -675,7 +675,7 @@ func TestInvalidEscapes(t *testing.T) {
 			t.Errorf("%s: expected an error", input)
 		}
 	}
-	for _, input := range []string{`"\""`, `"\\"`, `"\/"`, `"\b\f\n\r\t"`, `"Aé"`} {
+	for _, input := range []string{`"\""`, `"\\"`, `"\/"`, `"\b\f\n\r\t"`, `"\u0041\u00e9"`} {
 		if _, err := decodeAll(input); err != nil {
 			t.Errorf("%s: unexpected error %v", input, err)
 		}
