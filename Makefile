@@ -1,4 +1,4 @@
-.PHONY: install run debug test fuzz bench bench-scale
+.PHONY: install run debug test fuzz bench bench-scale pgo
 
 install:
 	go install ./cmd/pj
@@ -26,6 +26,17 @@ bench:
 	go run ./bench run /tmp/pj-bench.json -svg docs/benchmark.svg
 	go run ./bench gen 5000 > /tmp/pj-bench-small.json
 	go run ./bench jpv /tmp/pj-bench-small.json -svg docs/benchmark-jpv.svg
+
+# Record the profile for profile-guided builds, cmd/pj/default.pgo, which go
+# build uses automatically.  It is recorded on Linux, in a container elsewhere:
+# Go's CPU profiles on macOS put most samples in system calls, which halves the
+# speed-up.
+pgo:
+ifeq ($(shell uname),Linux)
+	go run ./bench pgo cmd/pj/default.pgo
+else
+	docker run --rm -v "$$PWD":/src -w /src -e GOFLAGS=-buildvcs=false golang:1.27 go run ./bench pgo cmd/pj/default.pgo
+endif
 
 # How time and memory grow with the size of the input; takes about 10 minutes.
 bench-scale:

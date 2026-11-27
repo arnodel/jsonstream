@@ -322,6 +322,10 @@ the charts; it uses whichever of `jq`, `jaq`, `gojq` and `gron` are installed.
 One synthetic file on one machine, so treat the ratios as indicative. The
 memory difference is structural: the others load the whole document.
 
+`pj` is built with profile-guided optimisation: `go build` uses the profile in
+`cmd/pj/default.pgo`, which `make pgo` records on typical workloads, and that
+makes it about 4% faster. The figures above were measured before it was added.
+
 ### As the file grows
 
 The same workloads on generated files from 4.7 MB to 153 MB (`make

@@ -7,6 +7,7 @@
 //	go run ./bench gen 5000 > /tmp/small.json
 //	go run ./bench jpv /tmp/small.json [-svg docs/benchmark-jpv.svg]
 //	go run ./bench scale run|jpv [-svg docs/benchmark-scale.svg]
+//	go run ./bench pgo cmd/pj/default.pgo
 //	go run ./bench commands
 //
 // It reports wall-clock time and peak memory of each command, with output sent
@@ -16,7 +17,8 @@
 // deliberately simple otherwise: one file shape, no statistics.  The commands
 // subcommand prints the exact command lines as the README's markdown tables.
 // The scale subcommand runs a suite on files of increasing size that it
-// generates, and draws how each tool's time and memory grow.
+// generates, and draws how each tool's time and memory grow.  The pgo
+// subcommand records the profile for pj's profile-guided builds.
 package main
 
 import (
@@ -57,6 +59,8 @@ func main() {
 			usage()
 		}
 		gen(os.Stdout, n)
+	case "pgo":
+		pgo(os.Args[2])
 	case "scale":
 		i := slices.IndexFunc(suites, func(s suite) bool { return s.command == os.Args[2] })
 		if i < 0 {
@@ -81,7 +85,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage:\n  bench gen N > file.json                         generate a file with N items\n  bench run file.json [-svg out.svg] [-runs N]   time pj, jq, jaq and gojq on queries\n  bench jpv file.json [-svg out.svg] [-runs N]   time pj and gron on JSON to lines and back\n  bench scale run|jpv [-svg out.svg] [-runs N]   run a suite on files of increasing size\n  bench commands                                  print the command lines as markdown tables")
+	fmt.Fprintln(os.Stderr, "usage:\n  bench gen N > file.json                         generate a file with N items\n  bench run file.json [-svg out.svg] [-runs N]   time pj, jq, jaq and gojq on queries\n  bench jpv file.json [-svg out.svg] [-runs N]   time pj and gron on JSON to lines and back\n  bench scale run|jpv [-svg out.svg] [-runs N]   run a suite on files of increasing size\n  bench pgo out.pgo                               profile pj on typical workloads for profile-guided builds\n  bench commands                                  print the command lines as markdown tables")
 	os.Exit(2)
 }
 
@@ -301,8 +305,12 @@ func writeFlat(tools, paths []string, file string) {
 }
 
 func buildJP() string {
-	path := filepath.Join(os.TempDir(), "pj-bench")
-	cmd := exec.Command("go", "build", "-o", path, "./cmd/pj")
+	return buildPJ(filepath.Join(os.TempDir(), "pj-bench"))
+}
+
+// buildPJ builds pj from this checkout to path, with extra go build flags.
+func buildPJ(path string, flags ...string) string {
+	cmd := exec.Command("go", slices.Concat([]string{"build", "-o", path}, flags, []string{"./cmd/pj"})...)
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
 		fmt.Fprintln(os.Stderr, "building pj:", err)
