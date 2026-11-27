@@ -219,11 +219,7 @@ func parseJsonLiteralBytes(b []byte) any {
 	}
 	switch b[0] {
 	case '"':
-		var str string
-		if err := json.Unmarshal(b, &str); err != nil {
-			panic(err)
-		}
-		return str
+		return unquote(b)
 	case 't':
 		return true
 	case 'f':
