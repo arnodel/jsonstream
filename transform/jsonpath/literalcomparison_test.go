@@ -11,22 +11,22 @@ import (
 func TestLiteralComparisons(t *testing.T) {
 	const doc = `[
 		{"n": 100, "s": "café", "b": true, "z": null, "o": {"x": 1}},
-		{"n": 1e2, "s": "café", "b": false, "z": 0},
+		{"n": 1e2, "s": "caf\u00e9", "b": false, "z": 0},
 		{"n": 99.5, "s": "cafe", "b": true},
 		{"n": "100", "s": 100}
 	]`
 	cases := []struct{ query, want string }{
 		// Numbers: equal under different spellings, ordering, literal on either side.
-		{`$[?@.n == 100].s`, `"café" "café"`},
-		{`$[?100 == @.n].s`, `"café" "café"`},
+		{`$[?@.n == 100].s`, `"café" "caf\u00e9"`},
+		{`$[?100 == @.n].s`, `"café" "caf\u00e9"`},
 		{`$[?@.n < 100].s`, `"cafe"`},
 		{`$[?100 > @.n].s`, `"cafe"`},
-		{`$[?@.n <= 100].s`, `"café" "café" "cafe"`},
-		{`$[?@.n >= 100].s`, `"café" "café"`},
+		{`$[?@.n <= 100].s`, `"café" "caf\u00e9" "cafe"`},
+		{`$[?@.n >= 100].s`, `"café" "caf\u00e9"`},
 		{`$[?@.n != 100].s`, `"cafe" 100`},
 		// Strings: escaped and raw spellings are equal; ordering is bytewise.
 		{`$[?@.s == "café"].n`, `100 1e2`},
-		{`$[?@.s == "café"].n`, `100 1e2`},
+		{`$[?@.s == "caf\u00e9"].n`, `100 1e2`},
 		{`$[?@.s < "café"].n`, `99.5`},
 		{`$[?"cafe" < @.s].n`, `100 1e2`},
 		// Booleans and null: equality only, never ordered.
